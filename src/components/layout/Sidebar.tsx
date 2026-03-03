@@ -3,6 +3,7 @@ import {
   ChevronRight, ChevronDown, Folder, ArrowUpRight,
 } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import type { LucideIcon } from 'lucide-react'
 
 /* 自定义 FolderEye 图标 */
@@ -16,7 +17,7 @@ function FolderEyeIcon({ className }: { className?: string }) {
   )
 }
 
-/* 侧边栏头部按钮（tooltip 向下弹出） */
+/* 侧边栏头部按钮 */
 function SidebarHeaderButton({
   icon: Icon,
   tooltipText,
@@ -31,23 +32,18 @@ function SidebarHeaderButton({
   className?: string
 }) {
   return (
-    <div className="group/btn relative flex justify-center">
-      <button
-        onClick={!disabled ? onClick : undefined}
-        className={`p-[5px] rounded-md flex items-center justify-center transition-colors
-          ${disabled ? 'text-[#C9CDD4] cursor-not-allowed' : 'text-[#1F2329] hover:text-[#1F2329] hover:bg-[#F2F3F5]'} ${className}`}
-      >
-        <Icon className="w-3.5 h-3.5" />
-      </button>
-      {!disabled && (
-        <div className="absolute top-full mt-1 hidden group-hover/btn:flex items-center flex-col z-[9999]">
-          <div className="w-0 h-0 border-x-[4px] border-x-transparent border-b-[4px] border-b-[#2D2D2D]" />
-          <div className="bg-[#2D2D2D] text-white text-[12px] px-2 py-1.5 rounded-md whitespace-nowrap shadow-lg leading-none font-medium">
-            {tooltipText}
-          </div>
-        </div>
-      )}
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={!disabled ? onClick : undefined}
+          className={`p-[5px] rounded-md flex items-center justify-center transition-colors
+            ${disabled ? 'text-[#C9CDD4] cursor-not-allowed' : 'text-[#1F2329] hover:text-[#1F2329] hover:bg-[#F2F3F5]'} ${className}`}
+        >
+          <Icon className="w-3.5 h-3.5" />
+        </button>
+      </TooltipTrigger>
+      {!disabled && <TooltipContent side="bottom">{tooltipText}</TooltipContent>}
+    </Tooltip>
   )
 }
 

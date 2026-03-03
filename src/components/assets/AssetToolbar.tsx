@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { PingIcon, PingOffIcon } from '../icons/CustomIcons'
 import { useAppStore } from '../../stores/useAppStore'
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import type { LucideIcon } from 'lucide-react'
 
 /* 工具栏按钮 + tooltip */
@@ -19,20 +20,17 @@ function ToolbarActionBtn({
   onClick?: (e: React.MouseEvent) => void
 }) {
   return (
-    <div className="group/tb relative flex items-center justify-center">
-      <button
-        onClick={(e) => { e.stopPropagation(); onClick?.(e) }}
-        className="p-1 rounded-md text-[#4E5969] hover:bg-[#F2F3F5] hover:text-[#1F2329] transition-colors"
-      >
-        <Icon className="w-[15px] h-[15px]" />
-      </button>
-      <div className="absolute top-full mt-2 hidden group-hover/tb:flex items-center flex-col z-[9999]">
-        <div className="w-0 h-0 border-x-[4px] border-x-transparent border-b-[4px] border-b-[#2D2D2D]" />
-        <div className="bg-[#2D2D2D] text-white text-[12px] px-2 py-1.5 rounded-md whitespace-nowrap shadow-lg leading-none font-medium">
-          {tooltip}
-        </div>
-      </div>
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={(e) => { e.stopPropagation(); onClick?.(e) }}
+          className="p-1 rounded-md text-[#4E5969] hover:bg-[#F2F3F5] hover:text-[#1F2329] transition-colors"
+        >
+          <Icon className="w-[15px] h-[15px]" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
   )
 }
 

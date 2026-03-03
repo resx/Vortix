@@ -2,6 +2,7 @@ import {
   Folder, Terminal, Database, Package, Zap, List,
 } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
+import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import type { ActiveFilter } from '../../types'
 import type { LucideIcon } from 'lucide-react'
 
@@ -17,23 +18,19 @@ function TooltipButton({
   onClick: () => void
 }) {
   return (
-    <div className="group relative w-full flex justify-center">
-      <button
-        onClick={onClick}
-        className={`w-[32px] h-[32px] rounded-full transition-colors flex items-center justify-center ${
-          isActive ? 'bg-[#E5E6EB] text-[#1F2329]' : 'text-[#86909C] hover:bg-[#E5E6EB]/60'
-        }`}
-      >
-        <Icon className="w-[18px] h-[18px]" />
-      </button>
-      {/* Tooltip */}
-      <div className="absolute left-[44px] top-1/2 -translate-y-1/2 hidden group-hover:flex items-center z-[9999]">
-        <div className="w-0 h-0 border-y-[4px] border-y-transparent border-r-[4px] border-r-[#2D2D2D]" />
-        <div className="bg-[#2D2D2D] text-white text-[12px] px-2 py-1.5 rounded-md whitespace-nowrap shadow-xl leading-none font-medium tracking-wide">
-          {tooltipText}
-        </div>
-      </div>
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={onClick}
+          className={`w-[32px] h-[32px] rounded-full transition-colors flex items-center justify-center ${
+            isActive ? 'bg-[#E5E6EB] text-[#1F2329]' : 'text-[#86909C] hover:bg-[#E5E6EB]/60'
+          }`}
+        >
+          <Icon className="w-[18px] h-[18px]" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">{tooltipText}</TooltipContent>
+    </Tooltip>
   )
 }
 

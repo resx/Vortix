@@ -173,12 +173,18 @@ export default function ContextMenu() {
     if (!menuRef.current || !contextMenu.visible) return
     const rect = menuRef.current.getBoundingClientRect()
     const vw = window.innerWidth
+    const vh = window.innerHeight
+    const pad = 4
 
     let left = contextMenu.x
-    if (left + rect.width > vw) left = vw - rect.width - 4
-    if (left < 0) left = 4
+    if (left + rect.width > vw - pad) left = vw - rect.width - pad
+    if (left < pad) left = pad
 
-    setPosition({ top: contextMenu.y, left })
+    let top = contextMenu.y
+    if (top + rect.height > vh - pad) top = vh - rect.height - pad
+    if (top < pad) top = pad
+
+    setPosition({ top, left })
   }, [contextMenu.visible, contextMenu.x, contextMenu.y])
 
   useEffect(() => {

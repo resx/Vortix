@@ -55,6 +55,20 @@ interface AppState {
   setActiveTab: (id: string) => void
   setListViewMode: (mode: ListViewMode) => void
   updateTabStatus: (id: string, status: AppTab['status']) => void
+
+  // 主菜单
+  menuVariant: 'default' | 'glass'
+  setMenuVariant: (v: 'default' | 'glass') => void
+
+  // 设置面板
+  settingsOpen: boolean
+  toggleSettings: () => void
+
+  // SFTP 与服务器面板
+  sftpOpen: boolean
+  toggleSftp: () => void
+  serverPanelOpen: boolean
+  toggleServerPanel: () => void
 }
 
 const toggleInTree = (items: TreeItem[], id: string): TreeItem[] =>
@@ -81,9 +95,7 @@ export const useAppStore = create<AppState>((set) => ({
 
   contextMenu: { visible: false, x: 0, y: 0, type: null, data: null },
   showContextMenu: (x, y, type, data = null) => {
-    let posY = y
-    if (window.innerHeight - posY < 450) posY = Math.max(0, window.innerHeight - 450)
-    set({ contextMenu: { visible: true, x, y: posY, type, data } })
+    set({ contextMenu: { visible: true, x, y, type, data } })
   },
   hideContextMenu: () =>
     set((s) => ({ contextMenu: { ...s.contextMenu, visible: false } })),
@@ -163,4 +175,18 @@ export const useAppStore = create<AppState>((set) => ({
   updateTabStatus: (id, status) => set((s) => ({
     tabs: s.tabs.map(t => t.id === id ? { ...t, status } : t),
   })),
+
+  // 主菜单
+  menuVariant: 'default',
+  setMenuVariant: (v) => set({ menuVariant: v }),
+
+  // 设置面板
+  settingsOpen: false,
+  toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen })),
+
+  // SFTP 与服务器面板
+  sftpOpen: false,
+  toggleSftp: () => set((s) => ({ sftpOpen: !s.sftpOpen })),
+  serverPanelOpen: false,
+  toggleServerPanel: () => set((s) => ({ serverPanelOpen: !s.serverPanelOpen })),
 }))
