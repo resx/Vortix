@@ -10,7 +10,7 @@ import {
   Columns, ExternalLink, FilePlus, ChevronUp, ChevronLeft,
   SquareTerminal, Link2Off, Clock, File, Cpu, HardDrive, PlayCircle, StopCircle, ArrowUp, ArrowDown,
   Sun, History, Languages, CircleHelp, Settings, RotateCw, LogOut, Gift, Headset, Check, SquareMinus,
-  CloudFog, Copy as CopyIcon, FolderArchive
+  CloudFog, Copy as CopyIcon, FolderArchive, FolderOpen
 } from 'lucide-react';
 
 // --- Custom SVG Icons ---
@@ -55,7 +55,6 @@ const ThemeSystemIcon = ({ className }) => (
   </svg>
 );
 
-// New Icon: Transfer (Dashed circle with down arrow)
 const TransferIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2a10 10 0 0 0 0 20" strokeDasharray="4 4" />
@@ -64,7 +63,6 @@ const TransferIcon = ({ className }) => (
   </svg>
 );
 
-// New Icon: Broadcast (Concentric arcs with dot)
 const BroadcastIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="2" fill="currentColor"/>
@@ -75,7 +73,6 @@ const BroadcastIcon = ({ className }) => (
   </svg>
 );
 
-// New Icon: History (Cloud containing a clock)
 const CloudClockIcon = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
@@ -159,12 +156,13 @@ const MOCK_HISTORY_CMDS = [
 
 // --- COMPONENTS ---
 
+// Updated Toggle to be more compact
 const Toggle = ({ checked, onChange }) => (
   <div 
     onClick={onChange} 
-    className={`w-[36px] h-[20px] rounded-full relative cursor-pointer transition-colors duration-200 shrink-0 ${checked ? 'bg-[#4080FF]' : 'bg-[#E5E6EB]'}`}
+    className={`w-[32px] h-[18px] rounded-full relative cursor-pointer transition-colors duration-200 shrink-0 ${checked ? 'bg-[#4080FF]' : 'bg-[#C9CDD4]'}`}
   >
-    <div className={`absolute top-[2px] w-[16px] h-[16px] bg-white rounded-full shadow-sm transition-transform duration-200 ${checked ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
+    <div className={`absolute top-[2px] w-[14px] h-[14px] bg-white rounded-full shadow-sm transition-transform duration-200 ${checked ? 'translate-x-[16px]' : 'translate-x-[2px]'}`} />
   </div>
 );
 
@@ -181,13 +179,13 @@ const SettingsDropdown = ({ value, options, width = 'w-auto', isFontSelector = f
   }, [open]);
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative shrink-0" ref={ref}>
       <div 
-        className="flex items-center gap-1 cursor-pointer text-[#4E5969] hover:text-[#1F2329] transition-colors"
+        className="flex items-center justify-end gap-1 cursor-pointer text-[#4E5969] hover:text-[#1F2329] transition-colors"
         onClick={() => setOpen(!open)}
       >
-        <span className="text-[13px]">{value}</span>
-        <ChevronDown size={14} />
+        <span className="text-[12.5px] truncate">{value}</span>
+        <ChevronDown size={14} className="shrink-0" />
       </div>
 
       {open && (
@@ -198,7 +196,7 @@ const SettingsDropdown = ({ value, options, width = 'w-auto', isFontSelector = f
                 <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-[#86909C]" />
                 <input type="text" className="w-full bg-white border border-[#E5E6EB] rounded px-2 pl-7 py-1 text-[12px] text-[#1F2329] outline-none" />
               </div>
-              <div className="flex items-center gap-1 text-[12px] text-[#4E5969] cursor-pointer shrink-0">
+              <div className="flex items-center gap-1 text-[12px] text-[#4E5969] cursor-pointer shrink-0 hover:text-[#1F2329]">
                 <SquareMinus size={14} /> 全选
               </div>
             </div>
@@ -208,16 +206,16 @@ const SettingsDropdown = ({ value, options, width = 'w-auto', isFontSelector = f
             {options.map((opt, idx) => (
               <div 
                 key={idx} 
-                className={`px-3 py-1.5 text-[13px] flex items-center justify-between cursor-pointer transition-colors ${opt.active ? 'bg-[#E8F0FE] text-[#4080FF]' : 'hover:bg-[#F2F3F5] text-[#1F2329]'}`}
+                className={`px-3 py-1.5 text-[12.5px] flex items-center justify-between cursor-pointer transition-colors ${opt.active ? 'bg-[#E8F0FE] text-[#4080FF]' : 'hover:bg-[#F2F3F5] text-[#1F2329]'}`}
                 onClick={() => setOpen(false)}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 w-full">
                   {isFontSelector && (
-                    <div className={`w-[14px] h-[14px] rounded-[3px] border flex items-center justify-center ${opt.checked ? 'bg-[#4080FF] border-[#4080FF]' : 'border-[#C9CDD4]'}`}>
+                    <div className={`w-[14px] h-[14px] rounded-[3px] border flex items-center justify-center shrink-0 ${opt.checked ? 'bg-[#4080FF] border-[#4080FF]' : 'border-[#C9CDD4]'}`}>
                       {opt.checked && <Check size={10} className="text-white" strokeWidth={3} />}
                     </div>
                   )}
-                  <span className={isFontSelector ? "font-mono" : ""}>{opt.label}</span>
+                  <span className={`truncate ${isFontSelector ? "font-mono text-[12px]" : ""}`}>{opt.label}</span>
                 </div>
               </div>
             ))}
@@ -230,11 +228,34 @@ const SettingsDropdown = ({ value, options, width = 'w-auto', isFontSelector = f
 
 // --- SETTINGS MODAL ---
 const SettingsModal = ({ onClose }) => {
+  const [activeMenu, setActiveMenu] = useState('general-basic');
   const [showRightInfo, setShowRightInfo] = useState(true);
   
+  // Excel-like Grid Row Component (One line forced)
+  const SettingRow = ({ label, desc, children }) => (
+    <div className="flex justify-between items-center px-4 py-[9px] hover:bg-[#F2F3F5] transition-colors whitespace-nowrap overflow-hidden gap-4">
+      <span className="text-[12.5px] text-[#1F2329] shrink-0 font-medium">{label}</span>
+      <div className="flex items-center gap-3 justify-end flex-1 min-w-0 pl-2">
+        {desc && (
+          typeof desc === 'string' 
+          ? <span className="text-[11.5px] text-[#86909C] truncate">{desc}</span>
+          : desc
+        )}
+        <div className="shrink-0 flex items-center">{children}</div>
+      </div>
+    </div>
+  );
+
+  // Excel-like Grid Container Component
+  const SettingGroup = ({ children }) => (
+    <div className="flex flex-col border border-[#E5E6EB] rounded-lg bg-[#FAFAFA] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.01)] divide-y divide-[#E5E6EB]">
+      {children}
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-[1000] bg-black/20 backdrop-blur-sm flex items-center justify-center p-4 font-sans animate-[fade-in_0.2s_ease-out]">
-      <div className="w-[960px] max-w-[95vw] h-[680px] max-h-[95vh] bg-[#F2F3F5] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-[scale-in_0.2s_ease-out]">
+      <div className="w-[1100px] max-w-[95vw] h-[720px] max-h-[95vh] bg-[#F2F3F5] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-[scale-in_0.2s_ease-out]">
         <div className="h-[52px] flex items-center justify-between px-5 shrink-0 select-none bg-[#F2F3F5]">
           <span className="text-[#1F2329] font-medium text-[15px]">设置</span>
           <button 
@@ -248,8 +269,14 @@ const SettingsModal = ({ onClose }) => {
         <div className="flex-1 flex overflow-hidden">
           <div className="w-[180px] flex flex-col py-2 overflow-y-auto custom-scrollbar shrink-0 select-none bg-[#F2F3F5]">
             <div className="text-[12px] text-[#86909C] px-5 py-1.5 mb-1 mt-1 font-medium">通用</div>
-            <div className="text-[13px] text-[#1F2329] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] font-medium px-4 py-2 cursor-pointer rounded-lg mx-3 mb-0.5">基础</div>
-            <div className="text-[13px] text-[#4E5969] hover:bg-[#E5E6EB]/50 px-4 py-2 cursor-pointer transition-colors rounded-lg mx-3 mb-0.5">SSH/SFTP</div>
+            <div 
+              className={`text-[13px] font-medium px-4 py-2 cursor-pointer rounded-lg mx-3 mb-0.5 transition-colors ${activeMenu === 'general-basic' ? 'bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] text-[#1F2329]' : 'text-[#4E5969] hover:bg-[#E5E6EB]/50'}`}
+              onClick={() => setActiveMenu('general-basic')}
+            >基础</div>
+            <div 
+              className={`text-[13px] font-medium px-4 py-2 cursor-pointer rounded-lg mx-3 mb-0.5 transition-colors ${activeMenu === 'general-ssh' ? 'bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] text-[#1F2329]' : 'text-[#4E5969] hover:bg-[#E5E6EB]/50'}`}
+              onClick={() => setActiveMenu('general-ssh')}
+            >SSH/SFTP</div>
             <div className="text-[13px] text-[#4E5969] hover:bg-[#E5E6EB]/50 px-4 py-2 cursor-pointer transition-colors rounded-lg mx-3 mb-0.5">数据库</div>
             
             <div className="text-[13px] text-[#4E5969] px-4 py-2 mt-2 cursor-pointer hover:bg-[#E5E6EB]/50 transition-colors rounded-lg mx-3 mb-0.5">账号</div>
@@ -266,134 +293,208 @@ const SettingsModal = ({ onClose }) => {
 
           <div className="flex-1 bg-white rounded-tl-2xl shadow-[-4px_0_12px_rgba(0,0,0,0.02)] flex flex-col overflow-hidden relative">
             <div className="flex-1 overflow-y-auto custom-scrollbar p-8 pb-24">
-              <div className="text-[16px] font-medium text-[#1F2329] mb-8">基本</div>
-              <div className="grid grid-cols-2 gap-x-16 gap-y-7">
-                <div className="flex flex-col gap-7">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">主题</span>
-                    <SettingsDropdown value="Light" width="w-[120px]" options={[ { label: 'auto', active: false }, { label: 'light', active: true }, { label: 'dark', active: false } ]} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">鼠标中键关闭选项卡</span>
-                    <Toggle checked={true} onChange={()=>{}} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">UI 字体</span>
-                    <SettingsDropdown value="JetBrainsMono, NotoSansSC" width="w-[260px]" isFontSelector={true} options={[ { label: '(内置)JetBrainsMono', checked: true }, { label: '(内置)思源黑体', checked: true }, { label: '(内置)系统字体', checked: false }, { label: 'Arial', checked: false } ]} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">编辑器换行符</span>
-                    <SettingsDropdown value="(兼容) \r\n" width="w-[150px]" options={[ { label: '(兼容) \\r\\n', active: true }, { label: '(Windows) \\n', active: false }, { label: '(Linux) \\r', active: false } ]} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">是否开启动动画</span>
-                    <Toggle checked={false} onChange={()=>{}} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex flex-col gap-1 w-3/4">
-                      <span className="text-[13px] text-[#1F2329]">显示右侧实时信息</span>
-                      <span className="text-[12px] text-[#86909C]">关闭后将隐藏服务器实时指标</span>
-                    </div>
-                    <Toggle checked={showRightInfo} onChange={() => setShowRightInfo(!showRightInfo)} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">Tab 栏关闭按钮位置</span>
-                    <div className="flex items-center gap-3 text-[13px] text-[#4E5969]">靠左 <Toggle checked={true} onChange={()=>{}} /></div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">连体字效果</span>
-                    <Toggle checked={true} onChange={()=>{}} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">鼠标滚轮缩放</span>
-                    <Toggle checked={true} onChange={()=>{}} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex flex-col gap-1 w-[85%]">
-                      <span className="text-[13px] text-[#1F2329]">标签关闭确认</span>
-                      <span className="text-[12px] text-[#86909C]">关闭后 SSH、终端等标签关闭时不显示确认提示弹窗</span>
-                    </div>
-                    <Toggle checked={true} onChange={()=>{}} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex flex-col gap-1 w-[85%]">
-                      <span className="text-[13px] text-[#1F2329]">标签闪烁提醒</span>
-                      <span className="text-[12px] text-[#86909C]">非当前标签页有新活动时，将触发闪烁提醒</span>
-                    </div>
-                    <Toggle checked={true} onChange={()=>{}} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex flex-col gap-1 w-[85%]">
-                      <span className="text-[13px] text-[#1F2329]">多行显示标签卡</span>
-                      <span className="text-[12px] text-[#86909C]">标签卡过多时以多行方式显示，而不是横向滚动</span>
-                    </div>
-                    <Toggle checked={false} onChange={()=>{}} />
-                  </div>
-                </div>
+              
+              {activeMenu === 'general-basic' && (
+                <>
+                  <div className="text-[16px] font-medium text-[#1F2329] mb-5">基本</div>
+                  <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-start">
+                    <SettingGroup>
+                      <SettingRow label="主题">
+                        <SettingsDropdown value="Light" width="w-[120px]" options={[ { label: 'auto', active: false }, { label: 'light', active: true }, { label: 'dark', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="鼠标中键关闭选项卡">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="UI 字体">
+                        <SettingsDropdown value="JetBrainsMono, NotoSansSC" width="w-[260px]" isFontSelector={true} options={[ { label: '(内置)JetBrainsMono', checked: true }, { label: '(内置)思源黑体', checked: true }, { label: '(内置)系统字体', checked: false }, { label: 'Arial', checked: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="编辑器换行符">
+                        <SettingsDropdown value="(兼容) \r\n" width="w-[150px]" options={[ { label: '(兼容) \\r\\n', active: true }, { label: '(Windows) \\n', active: false }, { label: '(Linux) \\r', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="是否开启动动画">
+                        <Toggle checked={false} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="显示右侧实时信息" desc="关闭后将隐藏服务器实时指标">
+                        <Toggle checked={showRightInfo} onChange={() => setShowRightInfo(!showRightInfo)} />
+                      </SettingRow>
+                      <SettingRow label="Tab 栏关闭按钮位置" desc="靠左">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="连体字效果">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="鼠标滚轮缩放">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="标签关闭确认" desc="关闭后 SSH、终端等标签关闭时不显示确认提示弹窗">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="标签闪烁提醒" desc="非当前标签页有新活动时，将触发闪烁提醒">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="多行显示标签卡" desc="标签卡过多时以多行方式显示，而不是横向滚动">
+                        <Toggle checked={false} onChange={()=>{}} />
+                      </SettingRow>
+                    </SettingGroup>
 
-                <div className="flex flex-col gap-7">
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">语言</span>
-                    <SettingsDropdown value="简体中文" width="w-[120px]" options={[ { label: '简体中文', active: true }, { label: 'English', active: false } ]} />
+                    <SettingGroup>
+                      <SettingRow label="语言">
+                        <SettingsDropdown value="简体中文" width="w-[120px]" options={[ { label: '简体中文', active: true }, { label: 'English', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="更新通道" desc="修改后需重启生效，通道之间资产不共享">
+                        <SettingsDropdown value="实验性通道" width="w-[140px]" options={[ { label: '稳定通道', active: false }, { label: '实验性通道', active: true } ]} />
+                      </SettingRow>
+                      <SettingRow label="编辑器字体">
+                        <SettingsDropdown value="MonoLisa Variable" width="w-[240px]" isFontSelector={true} options={[ { label: 'MonoLisa Variable', checked: true }, { label: '(内置)系统字体', checked: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="缩放比例">
+                        <SettingsDropdown value="100%" width="w-[100px]" options={[ { label: '90%', active: false }, { label: '100%', active: true }, { label: '110%', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="编辑器字号">
+                        <SettingsDropdown value="14px" width="w-[100px]" options={[ { label: '12px', active: false }, { label: '14px', active: true }, { label: '16px', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="编辑器自动换行">
+                        <Toggle checked={false} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="编辑器 Tab 键模式">
+                        <SettingsDropdown value="制表符\t" width="w-[120px]" options={[ { label: '制表符\\t', active: true }, { label: '两个空格', active: false }, { label: '四个空格', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="启动锁屏" desc="启动时询问密码，登录账号后启用">
+                        <Toggle checked={false} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="自动锁屏时间">
+                        <SettingsDropdown value="关闭" width="w-[100px]" options={[ { label: '关闭', active: true }, { label: '5分钟', active: false }, { label: '15分钟', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="锁屏密码" desc={
+                        <span className="flex items-center text-[#86909C] text-[11.5px] truncate">(登录账号后，可启用锁屏) <Eye size={13} className="ml-1 text-[#1F2329] shrink-0"/></span>
+                      }>
+                        <input disabled type="password" placeholder="" className="w-[140px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 outline-none text-[12px]" />
+                      </SettingRow>
+                      <SettingRow label="会话标签记忆" desc="(启用后，启动会自动还原上次打开的标签)">
+                        <Toggle checked={false} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="显示会员标志" desc="(关闭后，付费用户将不会在顶部显示会员图标)">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                    </SettingGroup>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex flex-col gap-1 w-3/4">
-                      <span className="text-[13px] text-[#1F2329]">更新通道</span>
-                      <span className="text-[12px] text-[#86909C]">修改后需重启生效，通道之间资产不共享</span>
-                    </div>
-                    <SettingsDropdown value="实验性通道" width="w-[140px]" options={[ { label: '稳定通道', active: false }, { label: '实验性通道', active: true } ]} />
+                </>
+              )}
+
+              {activeMenu === 'general-ssh' && (
+                <>
+                  <div className="text-[16px] font-medium text-[#1F2329] mb-5">SSH</div>
+                  <div className="grid grid-cols-2 gap-x-10 gap-y-7 mb-10 items-start">
+                    <SettingGroup>
+                      <SettingRow label="终端字体" desc="(请选择等宽字体，否则将显示异常)">
+                        <SettingsDropdown value="MonoLisa Variable, Mono..." width="w-[280px]" isFontSelector={true} options={[ { label: 'MonoLisa Variable', checked: true }, { label: 'MonoLisa', checked: true }, { label: '(内置)JetBrainsMono', checked: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="终端高亮增强">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="SSH/SFTP 路径联动">
+                        <Toggle checked={false} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="鼠标选中自动复制">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="终端命令输入提示">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="SSH 历史命令">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="SSH 历史命令-储存方式" desc="储存到本地">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="SSH 历史命令-输入提示加载数量">
+                        <input type="text" value="100" readOnly className="w-[60px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none" />
+                      </SettingRow>
+                      <SettingRow label="终端护眼模式-条纹背景">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="渲染模式 (高性能模式)" desc="高性能模式能够更快进行终端渲染">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                    </SettingGroup>
+
+                    <SettingGroup>
+                      <SettingRow label="终端字号">
+                        <SettingsDropdown value="13px" width="w-[100px]" options={[ { label: '12px', active: false }, { label: '13px', active: true }, { label: '14px', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="连接断开自动重连">
+                        <Toggle checked={false} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="鼠标中键执行">
+                        <SettingsDropdown value="不执行" width="w-[140px]" options={[ { label: '不执行', active: true }, { label: '复制', active: false }, { label: '粘贴', active: false }, { label: '显示菜单', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="鼠标右键执行">
+                        <SettingsDropdown value="显示菜单" width="w-[160px]" options={[ { label: '不执行', active: false }, { label: '显示菜单', active: true }, { label: '选中即复制，否则粘贴', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="终端声音">
+                        <Toggle checked={false} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="Ctrl+V 粘贴" desc="将拦截 Ctrl+V 作为粘贴快捷键">
+                        <Toggle checked={false} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="终端行高" desc="基准值为 1">
+                        <input type="text" value="1" readOnly className="w-[40px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none" />
+                      </SettingRow>
+                      <SettingRow label="终端间距" desc="默认为 0">
+                        <input type="text" value="0" readOnly className="w-[40px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none" />
+                      </SettingRow>
+                      <SettingRow label="终端最大缓存行数">
+                        <input type="text" value="1000" readOnly className="w-[60px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none" />
+                      </SettingRow>
+                      <SettingRow label="日志储存目录">
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="w-[26px] h-[26px] border border-[#E5E6EB] bg-white rounded flex items-center justify-center cursor-pointer hover:bg-[#E5E6EB]/50 transition-colors"><FolderPlus size={13} className="text-[#4E5969]" /></div>
+                          <input type="text" placeholder="不填则关闭日志录制" className="w-[140px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-[11.5px] text-[#1F2329] outline-none placeholder-[#C9CDD4]" />
+                        </div>
+                      </SettingRow>
+                    </SettingGroup>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">编辑器字体</span>
-                    <SettingsDropdown value="MonoLisa Variable" width="w-[240px]" isFontSelector={true} options={[ { label: 'MonoLisa Variable', checked: true }, { label: '(内置)系统字体', checked: false } ]} />
+
+                  <div className="text-[16px] font-medium text-[#1F2329] mb-5">SFTP</div>
+                  <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-start">
+                    <SettingGroup>
+                      <SettingRow label="默认编辑器">
+                        <SettingsDropdown value="内置编辑器" width="w-[150px]" options={[ { label: '内置编辑器', active: true }, { label: '系统默认', active: false }, { label: '自定义启动命令', active: false }, { label: 'VSCode', active: false }, { label: 'Notepad++', active: false }, { label: 'Sublime Text', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="上级目录(..)单击打开">
+                        <Toggle checked={false} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="文件列表布局">
+                        <SettingsDropdown value="左右布局(不显示本地...)" width="w-[240px]" options={[ { label: '左右布局(不显示本地文件列表)', active: true }, { label: '上下布局(显示本地文件列表)', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="远程文件显示列">
+                        <SettingsDropdown value="名称,修改时间,类型..." width="w-[220px]" isFontSelector={true} options={[ { label: '名称', checked: true }, { label: '修改时间', checked: true }, { label: '类型', checked: true }, { label: '大小', checked: true }, { label: '权限', checked: false }, { label: '用户/组', checked: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="文件列表读取超时时间(秒)" desc="0为不限制">
+                        <input type="text" value="60" readOnly className="w-[40px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none" />
+                      </SettingRow>
+                    </SettingGroup>
+                    <SettingGroup>
+                      <SettingRow label="默认保存路径">
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="w-[26px] h-[26px] border border-[#E5E6EB] bg-white rounded flex items-center justify-center cursor-pointer hover:bg-[#E5E6EB]/50 transition-colors"><FolderPlus size={13} className="text-[#4E5969]" /></div>
+                          <input type="text" placeholder="不填则使用默认路径" className="w-[140px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-[11.5px] text-[#1F2329] outline-none placeholder-[#C9CDD4]" />
+                        </div>
+                      </SettingRow>
+                      <SettingRow label="双击打开文件逻辑">
+                        <SettingsDropdown value="自动判断编辑/打开" width="w-[160px]" options={[ { label: '自动判断编辑/打开', active: true }, { label: '总是编辑', active: false }, { label: '总是打开', active: false } ]} />
+                      </SettingRow>
+                      <SettingRow label="显示隐藏文件">
+                        <Toggle checked={true} onChange={()=>{}} />
+                      </SettingRow>
+                      <SettingRow label="本地文件显示列">
+                        <SettingsDropdown value="名称,修改时间,类型..." width="w-[220px]" isFontSelector={true} options={[ { label: '名称', checked: true }, { label: '修改时间', checked: true }, { label: '类型', checked: true }, { label: '大小', checked: true }, { label: '权限', checked: false }, { label: '用户/组', checked: false } ]} />
+                      </SettingRow>
+                    </SettingGroup>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">缩放比例</span>
-                    <SettingsDropdown value="100%" width="w-[100px]" options={[ { label: '90%', active: false }, { label: '100%', active: true }, { label: '110%', active: false } ]} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">编辑器字号</span>
-                    <SettingsDropdown value="14px" width="w-[100px]" options={[ { label: '12px', active: false }, { label: '14px', active: true }, { label: '16px', active: false } ]} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">编辑器自动换行</span>
-                    <Toggle checked={false} onChange={()=>{}} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">编辑器 Tab 键模式</span>
-                    <SettingsDropdown value="制表符\t" width="w-[120px]" options={[ { label: '制表符\\t', active: true }, { label: '两个空格', active: false }, { label: '四个空格', active: false } ]} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">启动锁屏</span>
-                    <div className="flex items-center gap-3 text-[12px] text-[#86909C]">启动时询问密码，登录账号后启用 <Toggle checked={false} onChange={()=>{}} /></div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-[13px] text-[#1F2329]">自动锁屏时间</span>
-                    <SettingsDropdown value="关闭" width="w-[100px]" options={[ { label: '关闭', active: true }, { label: '5分钟', active: false }, { label: '15分钟', active: false } ]} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1">
-                      <span className="text-[13px] text-[#1F2329]">锁屏密码</span>
-                      <span className="text-[12px] text-[#86909C]">(登录账号后，可启用锁屏) <Eye size={14} className="inline ml-1 text-[#1F2329]"/></span>
-                    </div>
-                    <input disabled type="password" placeholder="" className="w-[160px] h-[28px] border border-[#E5E6EB] bg-[#F7F8FA] rounded" />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1">
-                      <span className="text-[13px] text-[#1F2329]">会话标签记忆</span>
-                      <span className="text-[12px] text-[#86909C]">(启用后，启动会自动还原上次打开的标签)</span>
-                    </div>
-                    <Toggle checked={false} onChange={()=>{}} />
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-1">
-                      <span className="text-[13px] text-[#1F2329]">显示会员标志</span>
-                      <span className="text-[12px] text-[#86909C]">(关闭后，付费用户将不会在顶部显示会员图标)</span>
-                    </div>
-                    <Toggle checked={true} onChange={()=>{}} />
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
+
             </div>
             
             <div className="absolute bottom-0 left-0 right-0 h-[64px] bg-white/90 backdrop-blur-md border-t border-[#E5E6EB] flex items-center justify-end px-8 gap-4 rounded-br-2xl z-10">
@@ -1224,478 +1325,8 @@ export default function App() {
             />
           )}
         </div>
-      </div>
-    </div>
-  );
 
-  const renderContextMenu = () => {
-    if (!contextMenu.visible) return null;
-
-    const MenuItem = ({ icon: Icon, label, shortcut, hasSubmenu, disabled, children }) => (
-      <div className={`group/item relative flex items-center justify-between px-3 h-[34px] mx-1.5 my-[2px] rounded-lg text-[13px] transition-colors select-none
-        ${disabled ? 'text-[#C9CDD4] cursor-not-allowed' : 'text-[#1F2329] hover:bg-[#4080FF] hover:text-white cursor-pointer'}`}
-      >
-        <div className="flex items-center gap-2.5">
-          {Icon && <Icon className={`w-[14px] h-[14px] transition-colors ${disabled ? 'text-[#C9CDD4]' : 'text-[#4E5969] group-hover/item:text-white'}`} />}
-          <span>{label}</span>
-        </div>
-        <div className="flex items-center gap-3">
-          {shortcut && <span className={`text-[11px] font-sans tracking-wide ${disabled ? 'text-[#C9CDD4]' : 'text-[#86909C] group-hover/item:text-white'}`}>{shortcut}</span>}
-          {hasSubmenu && <ChevronRight className={`w-[14px] h-[14px] ${disabled ? 'text-[#C9CDD4]' : 'text-[#86909C] group-hover/item:text-white'}`} />}
-        </div>
-        {hasSubmenu && children && !disabled && (
-          <div className="absolute top-0 left-full pl-1 hidden group-hover/item:block z-[101]">
-            <div className="bg-white/75 backdrop-blur-2xl border border-white/60 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] py-1.5 min-w-[170px] max-h-[380px] overflow-y-auto custom-scrollbar pointer-events-auto">
-              {children}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-
-    const MenuDivider = () => <div className="h-px bg-[#E5E6EB]/60 mx-2 my-1.5"></div>;
-
-    const ActionButton = ({ icon: Icon, tooltip, disabled }) => (
-      <div className="group/action relative flex items-center">
-        <button className={`px-[8px] py-[6px] rounded-md transition-colors ${disabled ? 'text-[#C9CDD4] cursor-not-allowed' : 'hover:bg-[#E5E6EB] text-[#4E5969]'}`}>
-          <Icon className="w-3.5 h-3.5" />
-        </button>
-        {!disabled && (
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/action:flex items-center justify-center z-[150]">
-            <div className="bg-[#2D2D2D] text-white text-[12px] px-2.5 py-1.5 rounded-md shadow-xl whitespace-nowrap font-medium">
-              {tooltip}
-            </div>
-            <div className="absolute top-full left-1/2 -translate-x-1/2 border-t-[5px] border-t-[#2D2D2D] border-x-[5px] border-x-transparent"></div>
-          </div>
-        )}
-      </div>
-    );
-
-    let content = null;
-
-    if (contextMenu.type === 'table-context') {
-      const target = contextMenu.data?.targetContext || 'asset';
-      const isBlank = target === 'blank';
-      const isFolder = target === 'folder';
-
-      content = (
-        <>
-          <div className="flex items-center justify-between px-4 py-[6px] mb-1.5 border-b border-[#E5E6EB]/50">
-            <span className="text-[12px] text-[#86909C] font-medium tracking-wide">操作</span>
-            <div className="flex items-center bg-[#F2F3F5] rounded-md border border-[#E5E6EB]/80 p-[2px]">
-               <ActionButton icon={Clipboard} tooltip="粘贴(Ctrl+V)" disabled={false} />
-               <div className="w-px h-3.5 bg-[#E5E6EB] mx-[2px]"></div>
-               <ActionButton icon={Scissors} tooltip="剪切(Ctrl+X)" disabled={isBlank} />
-               <div className="w-px h-3.5 bg-[#E5E6EB] mx-[2px]"></div>
-               <ActionButton icon={Copy} tooltip="复制(Ctrl+C)" disabled={isBlank} />
-            </div>
-          </div>
-          <MenuItem icon={LinkIcon} label="打开" shortcut="Enter" disabled={isBlank} />
-          <MenuItem icon={CopyPlus} label="批量打开" disabled={isBlank} />
-          <MenuItem icon={RefreshCw} label="刷新" shortcut="F5" />
-          <MenuItem icon={FilePlus} label="新标签打开" shortcut="Alt+N" disabled={isBlank || isFolder} />
-          <MenuItem icon={ExternalLink} label="新窗口打开" shortcut="Ctrl+Shift+N" disabled={isBlank || isFolder} />
-          <MenuItem icon={Columns} label="同屏打开" disabled={isBlank || isFolder} />
-          <MenuDivider />
-          <MenuItem icon={Copy} label="克隆" disabled={isBlank || isFolder} />
-          <MenuItem icon={FolderPlus} label="新建目录" />
-          <MenuItem icon={Edit2} label="编辑" disabled={isBlank || isFolder} />
-          <MenuItem icon={CopyPlus} label="批量编辑" disabled={isBlank || isFolder} />
-          <MenuItem icon={FileX} label="删除" shortcut="Backspace" disabled={isBlank} />
-          <MenuItem icon={Edit2} label="重命名" shortcut="F2" disabled={isBlank} />
-          <MenuDivider />
-          <MenuItem icon={ChevronDown} label="更多" hasSubmenu disabled={isBlank}>
-             <MenuItem icon={FileDown} label="通过文本批量导入SSH" />
-             <MenuItem icon={Key} label="上传 SSH公钥(ssh-copy-id)" />
-             <MenuItem icon={Activity} label="Ping" disabled={isBlank || isFolder} />
-             <MenuItem icon={FileDown} label="导入" />
-             <MenuItem icon={FileUp} label="导出" />
-          </MenuItem>
-        </>
-      );
-    } else if (contextMenu.type === 'sidebar-asset' || contextMenu.type === 'sidebar-blank-asset') {
-      content = (
-        <>
-          <div className="px-4 py-1.5 text-[11px] text-[#86909C] font-medium tracking-wide">操作</div>
-          <MenuItem icon={FolderPlus} label="新建目录" />
-          <MenuItem icon={LinkIcon} label="新建连接" hasSubmenu>
-             <div className="px-4 py-2 text-[11px] text-[#86909C] font-medium border-b border-[#E5E6EB]/50 mb-1 mx-1.5">新建连接</div>
-             <MenuItem icon={Terminal} label="本地终端" />
-             <MenuItem icon={Terminal} label="SSH" />
-             <MenuItem icon={Network} label="SSH隧道" />
-             <MenuItem icon={Monitor} label="Telnet" />
-             <MenuItem icon={Usb} label="串口" />
-             <MenuItem icon={Monitor} label="RDP" />
-             <MenuItem icon={Package} label="Docker" />
-             <MenuItem icon={Database} label="Redis" />
-             <MenuItem icon={Database} label="MySQL" />
-             <MenuItem icon={Database} label="MariaDB" />
-             <MenuItem icon={Database} label="PostgreSQL" />
-             <MenuItem icon={Database} label="SqlServer" />
-             <MenuItem icon={Database} label="ClickHouse" />
-             <MenuItem icon={Database} label="SQLite" />
-             <MenuItem icon={Database} label="Oracle" />
-             <MenuItem icon={Database} label="达梦" />
-          </MenuItem>
-          {contextMenu.type === 'sidebar-asset' && <MenuItem icon={LinkIcon} label="批量打开" />}
-          <MenuDivider />
-          <MenuItem icon={FileX} label="删除" />
-          <MenuItem icon={Edit2} label="重命名" />
-          <MenuItem icon={Copy} label="复制" />
-          <MenuItem icon={Scissors} label="剪切" />
-          <MenuItem icon={Clipboard} label="粘贴" />
-          <MenuItem icon={RefreshCw} label="刷新" />
-          <MenuDivider />
-          <MenuItem icon={FileDown} label="导入" />
-          <MenuItem icon={FileUp} label="导出" />
-        </>
-      );
-    } else if (contextMenu.type === 'sidebar-shortcut' || contextMenu.type === 'sidebar-blank-shortcut') {
-      content = (
-        <>
-          <div className="px-4 py-1.5 text-[11px] text-[#86909C] font-medium tracking-wide">操作</div>
-          <MenuItem icon={FolderPlus} label="新建分组" />
-          <MenuItem icon={LinkIcon} label="新建快捷命令" />
-          <MenuDivider />
-          <MenuItem icon={FileX} label="删除" />
-          <MenuItem icon={Edit2} label="重命名" />
-          <MenuItem icon={RefreshCw} label="刷新" />
-          <MenuDivider />
-          <MenuItem icon={FileDown} label="导入" />
-          <MenuItem icon={FileUp} label="导出" />
-          <MenuItem icon={FileUp} label="导出全部" />
-        </>
-      );
-    }
-
-    if (!content) return null;
-
-    return (
-      <div 
-        className="fixed bg-white/75 backdrop-blur-2xl border border-white/60 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] py-2 min-w-[220px] z-[999]"
-        style={{ top: contextMenu.y, left: contextMenu.x }}
-        onClick={(e) => e.stopPropagation()} 
-      >
-        {content}
-      </div>
-    );
-  };
-
-  return (
-    <div className="h-screen w-screen bg-[#F2F3F5] font-sans flex flex-col overflow-hidden">
-      <style dangerouslySetInnerHTML={{__html: `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-        * { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #E5E6EB; border-radius: 3px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #C9CDD4; }
-        @keyframes loading {
-          0% { width: 0%; opacity: 1; }
-          90% { width: 100%; opacity: 1; }
-          100% { width: 100%; opacity: 0; display: none; }
-        }
-        @keyframes fade-in {
-          0% { opacity: 0; }
-          100% { opacity: 1; }
-        }
-        @keyframes scale-in {
-          0% { opacity: 0; transform: scale(0.95); }
-          100% { opacity: 1; transform: scale(1); }
-        }
-        @keyframes slide-in-right {
-          0% { opacity: 0; transform: translateX(20px); }
-          100% { opacity: 1; transform: translateX(0); }
-        }
-      `}} />
-
-      <header className="h-[48px] bg-[#F2F3F5] flex items-center justify-between px-0 shrink-0 select-none z-[100] relative">
-        <div className="flex h-full">
-          <div className="w-[262px] flex items-center px-4 shrink-0 transition-all duration-300">
-            <div 
-              className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" 
-              onClick={() => setActiveTabId('list')}
-            >
-              <Hexagon className="w-5 h-5 text-[#1F2329] fill-[#1F2329]" />
-              <span className="text-[#1F2329] font-bold text-[16px] tracking-wide">HexHub</span>
-            </div>
-          </div>
-          
-          {activeTabId !== 'list' && activeTab && (
-            <div className="flex items-center px-2">
-              <span className="text-[#C9CDD4] font-light text-[15px] mx-2">/</span>
-              <div className="flex items-center gap-2 text-[#4E5969]">
-                <Folder className="w-[15px] h-[15px] text-[#86909C]" />
-                <span className="text-[13px]">{activeTab.asset.folderName || 'Root'}</span>
-              </div>
-              <span className="text-[#C9CDD4] font-light text-[15px] mx-2">/</span>
-              <div className="flex items-center gap-2 text-[#1F2329]">
-                <Terminal className="w-[15px] h-[15px]" />
-                <span className="text-[13px] font-medium">{activeTab.asset.name}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* --- Top Right Toolbar --- */}
-        <div className="flex items-center gap-5 pr-5">
-          <div className="flex items-center gap-1 bg-[#FDF6EC] text-[#E6A23C] border border-[#F3D19E] px-2 py-0.5 rounded-md text-[11px] font-medium cursor-pointer hover:bg-[#F5E8C8] transition-colors shadow-sm">
-            <Crown className="w-3.5 h-3.5" /> Pro
-          </div>
-
-          <div className="flex items-center gap-3.5 text-[#4E5969]">
-            
-            {/* Dynamic Connection Controls (Only visible when an asset tab is active & connected) */}
-            {activeTabId !== 'list' && activeTab?.status === 'connected' && (
-              <div className="flex items-center gap-3.5 mr-2 animate-[fade-in_0.3s_ease-out]" ref={headerToolsRef}>
-                
-                {/* Transfer Dropdown Popover */}
-                <div className="relative">
-                  <HeaderTopButton 
-                    icon={TransferIcon} 
-                    tooltip="文件传输" 
-                    isActive={activeHeaderPopover === 'transfer'}
-                    onClick={() => setActiveHeaderPopover(prev => prev === 'transfer' ? null : 'transfer')} 
-                  />
-                  {activeHeaderPopover === 'transfer' && (
-                    <div className="absolute right-0 top-full mt-[12px] w-[420px] bg-white/95 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.15)] rounded-xl border border-[#E5E6EB] z-[250] flex flex-col overflow-hidden animate-[fade-in_0.2s_ease-out]">
-                      <div className="flex flex-col border-b border-[#E5E6EB] bg-white/50">
-                        <div className="flex items-center px-4 pt-3 pb-2 text-[14px] font-medium text-[#1F2329]">文件传输</div>
-                        <div className="flex gap-6 px-4 text-[13px] text-[#86909C]">
-                          <span className="pb-2 border-b-[3px] border-[#4080FF] text-[#4080FF] cursor-pointer font-medium">进行中</span>
-                          <span className="pb-2 border-b-[3px] border-transparent hover:text-[#1F2329] cursor-pointer transition-colors">队列中</span>
-                          <span className="pb-2 border-b-[3px] border-transparent hover:text-[#1F2329] cursor-pointer transition-colors">已暂停</span>
-                          <span className="pb-2 border-b-[3px] border-transparent hover:text-[#1F2329] cursor-pointer transition-colors">失败</span>
-                          <span className="pb-2 border-b-[3px] border-transparent hover:text-[#1F2329] cursor-pointer transition-colors">已完成</span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-[1.5fr_1fr_1fr] px-4 py-2 bg-[#F7F8FA] border-b border-[#E5E6EB] text-[12px] text-[#86909C] font-medium">
-                        <div>名称</div>
-                        <div>连接</div>
-                        <div className="flex justify-between">
-                          <span>状态</span>
-                          <span>信息</span>
-                        </div>
-                      </div>
-                      <div className="h-[280px] flex flex-col items-center justify-center text-[#86909C] bg-white/50">
-                        <CloudFog size={48} className="mb-2 opacity-30" strokeWidth={1} />
-                        <span className="text-[13px]">暂无数据</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Broadcast Dropdown Popover */}
-                <div className="relative">
-                  <HeaderTopButton 
-                    icon={BroadcastIcon} 
-                    tooltip="命令输入广播" 
-                    isActive={activeHeaderPopover === 'broadcast'}
-                    onClick={() => setActiveHeaderPopover(prev => prev === 'broadcast' ? null : 'broadcast')} 
-                  />
-                  {activeHeaderPopover === 'broadcast' && (
-                    <div className="absolute right-0 top-full mt-[12px] w-[360px] bg-white/95 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.15)] rounded-xl border border-[#E5E6EB] z-[250] flex flex-col overflow-hidden animate-[fade-in_0.2s_ease-out]">
-                      <div className="px-4 py-3 border-b border-[#E5E6EB] bg-white/50">
-                        <div className="text-[14px] font-medium text-[#1F2329] mb-1">命令输入广播 (专业版)</div>
-                        <div className="text-[12px] text-[#86909C]">可按住 <kbd className="bg-[#F2F3F5] border border-[#E5E6EB] px-1 rounded mx-0.5">ALT+</kbd> 鼠标中键点击 进行点选</div>
-                      </div>
-                      <div className="flex flex-col max-h-[240px] overflow-y-auto custom-scrollbar p-2 bg-white/50">
-                        <div className="text-[11px] text-[#86909C] px-2 py-1 font-mono">Berohost</div>
-                        <div className="flex items-center gap-2 px-2 py-1.5 hover:bg-[#F7F8FA] rounded-md cursor-pointer bg-[#F7F8FA] border border-[#E5E6EB]/50">
-                          <div className="w-[14px] h-[14px] bg-[#4080FF] rounded-[3px] flex items-center justify-center"><Check size={10} className="text-white" strokeWidth={3}/></div>
-                          <span className="text-[13px] text-[#1F2329] font-mono">Berohost</span>
-                        </div>
-                      </div>
-                      <div className="px-4 py-2 border-t border-[#E5E6EB] bg-[#F7F8FA] flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="relative group/action">
-                            <button className="p-1.5 text-[#FABC4D] hover:bg-[#E5E6EB] rounded transition-colors"><FileUp size={16}/></button>
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover/action:block bg-[#2D2D2D] text-white text-[11px] px-2 py-1 rounded shadow-md whitespace-nowrap">批量上传文件</div>
-                          </div>
-                          <div className="relative group/action">
-                            <button className="p-1.5 text-[#7BC676] hover:bg-[#E5E6EB] rounded transition-colors"><FolderArchive size={16}/></button>
-                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 hidden group-hover/action:block bg-[#2D2D2D] text-white text-[11px] px-2 py-1 rounded shadow-md whitespace-nowrap">批量上传文件夹</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <button className="text-[#F53F3F] text-[13px] font-medium hover:opacity-80 transition-opacity">全部关闭</button>
-                          <button className="text-[#4080FF] text-[13px] font-medium hover:opacity-80 transition-opacity">全部启用</button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* History Dropdown Popover */}
-                <div className="relative">
-                  <HeaderTopButton 
-                    icon={CloudClockIcon} 
-                    tooltip="历史命令" 
-                    isActive={activeHeaderPopover === 'history'}
-                    onClick={() => setActiveHeaderPopover(prev => prev === 'history' ? null : 'history')} 
-                  />
-                  {activeHeaderPopover === 'history' && (
-                    <div className="absolute right-0 top-full mt-[12px] w-[340px] bg-white/95 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.15)] rounded-xl border border-[#E5E6EB] z-[250] flex flex-col overflow-hidden animate-[fade-in_0.2s_ease-out]">
-                      <div className="flex items-center justify-between px-3 py-3 border-b border-[#E5E6EB] bg-white/50">
-                        <div className="text-[14px] font-medium text-[#1F2329] flex items-center gap-3">
-                          历史命令
-                          <div className="relative">
-                            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#86909C]" />
-                            <input type="text" placeholder="历史命令过滤" className="w-[160px] h-[26px] pl-7 pr-2 bg-[#F7F8FA] border border-[#E5E6EB] rounded text-[12px] outline-none focus:border-[#4080FF] transition-colors" />
-                          </div>
-                        </div>
-                        <button className="text-[#F53F3F] hover:bg-[#FDECE8] px-2 py-1.5 rounded text-[12px] flex items-center gap-1 transition-colors"><X size={14}/>清除</button>
-                      </div>
-                      <div className="max-h-[400px] overflow-y-auto p-1 custom-scrollbar bg-white/50">
-                        {MOCK_HISTORY_CMDS.map((cmd, i) => (
-                          <div key={i} className="flex flex-col group hover:bg-[#F7F8FA] rounded-lg p-2.5 transition-colors cursor-pointer border border-transparent hover:border-[#E5E6EB]/50 mx-1 my-0.5">
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="font-mono text-[13px] text-[#1F2329] break-all leading-snug">{cmd.cmd}</span>
-                              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button className="p-1 text-[#86909C] hover:text-[#4080FF] hover:bg-[#E8F0FE] rounded"><CopyIcon size={14}/></button>
-                                <button className="p-1 text-[#86909C] hover:text-[#F53F3F] hover:bg-[#FDECE8] rounded"><X size={14}/></button>
-                              </div>
-                            </div>
-                            <span className="text-[11px] text-[#86909C] mt-1.5 font-mono">{cmd.date}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-              </div>
-            )}
-
-            {/* Theme Toggle */}
-            <HeaderTopButton 
-              icon={ThemeIcon} 
-              tooltip={getThemeConfig().tooltip} 
-              onClick={cycleTheme} 
-            />
-
-            {/* User Popover */}
-            <div className="relative" ref={userMenuRef}>
-              <HeaderTopButton 
-                icon={User} 
-                tooltip={!isLoggedIn ? "登录" : null} 
-                onClick={() => {
-                  if (!isLoggedIn) {
-                    setIsLoggedIn(true); // Mock login
-                  } else {
-                    setShowUserMenu(!showUserMenu);
-                  }
-                }} 
-              />
-              {showUserMenu && isLoggedIn && (
-                <div className="absolute right-0 top-full mt-[12px] w-[260px] bg-white rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-[#E5E6EB] flex flex-col items-center overflow-hidden z-[200]">
-                  <div className="bg-[#F7F8FA] w-full pt-5 pb-4 flex flex-col items-center relative border-b border-[#E5E6EB]">
-                    <span className="text-[#1F2329] tracking-[0.2em] text-[13px] font-medium mb-3">archosaur</span>
-                    
-                    {/* Hexagon Avatar */}
-                    <div className="relative flex flex-col items-center">
-                      <div className="w-[60px] h-[60px] bg-gradient-to-br from-[#F5D77D] to-[#E3A824] relative flex items-center justify-center shadow-md" style={{clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)'}}>
-                        <div className="w-[46px] h-[46px] bg-gradient-to-br from-[#FFEBAA] to-[#D59B16] flex items-center justify-center" style={{clipPath: 'polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)'}}>
-                          <Crown className="w-6 h-6 text-white" />
-                        </div>
-                      </div>
-                      <div className="absolute -bottom-2 bg-gradient-to-r from-[#D59B16] to-[#E3A824] text-white text-[9px] font-bold px-2 py-0.5 rounded shadow-sm">PRO</div>
-                    </div>
-                    
-                    <button className="absolute top-3 right-3 text-[#86909C] hover:text-[#1F2329] p-1"><Edit2 size={14}/></button>
-
-                    <div className="mt-4 text-[#86909C] text-[12px] font-mono">archosaur@krnex.com</div>
-                    <div className="mt-2 text-[#1F2329] text-[14px] font-medium">专业终身版</div>
-                    
-                    <div className="flex gap-2 mt-4 w-full px-5">
-                         <button className="flex-1 bg-[#E8F0FE] text-[#4080FF] hover:bg-[#D4E3FC] transition-colors py-1.5 rounded text-[12px] font-medium">同步</button>
-                         <button className="flex-1 bg-[#F2F3F5] text-[#86909C] hover:bg-[#E5E6EB] transition-colors py-1.5 rounded text-[12px] font-medium">续费</button>
-                    </div>
-                  </div>
-
-                  <div className="w-full flex flex-col py-1.5">
-                      <div className="px-5 py-2.5 text-[13px] text-[#4E5969] hover:bg-[#F2F3F5] flex items-center gap-3 cursor-pointer transition-colors">
-                        <Gift size={16} /> 兑换激活码
-                      </div>
-                      <div className="px-5 py-2.5 text-[13px] text-[#4E5969] hover:bg-[#F2F3F5] flex items-center gap-3 cursor-pointer transition-colors">
-                        <Headset size={16} /> 支持
-                      </div>
-                      <div className="px-5 py-2.5 text-[13px] text-[#4E5969] hover:bg-[#F2F3F5] flex items-center gap-3 cursor-pointer transition-colors border-t border-[#E5E6EB]/50 mt-1" onClick={() => {setIsLoggedIn(false); setShowUserMenu(false);}}>
-                        <LogOut size={16} className="ml-0.5" /> 退出登录
-                      </div>
-                  </div>
-
-                  <div className="w-full text-center text-[12px] text-[#86909C] py-3 bg-[#F7F8FA] border-t border-[#E5E6EB]">
-                      <span className="hover:text-[#4080FF] cursor-pointer transition-colors">用户协议</span>
-                      <span className="mx-2">•</span>
-                      <span className="hover:text-[#4080FF] cursor-pointer transition-colors">隐私政策</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Main Menu Popover */}
-            <div className="relative" ref={mainMenuRef}>
-              <HeaderTopButton icon={MoreVertical} tooltip="菜单" onClick={() => setShowMainMenu(!showMainMenu)} />
-              {showMainMenu && (
-                <div className="absolute right-0 top-full mt-[12px] bg-white/85 backdrop-blur-2xl border border-white/60 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] py-1.5 min-w-[200px] z-[200]">
-                   <TopMenuItem icon={ExternalLink} label="新窗口" shortcut="Ctrl+Shift+H" />
-                   <TopMenuItem icon={Copy} label="复制窗口" shortcut="Ctrl+Shift+N" />
-                   <TopMenuDivider />
-                   <TopMenuItem icon={History} label="最近项目" shortcut="Ctrl+E" hasSubmenu submenuKey="recent">
-                      {RECENT_PROJECTS.map((proj, i) => (
-                        <div key={i} className="px-3 h-[32px] mx-1.5 my-[2px] rounded-lg hover:bg-[#F2F3F5] text-[#1F2329] text-[13px] flex items-center gap-2.5 transition-colors cursor-pointer">
-                          <proj.icon className="w-[14px] h-[14px] text-[#4E5969]" /> {proj.name}
-                        </div>
-                      ))}
-                   </TopMenuItem>
-                   <TopMenuItem icon={Languages} label="语言" hasSubmenu submenuKey="language">
-                      <div className="px-3 h-[32px] mx-1.5 my-[2px] rounded-lg bg-[#E8F0FE] text-[#4080FF] text-[13px] flex items-center justify-between cursor-pointer">
-                        <span>中文(当前)</span>
-                      </div>
-                      <div className="px-3 h-[32px] mx-1.5 my-[2px] rounded-lg hover:bg-[#F2F3F5] text-[#4E5969] text-[13px] flex items-center justify-between cursor-pointer transition-colors">
-                        <span>English</span>
-                      </div>
-                   </TopMenuItem>
-                   <TopMenuItem icon={CircleHelp} label="帮助" hasSubmenu submenuKey="help">
-                      <div className="px-3 h-[32px] mx-1.5 my-[2px] rounded-lg hover:bg-[#F2F3F5] text-[#1F2329] text-[13px] flex items-center transition-colors cursor-pointer">提交问题</div>
-                      <div className="px-3 h-[32px] mx-1.5 my-[2px] rounded-lg hover:bg-[#F2F3F5] text-[#1F2329] text-[13px] flex items-center transition-colors cursor-pointer">常见问题</div>
-                      <div className="px-3 h-[32px] mx-1.5 my-[2px] rounded-lg hover:bg-[#F2F3F5] text-[#1F2329] text-[13px] flex items-center transition-colors cursor-pointer">更新日志</div>
-                      <div className="px-3 h-[32px] mx-1.5 my-[2px] rounded-lg hover:bg-[#F2F3F5] text-[#1F2329] text-[13px] flex items-center transition-colors cursor-pointer">检测更新</div>
-                      <div className="px-3 h-[32px] mx-1.5 my-[2px] rounded-lg hover:bg-[#F2F3F5] text-[#1F2329] text-[13px] flex items-center transition-colors cursor-pointer">清除无效数据</div>
-                      <div className="px-3 h-[32px] mx-1.5 my-[2px] rounded-lg hover:bg-[#F2F3F5] text-[#1F2329] text-[13px] flex items-center transition-colors cursor-pointer border-t border-[#E5E6EB]/50 mt-1">关于</div>
-                   </TopMenuItem>
-                   <TopMenuItem icon={Settings} label="设置" onClick={() => setShowSettings(true)} />
-                   <TopMenuItem icon={Search} label="快速搜索" shortcut="Ctrl+Shift+F" />
-                   <TopMenuItem icon={RotateCw} label="重载页面" />
-                   <TopMenuItem icon={LogOut} label="退出" shortcut="Alt+F4" />
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4.5 text-[#4E5969] ml-2 border-l border-[#E5E6EB] pl-5">
-            <HeaderTopButton icon={Pin} onClick={() => setIsPinned(!isPinned)} tooltip={isPinned ? "取消置顶" : "置顶窗口"} isActive={isPinned} />
-            <button className="hover:text-[#1F2329] transition-colors p-1"><Minus className="w-[15px] h-[15px]" /></button>
-            <button className="hover:text-[#1F2329] transition-colors p-1"><Square className="w-3.5 h-3.5" /></button>
-            <button className="hover:text-red-500 transition-colors p-1"><X className="w-[15px] h-[15px]" /></button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Split Island Workspace */}
-      <div className="flex-1 flex px-3 pb-3 gap-3 overflow-hidden relative">
-        
-        {/* Island 1: Activity Bar (Blended) + Sidebar (White Card) */}
-        <div className="flex h-full shrink-0 z-20 relative">
-          {renderActivityBar()}
-          {renderSidebar()}
-        </div>
-
-        {/* Island 2: Main Content (White Card) */}
-        {renderMainContent()}
-
-        {/* Island 3: Global Right Sidebar Area (Extends to the far right, fills remaining space) */}
+        {/* Global Right Sidebar Area (Extends to the far right, fills remaining space) */}
         <div className={`flex h-full shrink-0 z-30 relative shadow-sm border border-[#E5E6EB] bg-white transition-all duration-300 ${sftpExpanded ? 'rounded-r-xl' : 'rounded-xl'}`}>
           
           {/* Toggle Button perfectly aligning with the left edge of Island 3 container */}

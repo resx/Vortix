@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Pin, Minus, Square, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
-import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import BasicSettings from './BasicSettings'
+import SSHSettings from './SSHSettings'
 
 const NAV_DATA = [
   { type: 'group', label: '通用' },
-  { type: 'item', id: 'basic', label: '基础', active: true },
+  { type: 'item', id: 'basic', label: '基础' },
   { type: 'item', id: 'ssh', label: 'SSH/SFTP' },
   { type: 'item', id: 'database', label: '数据库' },
   { type: 'solo', id: 'account', label: '账号', mt: true },
@@ -20,15 +20,14 @@ const NAV_DATA = [
   { type: 'solo', id: 'referral', label: '推介有奖', mt: true },
 ] as const
 
-const windowIcons = [
-  { Icon: Pin, label: '置顶', small: false },
-  { Icon: Minus, label: '最小化', small: false },
-  { Icon: Square, label: '最大化', small: true },
-]
+const CONTENT_MAP: Record<string, React.ComponentType> = {
+  basic: BasicSettings,
+  ssh: SSHSettings,
+}
 
 export default function SettingsPanel() {
   const toggleSettings = useAppStore((s) => s.toggleSettings)
-  const [activeNav] = useState('basic')
+  const [activeNav, setActiveNav] = useState('basic')
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -38,11 +37,13 @@ export default function SettingsPanel() {
     return () => window.removeEventListener('keydown', handler)
   }, [toggleSettings])
 
+  const ContentComponent = CONTENT_MAP[activeNav]
+
   return (
     <>
-      {/* 遮罩 — 无模糊，纯淡色半透明，不阻断主窗口 */}
+      {/* 遮罩 */}
       <motion.div
-        className="fixed inset-0 z-[300] bg-black/10"
+        className="fixed inset-0 z-[300] bg-black/20 backdrop-blur-sm"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -59,37 +60,18 @@ export default function SettingsPanel() {
         transition={{ duration: 0.2, ease: 'easeOut' }}
       >
         <div
-          className="pointer-events-auto w-[960px] max-w-[95vw] h-[780px] max-h-[95vh] bg-[#F2F3F5] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+          className="pointer-events-auto w-[1100px] max-w-[95vw] h-[720px] max-h-[95vh] bg-[#F2F3F5] rounded-2xl shadow-2xl flex flex-col overflow-hidden"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Header — 与主窗口风格一致 */}
-          <div className="h-[44px] flex items-center justify-between px-4 shrink-0 select-none bg-[#F2F3F5]">
+          {/* Header */}
+          <div className="h-[52px] flex items-center justify-between px-5 shrink-0 select-none bg-[#F2F3F5]">
             <span className="text-[#1F2329] font-medium text-[15px]">设置</span>
-
-            {/* 窗口控制按钮 */}
-            <div className="flex items-center gap-4 text-[#4E5969]">
-              {windowIcons.map(({ Icon, label, small }) => (
-                <Tooltip key={label}>
-                  <TooltipTrigger asChild>
-                    <button className="hover:text-[#1F2329] transition-colors">
-                      <Icon className={small ? 'w-3 h-3' : 'w-[15px] h-[15px]'} />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent>{label}</TooltipContent>
-                </Tooltip>
-              ))}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={toggleSettings}
-                    className="hover:text-red-500 transition-colors"
-                  >
-                    <X className="w-[15px] h-[15px]" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>关闭</TooltipContent>
-              </Tooltip>
-            </div>
+            <button
+              className="text-[#86909C] hover:text-[#1F2329] hover:bg-[#E5E6EB] p-1.5 rounded-lg transition-colors"
+              onClick={toggleSettings}
+            >
+              <X size={16} />
+            </button>
           </div>
 
           {/* Body */}
@@ -108,11 +90,12 @@ export default function SettingsPanel() {
                 return (
                   <div
                     key={i}
-                    className={`text-[13px] px-4 py-2 cursor-pointer transition-colors rounded-lg mx-3 mb-0.5 ${
+                    onClick={() => { if ('id' in item) setActiveNav(item.id) }}
+                    className={`text-[13px] font-medium px-4 py-2 cursor-pointer transition-colors rounded-lg mx-3 mb-0.5 ${
                       'mt' in item && item.mt ? 'mt-2' : ''
                     } ${
                       isActive
-                        ? 'text-[#1F2329] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)] font-medium'
+                        ? 'text-[#1F2329] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]'
                         : 'text-[#4E5969] hover:bg-[#E5E6EB]/50'
                     }`}
                   >
@@ -124,12 +107,16 @@ export default function SettingsPanel() {
 
             {/* 右侧内容 */}
             <div className="flex-1 bg-white rounded-tl-2xl shadow-[-4px_0_12px_rgba(0,0,0,0.02)] flex flex-col overflow-hidden relative">
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pb-20">
-                <BasicSettings />
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-8 pb-24">
+                {ContentComponent ? <ContentComponent /> : (
+                  <div className="flex items-center justify-center h-full text-[#86909C] text-[14px]">
+                    即将推出
+                  </div>
+                )}
               </div>
 
               {/* 底部栏 */}
-              <div className="absolute bottom-0 left-0 right-0 h-[52px] bg-white/90 backdrop-blur-md border-t border-[#E5E6EB] flex items-center justify-end px-6 gap-4 rounded-br-2xl">
+              <div className="absolute bottom-0 left-0 right-0 h-[64px] bg-white/90 backdrop-blur-md border-t border-[#E5E6EB] flex items-center justify-end px-8 gap-4 rounded-br-2xl z-10">
                 <span className="text-[#86909C] text-[12px] mr-2">修改设置后如未生效，请重启页面或重启应用</span>
                 <button className="px-5 py-2 bg-[#F2F3F5] text-[#4E5969] rounded-lg text-[13px] hover:bg-[#E5E6EB] transition-colors font-medium">
                   恢复默认
