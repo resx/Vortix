@@ -1,0 +1,425 @@
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { useSettingsStore, type SettingsState } from '../../stores/useSettingsStore'
+import { Switch } from '../ui/switch'
+import { SettingsDropdown } from '../ui/select'
+import { SettingRow } from './SettingGroup'
+import { cn } from '../../lib/utils'
+import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
+import { Check, ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { createPortal } from 'react-dom'
+
+/* ── 公共便捷封装 ── */
+
+export function SToggle({ k, label, desc }: { k: keyof SettingsState; label: string; desc?: string }) {
+  const value = useSettingsStore((s) => s[k]) as boolean
+  const update = useSettingsStore((s) => s.updateSetting)
+  return (
+    <SettingRow label={label} desc={desc}>
+      <Switch checked={value} onCheckedChange={() => update(k, !value as never)} />
+    </SettingRow>
+  )
+}
+
+export function SDropdown({ k, label, desc, options, width = 'w-[120px]' }: {
+  k: keyof SettingsState; label: string; desc?: string
+  options: { value: string; label: string }[]; width?: string
+}) {
+  const value = useSettingsStore((s) => s[k]) as string
+  const update = useSettingsStore((s) => s.updateSetting)
+  return (
+    <SettingRow label={label} desc={desc}>
+      <SettingsDropdown value={value} options={options} onChange={(v) => update(k, v as never)} width={width} />
+    </SettingRow>
+  )
+}
+
+export function SNumberDropdown({ k, label, desc, options, width = 'w-[100px]' }: {
+  k: keyof SettingsState; label: string; desc?: string
+  options: { value: number; label: string }[]; width?: string
+}) {
+  const value = useSettingsStore((s) => s[k]) as number
+  const update = useSettingsStore((s) => s.updateSetting)
+  return (
+    <SettingRow label={label} desc={desc}>
+      <SettingsDropdown
+        value={String(value)}
+        options={options.map((o) => ({ value: String(o.value), label: o.label }))}
+        onChange={(v) => update(k, Number(v) as never)}
+        width={width}
+      />
+    </SettingRow>
+  )
+}
+
+/* ── 多选列复选框下拉 ── */
+
+const FILE_COLUMNS = [
+  { key: 'name', label: '名称' },
+  { key: 'mtime', label: '修改时间' },
+  { key: 'type', label: '类型' },
+  { key: 'size', label: '大小' },
+  { key: 'perm', label: '权限' },
+  { key: 'owner', label: '用户/组' },
+]
+
+const DEFAULT_CHECKED = new Set(['name', 'mtime', 'type', 'size'])
+
+export function SColumnSelect({ label }: { label: string }) {
+  const [checked, setChecked] = useState(() => new Set(DEFAULT_CHECKED))
+  const [open, setOpen] = useState(false)
+
+  const toggle = (key: string) => {
+    setChecked((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const selectedText = FILE_COLUMNS
+    .filter((c) => checked.has(c.key))
+    .map((c) => c.label)
+    .join(',')
+
+  return (
+    <SettingRow label={label}>
+      <DropdownMenuPrimitive.Root open={open} onOpenChange={setOpen}>
+        <DropdownMenuPrimitive.Trigger className="flex items-center gap-1 cursor-pointer text-[#4E5969] hover:text-[#1F2329] transition-colors text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-[#4080FF]/40 focus-visible:rounded">
+          <span className="max-w-[200px] truncate">{selectedText || '未选择'}</span>
+          {open ? <ChevronUp size={14} className="shrink-0" /> : <ChevronDown size={14} className="shrink-0" />}
+        </DropdownMenuPrimitive.Trigger>
+        <DropdownMenuPrimitive.Portal>
+          <DropdownMenuPrimitive.Content
+            side="bottom"
+            align="end"
+            sideOffset={4}
+            className="z-[1050] glass-context rounded-lg py-1 animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+          >
+            {FILE_COLUMNS.map((col) => (
+              <DropdownMenuPrimitive.CheckboxItem
+                key={col.key}
+                checked={checked.has(col.key)}
+                onCheckedChange={() => toggle(col.key)}
+                onSelect={(e) => e.preventDefault()}
+                className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] cursor-pointer select-none outline-none data-[highlighted]:bg-[#E8F0FF] text-[#1F2329]"
+              >
+                <div
+                  className={cn(
+                    'w-[16px] h-[16px] rounded-[4px] flex items-center justify-center border transition-colors shrink-0',
+                    checked.has(col.key)
+                      ? 'bg-[#4080FF] border-[#4080FF]'
+                      : 'bg-white border-[#C9CDD4]',
+                  )}
+                >
+                  {checked.has(col.key) && <Check size={11} className="text-white" strokeWidth={3} />}
+                </div>
+                {col.label}
+              </DropdownMenuPrimitive.CheckboxItem>
+            ))}
+          </DropdownMenuPrimitive.Content>
+        </DropdownMenuPrimitive.Portal>
+      </DropdownMenuPrimitive.Root>
+    </SettingRow>
+  )
+}
+
+/* ── 预置字体列表 ── */
+
+interface FontItem {
+  value: string
+  label: string
+  family: string
+  fontWeight?: string
+}
+
+const PRESET_FONTS: FontItem[] = [
+  { value: 'system', label: '(内置)系统字体', family: 'system-ui, -apple-system, sans-serif' },
+  { value: 'JetBrainsMono', label: '(内置)JetBrainsMono', family: '"JetBrains Mono", monospace' },
+  { value: 'NotoSansSC', label: '(内置)思源黑体', family: '"Noto Sans SC", "Source Han Sans SC", sans-serif' },
+  { value: 'serif', label: '(内置)Serif', family: 'serif' },
+  { value: 'sans-serif', label: '(内置)Sans-serif', family: 'sans-serif' },
+  { value: 'monospace', label: '(内置)Monospace', family: 'monospace' },
+  { value: 'cursive', label: '(内置)Cursive', family: 'cursive' },
+  { value: 'fantasy', label: '【内置】Fantasy', family: 'fantasy', fontWeight: 'bold' },
+  { value: 'FiraCode', label: 'Fira Code', family: '"Fira Code", monospace' },
+  { value: 'SourceCodePro', label: 'Source Code Pro', family: '"Source Code Pro", monospace' },
+  { value: 'CascadiaCode', label: 'Cascadia Code', family: '"Cascadia Code", monospace' },
+  { value: 'CascadiaMono', label: 'Cascadia Mono', family: '"Cascadia Mono", monospace' },
+  { value: 'Inconsolata', label: 'Inconsolata', family: '"Inconsolata", monospace' },
+  { value: 'RobotoMono', label: 'Roboto Mono', family: '"Roboto Mono", monospace' },
+  { value: 'UbuntuMono', label: 'Ubuntu Mono', family: '"Ubuntu Mono", monospace' },
+  { value: 'IBMPlexMono', label: 'IBM Plex Mono', family: '"IBM Plex Mono", monospace' },
+  { value: 'Hack', label: 'Hack', family: '"Hack", monospace' },
+  { value: 'VictorMono', label: 'Victor Mono', family: '"Victor Mono", monospace' },
+  { value: 'NotoSansMono', label: 'Noto Sans Mono', family: '"Noto Sans Mono", monospace' },
+  { value: 'SpaceMono', label: 'Space Mono', family: '"Space Mono", monospace' },
+  { value: 'AnonymousPro', label: 'Anonymous Pro', family: '"Anonymous Pro", monospace' },
+  { value: 'Cousine', label: 'Cousine', family: '"Cousine", monospace' },
+]
+
+/* ── 系统字体加载（全局缓存） ── */
+
+let _systemFontsCache: FontItem[] | null = null
+
+async function getSystemFonts(): Promise<FontItem[]> {
+  if (_systemFontsCache) return _systemFontsCache
+  try {
+    if ('queryLocalFonts' in window) {
+      const fonts: Array<{ family: string }> = await (window as any).queryLocalFonts()
+      const seen = new Set<string>()
+      const presetValues = new Set(PRESET_FONTS.map(f => f.value))
+      const result: FontItem[] = []
+      for (const f of fonts) {
+        if (!seen.has(f.family) && !presetValues.has(f.family)) {
+          seen.add(f.family)
+          result.push({ value: f.family, label: f.family, family: `"${f.family}"` })
+        }
+      }
+      result.sort((a, b) => a.label.localeCompare(b.label))
+      _systemFontsCache = result
+      return result
+    }
+  } catch { /* 权限被拒绝或不支持 */ }
+  _systemFontsCache = [
+    { value: 'Consolas', label: 'Consolas', family: '"Consolas", monospace' },
+    { value: 'Courier New', label: 'Courier New', family: '"Courier New", monospace' },
+    { value: 'Lucida Console', label: 'Lucida Console', family: '"Lucida Console", monospace' },
+    { value: 'Monaco', label: 'Monaco', family: '"Monaco", monospace' },
+    { value: 'Menlo', label: 'Menlo', family: '"Menlo", monospace' },
+    { value: 'SF Mono', label: 'SF Mono', family: '"SF Mono", monospace' },
+    { value: 'DejaVu Sans Mono', label: 'DejaVu Sans Mono', family: '"DejaVu Sans Mono", monospace' },
+    { value: 'Liberation Mono', label: 'Liberation Mono', family: '"Liberation Mono", monospace' },
+  ]
+  return _systemFontsCache
+}
+
+function useSystemFonts() {
+  const [fonts, setFonts] = useState<FontItem[]>(_systemFontsCache ?? [])
+  useEffect(() => { getSystemFonts().then(setFonts) }, [])
+  return fonts
+}
+
+/* ── 字体选择器（Portal + 毛玻璃面板 + 复选框 + 搜索 + 全选） ── */
+
+export function SFontSelect({ k, label, desc }: {
+  k: keyof SettingsState; label: string; desc?: string
+}) {
+  const value = useSettingsStore((s) => s[k]) as string
+  const update = useSettingsStore((s) => s.updateSetting)
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const [selectedFonts, setSelectedFonts] = useState<Set<string>>(() => new Set([value]))
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const systemFonts = useSystemFonts()
+
+  /* 合并预置 + 系统字体 */
+  const allFonts = useMemo(() => [...PRESET_FONTS, ...systemFonts], [systemFonts])
+
+  /* 搜索过滤 */
+  const filteredFonts = useMemo(() => {
+    if (!search.trim()) return allFonts
+    const q = search.toLowerCase()
+    return allFonts.filter(f => f.label.toLowerCase().includes(q) || f.family.toLowerCase().includes(q))
+  }, [allFonts, search])
+
+  /* 全选逻辑 */
+  const isAllSelected = filteredFonts.length > 0 && filteredFonts.every(f => selectedFonts.has(f.value))
+  const isIndeterminate = filteredFonts.some(f => selectedFonts.has(f.value)) && !isAllSelected
+
+  const handleToggleFont = (fontId: string) => {
+    const next = new Set(selectedFonts)
+    if (next.has(fontId)) next.delete(fontId)
+    else next.add(fontId)
+    setSelectedFonts(next)
+    /* 最后点击的字体作为当前值 */
+    update(k, fontId as never)
+  }
+
+  const handleToggleAll = () => {
+    const next = new Set(selectedFonts)
+    if (isAllSelected) {
+      filteredFonts.forEach(f => next.delete(f.value))
+    } else {
+      filteredFonts.forEach(f => next.add(f.value))
+    }
+    setSelectedFonts(next)
+  }
+
+  /* Portal 定位：基于 trigger 按钮的 viewport 坐标 */
+  const [pos, setPos] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    if (open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      const panelW = 280, panelH = 370
+      let top = rect.bottom + 4
+      let left = rect.right - panelW
+      if (left < 8) left = 8
+      if (top + panelH > window.innerHeight - 8) top = rect.top - panelH - 4
+      setPos({ top, left })
+      setSearch('')
+      setTimeout(() => inputRef.current?.focus(), 0)
+    }
+  }, [open])
+
+  /* 点击外部关闭 */
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node) &&
+          triggerRef.current && !triggerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const selectedLabel = allFonts.find(f => f.value === value)?.label ?? value
+
+  return (
+    <SettingRow label={label} desc={desc}>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 cursor-pointer text-[#4E5969] hover:text-[#1F2329] transition-colors text-[13px] outline-none max-w-[280px]"
+      >
+        <span className="truncate">{selectedLabel}</span>
+        <ChevronDown size={14} className={cn('shrink-0 transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={panelRef}
+          className="fixed z-[1100] w-[280px] flex flex-col rounded-xl overflow-hidden"
+          style={{
+            top: pos.top,
+            left: pos.left,
+            background: 'rgba(255, 255, 255, 0.70)',
+            backdropFilter: 'blur(20px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(150%)',
+            border: '1px solid rgba(255, 255, 255, 0.50)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
+          }}
+        >
+          {/* 头部：搜索 + 全选 */}
+          <div className="flex items-center gap-2 px-2.5 pt-2 pb-1.5">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
+                <Search size={12} className="text-[#86909C]" />
+              </div>
+              <input
+                ref={inputRef}
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="搜索..."
+                className="w-full h-7 pl-7 pr-2 text-[11.5px] bg-black/5 border border-black/5 rounded-md outline-none focus:bg-white/80 focus:border-[#4080FF] focus:ring-1 focus:ring-[#4080FF]/40 transition-all placeholder-[#86909C] text-[#1F2329]"
+              />
+            </div>
+            <label className="flex items-center gap-1 cursor-pointer text-[11.5px] text-[#4E5969] hover:text-[#1F2329] shrink-0 pr-0.5 select-none">
+              <div className="relative flex items-center justify-center w-3.5 h-3.5 rounded-sm border border-[#86909C] bg-transparent transition-colors">
+                {isIndeterminate && !isAllSelected && (
+                  <div className="w-2 h-0.5 bg-[#4080FF] rounded-sm" />
+                )}
+                {isAllSelected && (
+                  <Check size={10} className="text-[#4080FF]" strokeWidth={3} />
+                )}
+                <input
+                  type="checkbox"
+                  className="absolute opacity-0 cursor-pointer w-full h-full"
+                  checked={isAllSelected}
+                  onChange={handleToggleAll}
+                />
+              </div>
+              全选
+            </label>
+          </div>
+
+          {/* 字体列表 */}
+          <div className="h-[320px] overflow-y-auto font-list-scrollbar p-1.5 pt-0">
+            {filteredFonts.length === 0 ? (
+              <div className="text-center text-[#86909C] py-8 text-[12.5px]">无匹配字体</div>
+            ) : (
+              filteredFonts.map(font => {
+                const isSelected = selectedFonts.has(font.value)
+                return (
+                  <div
+                    key={font.value}
+                    className="group flex items-center gap-2.5 px-2 py-1 rounded-lg cursor-pointer transition-colors hover:bg-[#a6c8ff]"
+                    onClick={() => handleToggleFont(font.value)}
+                  >
+                    <div className={cn(
+                      'relative flex items-center justify-center w-[15px] h-[15px] rounded-[3px] border-[1.5px] transition-all shrink-0',
+                      isSelected
+                        ? 'bg-[#4080FF] border-[#4080FF] group-hover:bg-white group-hover:border-white'
+                        : 'bg-transparent border-[#4080FF] group-hover:border-white',
+                    )}>
+                      {isSelected && (
+                        <Check size={11} className="text-white group-hover:text-[#4080FF]" strokeWidth={3} />
+                      )}
+                    </div>
+                    <span
+                      className="text-[12.5px] text-[#1F2329] group-hover:text-white select-none truncate"
+                      style={{ fontFamily: font.family, fontWeight: font.fontWeight || 'normal' }}
+                    >
+                      {font.label}
+                    </span>
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </div>,
+        document.body,
+      )}
+    </SettingRow>
+  )
+}
+
+/* ── 数字输入框 ── */
+
+export function SNumberInput({ k, label, desc, width = 'w-[60px]' }: {
+  k: keyof SettingsState; label: string; desc?: string; width?: string
+}) {
+  const value = useSettingsStore((s) => s[k]) as number
+  const update = useSettingsStore((s) => s.updateSetting)
+  return (
+    <SettingRow label={label} desc={desc}>
+      <input
+        type="text"
+        value={String(value)}
+        onChange={(e) => {
+          const num = parseInt(e.target.value, 10)
+          if (!isNaN(num)) update(k, num as never)
+          else if (e.target.value === '') update(k, 0 as never)
+        }}
+        className={`${width} h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none`}
+      />
+    </SettingRow>
+  )
+}
+
+/* ── 文本输入框 ── */
+
+export function STextInput({ k, label, desc, width = 'w-[60px]', placeholder }: {
+  k: keyof SettingsState; label: string; desc?: string; width?: string; placeholder?: string
+}) {
+  const value = useSettingsStore((s) => s[k]) as string
+  const update = useSettingsStore((s) => s.updateSetting)
+  return (
+    <SettingRow label={label} desc={desc}>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => update(k, e.target.value as never)}
+        placeholder={placeholder}
+        className={`${width} h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-center text-[12.5px] text-[#1F2329] outline-none placeholder-[#C9CDD4]`}
+      />
+    </SettingRow>
+  )
+}

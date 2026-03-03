@@ -22,7 +22,7 @@ const contentVariants = cva(
     variants: {
       variant: {
         default:
-          'bg-white/85 backdrop-blur-2xl border border-white/60 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)]',
+          'glass-context',
         glass: 'glass-dropdown',
       },
     },
@@ -87,7 +87,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
         'flex items-center justify-between px-3 h-[32px] mx-1.5 my-[2px] rounded-lg text-[13px] cursor-pointer select-none outline-none transition-colors duration-150',
         variant === 'glass'
           ? 'focus:bg-white/20 data-[state=open]:bg-white/20'
-          : 'focus:bg-[#4080FF] focus:text-white data-[state=open]:bg-[#4080FF] data-[state=open]:text-white',
+          : 'focus:bg-[#E8F0FF] data-[state=open]:bg-[#E8F0FF]',
         inset && 'pl-8',
         className,
       )}
@@ -115,7 +115,7 @@ const DropdownMenuItem = React.forwardRef<
         'flex items-center justify-between px-3 h-[32px] mx-1.5 my-[2px] rounded-lg text-[13px] cursor-pointer select-none outline-none transition-colors duration-150',
         variant === 'glass'
           ? 'focus:bg-white/20'
-          : 'focus:bg-[#4080FF] focus:text-white',
+          : 'focus:bg-[#E8F0FF]',
         inset && 'pl-8',
         className,
       )}
@@ -142,7 +142,7 @@ DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName
 function DropdownMenuShortcut({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
-      className={cn('text-[11px] font-sans tracking-wide text-[#86909C] group-focus:text-blue-100', className)}
+      className={cn('text-[11px] font-sans tracking-wide text-[#86909C]', className)}
       {...props}
     />
   )

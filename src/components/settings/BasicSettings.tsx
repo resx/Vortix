@@ -1,68 +1,28 @@
-import { useSettingsStore, type SettingsState } from '../../stores/useSettingsStore'
-import { Toggle } from '../ui/switch'
-import { SettingsDropdown } from '../ui/select'
+import { useState } from 'react'
 import { SettingRow, SettingGroup } from './SettingGroup'
-import { Eye } from 'lucide-react'
-
-/* ── 便捷封装 ── */
-
-function SToggle({ k, label, desc }: { k: keyof SettingsState; label: string; desc?: string }) {
-  const value = useSettingsStore((s) => s[k]) as boolean
-  const update = useSettingsStore((s) => s.updateSetting)
-  return (
-    <SettingRow label={label} desc={desc}>
-      <Toggle checked={value} onChange={() => update(k, !value as never)} />
-    </SettingRow>
-  )
-}
-
-function SDropdown({ k, label, desc, options, width = 'w-[120px]' }: {
-  k: keyof SettingsState; label: string; desc?: string
-  options: { value: string; label: string }[]; width?: string
-}) {
-  const value = useSettingsStore((s) => s[k]) as string
-  const update = useSettingsStore((s) => s.updateSetting)
-  return (
-    <SettingRow label={label} desc={desc}>
-      <SettingsDropdown value={value} options={options} onChange={(v) => update(k, v as never)} width={width} />
-    </SettingRow>
-  )
-}
-
-function SNumberDropdown({ k, label, desc, options, width = 'w-[100px]' }: {
-  k: keyof SettingsState; label: string; desc?: string
-  options: { value: number; label: string }[]; width?: string
-}) {
-  const value = useSettingsStore((s) => s[k]) as number
-  const update = useSettingsStore((s) => s.updateSetting)
-  return (
-    <SettingRow label={label} desc={desc}>
-      <SettingsDropdown
-        value={String(value)}
-        options={options.map((o) => ({ value: String(o.value), label: o.label }))}
-        onChange={(v) => update(k, Number(v) as never)}
-        width={width}
-      />
-    </SettingRow>
-  )
-}
+import { SToggle, SDropdown, SNumberDropdown, SFontSelect } from './SettingControls'
+import { Eye, EyeOff } from 'lucide-react'
 
 /* ── 锁屏密码行 ── */
 function LockPasswordRow() {
+  const [visible, setVisible] = useState(false)
+  const Icon = visible ? EyeOff : Eye
   return (
-    <SettingRow
-      label="锁屏密码"
-      desc={
-        <span className="flex items-center text-[#86909C] text-[11.5px] truncate">
-          (登录账号后，可启用锁屏) <Eye size={13} className="ml-1 text-[#1F2329] shrink-0" />
-        </span>
-      }
-    >
-      <input
-        disabled
-        type="password"
-        className="w-[140px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 outline-none text-[12px]"
-      />
+    <SettingRow label="锁屏密码" desc="(登录账号后，可启用锁屏)">
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button
+          type="button"
+          onClick={() => setVisible(!visible)}
+          className="w-[26px] h-[26px] rounded-full bg-[#F2F3F5] flex items-center justify-center cursor-pointer hover:bg-[#E5E6EB] transition-colors"
+        >
+          <Icon size={13} className="text-[#4E5969]" />
+        </button>
+        <input
+          disabled
+          type={visible ? 'text' : 'password'}
+          className="w-[140px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 outline-none text-[12px]"
+        />
+      </div>
     </SettingRow>
   )
 }
@@ -72,7 +32,7 @@ export default function BasicSettings() {
   return (
     <>
       <div className="text-[16px] font-medium text-[#1F2329] mb-5">基本</div>
-      <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-stretch">
+      <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-start">
         {/* 左列 */}
         <SettingGroup>
           <SDropdown
@@ -84,15 +44,7 @@ export default function BasicSettings() {
             ]}
           />
           <SToggle k="checkUpdate" label="鼠标中键关闭选项卡" />
-          <SDropdown
-            k="defaultEncoding" label="UI 字体"
-            options={[
-              { value: 'JetBrainsMono', label: '(内置)JetBrainsMono' },
-              { value: 'NotoSansSC', label: '(内置)思源黑体' },
-              { value: 'system', label: '(内置)系统字体' },
-            ]}
-            width="w-[260px]"
-          />
+          <SFontSelect k="defaultEncoding" label="UI 字体" />
           <SDropdown
             k="keyExchangeAlgorithm" label="编辑器换行符"
             options={[
@@ -130,15 +82,7 @@ export default function BasicSettings() {
             width="w-[140px]"
             desc="修改后需重启生效，通道之间资产不共享"
           />
-          <SDropdown
-            k="defaultAuthMethod" label="编辑器字体"
-            options={[
-              { value: 'MonoLisa', label: 'MonoLisa Variable' },
-              { value: 'JetBrainsMono', label: '(内置)JetBrainsMono' },
-              { value: 'system', label: '(内置)系统字体' },
-            ]}
-            width="w-[240px]"
-          />
+          <SFontSelect k="defaultAuthMethod" label="编辑器字体" />
           <SDropdown
             k="proxyAddress" label="缩放比例"
             options={[

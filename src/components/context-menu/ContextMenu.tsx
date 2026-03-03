@@ -81,23 +81,23 @@ function MenuItem({
     <div
       ref={itemRef}
       className={`group/item relative flex items-center justify-between px-3 h-[34px] mx-1.5 my-[2px] rounded-lg text-[13px] transition-colors select-none
-        ${disabled ? 'text-[#C9CDD4] cursor-not-allowed' : 'text-[#1F2329] hover:bg-[#4080FF] hover:text-white cursor-pointer'}`}
+        ${disabled ? 'text-[#C9CDD4] cursor-not-allowed' : 'text-[#1F2329] hover:bg-[#E8F0FF] cursor-pointer'}`}
       onMouseEnter={openSubmenu}
       onMouseLeave={closeSubmenu}
     >
       <div className="flex items-center gap-2.5">
-        {Icon && <Icon className={`w-3.5 h-3.5 transition-colors ${disabled ? 'text-[#C9CDD4]' : 'text-[#4E5969] group-hover/item:text-white'}`} />}
+        {Icon && <Icon className={`w-3.5 h-3.5 transition-colors ${disabled ? 'text-[#C9CDD4]' : 'text-[#4E5969] group-hover/item:text-[#4080FF]'}`} />}
         <span>{label}</span>
       </div>
       <div className="flex items-center gap-3">
-        {shortcut && <span className={`text-[11px] font-sans ${disabled ? 'text-[#C9CDD4]' : 'text-[#86909C] group-hover/item:text-blue-100'}`}>{shortcut}</span>}
-        {hasSubmenu && <ChevronRight className={`w-3.5 h-3.5 ${disabled ? 'text-[#C9CDD4]' : 'text-[#86909C] group-hover/item:text-white'}`} />}
+        {shortcut && <span className={`text-[11px] font-sans ${disabled ? 'text-[#C9CDD4]' : 'text-[#86909C]'}`}>{shortcut}</span>}
+        {hasSubmenu && <ChevronRight className={`w-3.5 h-3.5 ${disabled ? 'text-[#C9CDD4]' : 'text-[#86909C]'}`} />}
       </div>
 
       {hasSubmenu && children && !disabled && showSub && (
         <div
           ref={submenuRef}
-          className="absolute bg-white/85 backdrop-blur-2xl border border-white/60 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] py-1.5 w-max z-[101] pointer-events-auto"
+          className="absolute glass-context rounded-xl py-1.5 w-max z-[101] pointer-events-auto"
           style={subPos}
           onMouseEnter={() => { if (hideTimer.current) clearTimeout(hideTimer.current) }}
           onMouseLeave={closeSubmenu}
@@ -117,7 +117,7 @@ function MenuDivider() {
 function ActionButton({ icon: Icon, tooltip, disabled }: { icon: LucideIcon; tooltip: string; disabled: boolean }) {
   return (
     <div className="group/action relative flex items-center">
-      <button className={`px-[8px] py-[6px] rounded-md transition-colors ${disabled ? 'text-[#C9CDD4] cursor-not-allowed' : 'hover:bg-[#E5E6EB] text-[#4E5969]'}`}>
+      <button className={`px-[8px] py-[6px] rounded-md transition-colors ${disabled ? 'text-[#C9CDD4] cursor-not-allowed' : 'hover:bg-[#E8F0FF] hover:text-[#4080FF] text-[#4E5969]'}`}>
         <Icon className="w-3.5 h-3.5" />
       </button>
       {!disabled && (
@@ -295,7 +295,7 @@ export default function ContextMenu() {
   return (
     <div
       ref={menuRef}
-      className="fixed bg-white/85 backdrop-blur-2xl border border-white/60 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] py-1.5 min-w-[210px] z-[100]"
+      className="fixed glass-context rounded-xl py-1.5 min-w-[210px] z-[100]"
       style={{ top: position.top, left: position.left }}
       onClick={(e) => e.stopPropagation()}
     >

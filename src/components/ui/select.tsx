@@ -1,5 +1,92 @@
-import { useState, useEffect, useRef } from 'react'
-import { ChevronDown } from 'lucide-react'
+import * as React from 'react'
+import * as SelectPrimitive from '@radix-ui/react-select'
+import { ChevronDown, Check } from 'lucide-react'
+import { cn } from '../../lib/utils'
+
+/* ── Radix Select 标准组件 ── */
+
+const Select = SelectPrimitive.Root
+const SelectValue = SelectPrimitive.Value
+const SelectGroup = SelectPrimitive.Group
+
+/* ── Trigger ── */
+
+const SelectTrigger = React.forwardRef<
+  React.ComponentRef<typeof SelectPrimitive.Trigger>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>
+>(({ className, children, ...props }, ref) => (
+  <SelectPrimitive.Trigger
+    ref={ref}
+    className={cn(
+      'flex items-center gap-1 cursor-pointer text-[#4E5969] hover:text-[#1F2329] transition-colors',
+      'text-[13px] outline-none',
+      'focus-visible:ring-2 focus-visible:ring-[#4080FF]/40 focus-visible:rounded',
+      className,
+    )}
+    {...props}
+  >
+    {children}
+    <SelectPrimitive.Icon asChild>
+      <ChevronDown size={14} className="shrink-0" />
+    </SelectPrimitive.Icon>
+  </SelectPrimitive.Trigger>
+))
+SelectTrigger.displayName = SelectPrimitive.Trigger.displayName
+
+/* ── Content ── */
+
+const SelectContent = React.forwardRef<
+  React.ComponentRef<typeof SelectPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
+>(({ className, children, position = 'popper', ...props }, ref) => (
+  <SelectPrimitive.Portal>
+    <SelectPrimitive.Content
+      ref={ref}
+      position={position}
+      side="bottom"
+      align="end"
+      sideOffset={4}
+      className={cn(
+        'z-[1050] overflow-hidden glass-context rounded-lg',
+        'animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
+        'data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2',
+        className,
+      )}
+      {...props}
+    >
+      <SelectPrimitive.Viewport className="max-h-[240px] overflow-y-auto py-1 custom-scrollbar">
+        {children}
+      </SelectPrimitive.Viewport>
+    </SelectPrimitive.Content>
+  </SelectPrimitive.Portal>
+))
+SelectContent.displayName = SelectPrimitive.Content.displayName
+
+/* ── Item ── */
+
+const SelectItem = React.forwardRef<
+  React.ComponentRef<typeof SelectPrimitive.Item>,
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
+>(({ className, children, ...props }, ref) => (
+  <SelectPrimitive.Item
+    ref={ref}
+    className={cn(
+      'relative flex items-center px-3 py-1.5 text-[13px] cursor-pointer select-none outline-none transition-colors',
+      'text-[#1F2329] data-[state=checked]:bg-[#E8F0FE] data-[state=checked]:text-[#4080FF]',
+      'data-[highlighted]:bg-[#E8F0FF]',
+      className,
+    )}
+    {...props}
+  >
+    <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    <SelectPrimitive.ItemIndicator className="ml-auto pl-2">
+      <Check size={14} />
+    </SelectPrimitive.ItemIndicator>
+  </SelectPrimitive.Item>
+))
+SelectItem.displayName = SelectPrimitive.Item.displayName
+
+/* ── SettingsDropdown（向后兼容封装） ── */
 
 interface SettingsDropdownProps {
   value: string
@@ -8,54 +95,31 @@ interface SettingsDropdownProps {
   width?: string
 }
 
-export function SettingsDropdown({ value, options, onChange, width = 'w-auto' }: SettingsDropdownProps) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    if (open) document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [open])
-
+function SettingsDropdown({ value, options, onChange, width = 'w-auto' }: SettingsDropdownProps) {
   const selectedLabel = options.find((o) => o.value === value)?.label ?? value
 
   return (
-    <div className="relative" ref={ref}>
-      <div
-        className="flex items-center gap-1 cursor-pointer text-[#4E5969] hover:text-[#1F2329] transition-colors"
-        onClick={() => setOpen(!open)}
-      >
-        <span className="text-[13px]">{selectedLabel}</span>
-        <ChevronDown size={14} />
-      </div>
-
-      {open && (
-        <div
-          className={`absolute right-0 top-full mt-1 bg-white border border-[#E5E6EB] rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.12)] z-[1050] overflow-hidden flex flex-col ${width}`}
-        >
-          <div className="max-h-[240px] overflow-y-auto py-1 custom-scrollbar">
-            {options.map((opt) => (
-              <div
-                key={opt.value}
-                className={`px-3 py-1.5 text-[13px] cursor-pointer transition-colors ${
-                  opt.value === value
-                    ? 'bg-[#E8F0FE] text-[#4080FF]'
-                    : 'hover:bg-[#F2F3F5] text-[#1F2329]'
-                }`}
-                onClick={() => {
-                  onChange(opt.value)
-                  setOpen(false)
-                }}
-              >
-                {opt.label}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger>
+        <SelectValue>{selectedLabel}</SelectValue>
+      </SelectTrigger>
+      <SelectContent className={width}>
+        {options.map((opt) => (
+          <SelectItem key={opt.value} value={opt.value}>
+            {opt.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
+}
+
+export {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+  SelectGroup,
+  SettingsDropdown,
 }

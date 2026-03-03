@@ -46,58 +46,99 @@ export interface SettingsState {
   dataStoragePath: string
   logRetentionDays: number
   cloudSync: boolean
+
+  // 数据库
+  dbTableFont: string
+  dbAutoExpand: boolean
+  dbShowPrimaryKey: boolean
+  dbCalcTotalRows: boolean
+  dbCompositeHeader: boolean
+  dbLoadAllFields: boolean
+  dbTextAlign: string
+  dbRowsPerPage: number
+  dbDangerSqlConfirm: boolean
+  dbSqlStopOnError: boolean
+  dbScrollMode: string
+  dbCursorScrollSpeed: number
+
+  // Redis
+  redisMaxLoadCount: number
+  redisGroupSeparator: string
+  redisShowValue: boolean
 }
 
-interface SettingsStore extends SettingsState {
-  updateSetting: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void
-}
-
-export const useSettingsStore = create<SettingsStore>((set) => ({
-  // 通用
+const DEFAULTS: SettingsState = {
   language: 'zh-CN',
   restoreSession: false,
   checkUpdate: true,
   autoSaveLog: false,
 
-  // 网络
-  proxyMode: 'none',
-  proxyAddress: '',
-  proxyPort: '',
+  proxyMode: 'auto',
+  proxyAddress: '100',
+  proxyPort: '14',
   proxyUsername: '',
   proxyPassword: '',
 
-  // 连接
   connectionTimeout: 30,
   heartbeatInterval: 60,
-  defaultEncoding: 'UTF-8',
+  defaultEncoding: 'JetBrainsMono',
   defaultPort: 22,
   autoReconnect: true,
   reconnectCount: 3,
   reconnectInterval: 5,
 
-  // SSH
-  defaultAuthMethod: 'password',
+  defaultAuthMethod: 'MonoLisa',
   sshCompression: false,
   agentForwarding: false,
   x11Forwarding: false,
-  keyExchangeAlgorithm: 'auto',
+  keyExchangeAlgorithm: 'crlf',
 
-  // 文件传输
-  downloadDir: '~/Downloads',
-  overwritePolicy: 'ask',
+  downloadDir: 'tab',
+  overwritePolicy: 'stable',
   maxConcurrentTransfers: 3,
   notifyOnComplete: true,
 
-  // 安全
   rememberPassword: true,
   masterPassword: false,
   idleLockMinutes: 0,
   clearClipboardOnExit: false,
 
-  // 数据
   dataStoragePath: '',
   logRetentionDays: 30,
   cloudSync: false,
 
-  updateSetting: (key, value) => set({ [key]: value }),
+  // 数据库
+  dbTableFont: 'JetBrainsMono',
+  dbAutoExpand: true,
+  dbShowPrimaryKey: true,
+  dbCalcTotalRows: false,
+  dbCompositeHeader: false,
+  dbLoadAllFields: false,
+  dbTextAlign: 'auto',
+  dbRowsPerPage: 500,
+  dbDangerSqlConfirm: true,
+  dbSqlStopOnError: false,
+  dbScrollMode: 'natural',
+  dbCursorScrollSpeed: 1,
+
+  // Redis
+  redisMaxLoadCount: 10000,
+  redisGroupSeparator: ':',
+  redisShowValue: false,
+}
+
+interface SettingsStore extends SettingsState {
+  _dirty: boolean
+  updateSetting: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void
+  applySettings: () => void
+  resetToDefaults: () => void
+}
+
+export const useSettingsStore = create<SettingsStore>((set) => ({
+  ...DEFAULTS,
+  _dirty: false,
+
+  updateSetting: (key, value) => set({ [key]: value, _dirty: true }),
+  applySettings: () => set({ _dirty: false }),
+  resetToDefaults: () => set({ ...DEFAULTS, _dirty: false }),
 }))

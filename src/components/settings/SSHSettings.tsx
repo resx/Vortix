@@ -1,33 +1,6 @@
-import { useSettingsStore, type SettingsState } from '../../stores/useSettingsStore'
-import { Toggle } from '../ui/switch'
-import { SettingsDropdown } from '../ui/select'
-import { SettingRow, SettingGroup, SettingRowPlaceholder } from './SettingGroup'
+import { SettingRow, SettingGroup } from './SettingGroup'
+import { SToggle, SDropdown, SColumnSelect, SFontSelect } from './SettingControls'
 import { FolderPlus } from 'lucide-react'
-
-/* ── 便捷封装 ── */
-
-function SToggle({ k, label, desc }: { k: keyof SettingsState; label: string; desc?: string }) {
-  const value = useSettingsStore((s) => s[k]) as boolean
-  const update = useSettingsStore((s) => s.updateSetting)
-  return (
-    <SettingRow label={label} desc={desc}>
-      <Toggle checked={value} onChange={() => update(k, !value as never)} />
-    </SettingRow>
-  )
-}
-
-function SDropdown({ k, label, desc, options, width = 'w-[120px]' }: {
-  k: keyof SettingsState; label: string; desc?: string
-  options: { value: string; label: string }[]; width?: string
-}) {
-  const value = useSettingsStore((s) => s[k]) as string
-  const update = useSettingsStore((s) => s.updateSetting)
-  return (
-    <SettingRow label={label} desc={desc}>
-      <SettingsDropdown value={value} options={options} onChange={(v) => update(k, v as never)} width={width} />
-    </SettingRow>
-  )
-}
 
 /* ── SSH/SFTP 设置 ── */
 export default function SSHSettings() {
@@ -35,18 +8,10 @@ export default function SSHSettings() {
     <>
       {/* SSH 区域 */}
       <div className="text-[16px] font-medium text-[#1F2329] mb-5">SSH</div>
-      <div className="grid grid-cols-2 gap-x-10 gap-y-7 mb-10 items-stretch">
+      <div className="grid grid-cols-2 gap-x-10 gap-y-7 mb-10 items-start">
         {/* 左列 */}
         <SettingGroup>
-          <SDropdown
-            k="defaultAuthMethod" label="终端字体"
-            options={[
-              { value: 'MonoLisa', label: 'MonoLisa Variable' },
-              { value: 'JetBrainsMono', label: '(内置)JetBrainsMono' },
-            ]}
-            width="w-[280px]"
-            desc="(请选择等宽字体，否则将显示异常)"
-          />
+          <SFontSelect k="defaultAuthMethod" label="终端字体" desc="(请选择等宽字体，否则将显示异常)" />
           <SToggle k="sshCompression" label="终端高亮增强" />
           <SToggle k="agentForwarding" label="SSH/SFTP 路径联动" />
           <SToggle k="rememberPassword" label="鼠标选中自动复制" />
@@ -84,49 +49,65 @@ export default function SSHSettings() {
               { value: 'copy', label: '复制' },
               { value: 'paste', label: '粘贴' },
               { value: 'menu', label: '显示菜单' },
+              { value: 'copy-paste', label: '选中即复制，否则粘贴' },
             ]}
-            width="w-[140px]"
+            width="w-[180px]"
           />
           <SDropdown
             k="keyExchangeAlgorithm" label="鼠标右键执行"
             options={[
               { value: 'none', label: '不执行' },
+              { value: 'copy', label: '复制' },
+              { value: 'paste', label: '粘贴' },
               { value: 'menu', label: '显示菜单' },
               { value: 'copy-paste', label: '选中即复制，否则粘贴' },
             ]}
-            width="w-[160px]"
+            width="w-[180px]"
           />
           <SToggle k="x11Forwarding" label="终端声音" />
-          <SToggle k="clearClipboardOnExit" label="Ctrl+C 复制" desc="选中文本时 Ctrl+C 执行复制而非中断" />
-          <SDropdown
-            k="proxyMode" label="终端光标样式"
-            options={[
-              { value: 'block', label: '方块' },
-              { value: 'underline', label: '下划线' },
-              { value: 'bar', label: '竖线' },
-            ]}
-            width="w-[100px]"
-          />
-          <SToggle k="restoreSession" label="终端光标闪烁" />
-          <SettingRow label="自定义终端配色">
+          <SToggle k="clearClipboardOnExit" label="Ctrl+V 粘贴" desc="将拦截 Ctrl+V 作为粘贴快捷键" />
+          <SettingRow label="终端行高" desc="基准值为 1">
+            <input
+              type="text"
+              defaultValue="1"
+              readOnly
+              className="w-[60px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none"
+            />
+          </SettingRow>
+          <SettingRow label="终端间距">
+            <input
+              type="text"
+              defaultValue="0"
+              readOnly
+              className="w-[60px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none"
+            />
+          </SettingRow>
+          <SettingRow label="终端最大缓存行数">
+            <input
+              type="text"
+              defaultValue="1000"
+              readOnly
+              className="w-[60px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none"
+            />
+          </SettingRow>
+          <SettingRow label="日志存储目录">
             <div className="flex items-center gap-1.5 shrink-0">
-              <div className="w-[26px] h-[26px] border border-[#E5E6EB] bg-white rounded flex items-center justify-center cursor-pointer hover:bg-[#E5E6EB]/50 transition-colors">
+              <div className="w-[26px] h-[26px] rounded-full bg-[#F2F3F5] flex items-center justify-center cursor-pointer hover:bg-[#E5E6EB] transition-colors">
                 <FolderPlus size={13} className="text-[#4E5969]" />
               </div>
               <input
                 type="text"
-                placeholder="不填则使用默认配色"
+                placeholder="不填则关闭日志录制"
                 className="w-[140px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-[11.5px] text-[#1F2329] outline-none placeholder-[#C9CDD4]"
               />
             </div>
           </SettingRow>
-          <SettingRowPlaceholder />
         </SettingGroup>
       </div>
 
       {/* SFTP 区域 */}
       <div className="text-[16px] font-medium text-[#1F2329] mb-5">SFTP</div>
-      <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-stretch">
+      <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-start">
         {/* 左列 */}
         <SettingGroup>
           <SDropdown
@@ -150,14 +131,7 @@ export default function SSHSettings() {
             ]}
             width="w-[240px]"
           />
-          <SDropdown
-            k="defaultEncoding" label="远程文件显示列"
-            options={[
-              { value: 'default', label: '名称,修改时间,类型...' },
-              { value: 'full', label: '名称,修改时间,类型,大小,权限' },
-            ]}
-            width="w-[220px]"
-          />
+          <SColumnSelect label="远程文件显示列" />
           <SettingRow label="文件列表读取超时时间(秒)" desc="0为不限制">
             <input
               type="text"
@@ -172,7 +146,7 @@ export default function SSHSettings() {
         <SettingGroup>
           <SettingRow label="默认保存路径">
             <div className="flex items-center gap-1.5 shrink-0">
-              <div className="w-[26px] h-[26px] border border-[#E5E6EB] bg-white rounded flex items-center justify-center cursor-pointer hover:bg-[#E5E6EB]/50 transition-colors">
+              <div className="w-[26px] h-[26px] rounded-full bg-[#F2F3F5] flex items-center justify-center cursor-pointer hover:bg-[#E5E6EB] transition-colors">
                 <FolderPlus size={13} className="text-[#4E5969]" />
               </div>
               <input
@@ -192,15 +166,7 @@ export default function SSHSettings() {
             width="w-[160px]"
           />
           <SToggle k="x11Forwarding" label="显示隐藏文件" />
-          <SDropdown
-            k="language" label="本地文件显示列"
-            options={[
-              { value: 'default', label: '名称,修改时间,类型...' },
-              { value: 'full', label: '名称,修改时间,类型,大小,权限' },
-            ]}
-            width="w-[220px]"
-          />
-          <SettingRowPlaceholder />
+          <SColumnSelect label="本地文件显示列" />
         </SettingGroup>
       </div>
     </>

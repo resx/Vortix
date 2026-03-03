@@ -1,17 +1,51 @@
+import * as React from 'react'
+import * as SwitchPrimitive from '@radix-ui/react-switch'
+import { cn } from '../../lib/utils'
+
+/* ── Switch（Radix 标准） ── */
+
+const Switch = React.forwardRef<
+  React.ComponentRef<typeof SwitchPrimitive.Root>,
+  React.ComponentPropsWithoutRef<typeof SwitchPrimitive.Root>
+>(({ className, ...props }, ref) => (
+  <SwitchPrimitive.Root
+    ref={ref}
+    className={cn(
+      'inline-flex w-[36px] h-[20px] shrink-0 cursor-pointer rounded-full transition-colors duration-200',
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4080FF]/40 focus-visible:ring-offset-1',
+      'disabled:cursor-not-allowed disabled:opacity-50',
+      'data-[state=checked]:bg-[#4080FF] data-[state=unchecked]:bg-[#E5E6EB]',
+      className,
+    )}
+    {...props}
+  >
+    <SwitchPrimitive.Thumb
+      className={cn(
+        'pointer-events-none block w-[16px] h-[16px] rounded-full bg-white shadow-sm transition-transform duration-200',
+        'data-[state=checked]:translate-x-[18px] data-[state=unchecked]:translate-x-[2px]',
+        'mt-[2px]',
+      )}
+    />
+  </SwitchPrimitive.Root>
+))
+Switch.displayName = SwitchPrimitive.Root.displayName
+
+/* ── Toggle（向后兼容别名） ── */
+
 interface ToggleProps {
   checked: boolean
   onChange: () => void
+  className?: string
 }
 
-export function Toggle({ checked, onChange }: ToggleProps) {
+function Toggle({ checked, onChange, className }: ToggleProps) {
   return (
-    <div
-      onClick={onChange}
-      className={`w-[36px] h-[20px] rounded-full relative cursor-pointer transition-colors duration-200 shrink-0 ${checked ? 'bg-[#4080FF]' : 'bg-[#E5E6EB]'}`}
-    >
-      <div
-        className={`absolute top-[2px] w-[16px] h-[16px] bg-white rounded-full shadow-sm transition-transform duration-200 ${checked ? 'translate-x-[18px]' : 'translate-x-[2px]'}`}
-      />
-    </div>
+    <Switch
+      checked={checked}
+      onCheckedChange={onChange}
+      className={className}
+    />
   )
 }
+
+export { Switch, Toggle }
