@@ -6,7 +6,7 @@ export default function DatabaseSettings() {
   return (
     <>
       {/* 数据库区域 */}
-      <div className="text-[16px] font-medium text-[#1F2329] mb-5">数据库</div>
+      <div className="text-[16px] font-medium text-text-1 mb-5">数据库</div>
       <div className="grid grid-cols-2 gap-x-10 gap-y-7 mb-10 items-start">
         {/* 左列 */}
         <SettingGroup>
@@ -45,7 +45,7 @@ export default function DatabaseSettings() {
       </div>
 
       {/* Redis 区域 */}
-      <div className="text-[16px] font-medium text-[#1F2329] mb-5">Redis</div>
+      <div className="text-[16px] font-medium text-text-1 mb-5">Redis</div>
       <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-start">
         {/* 左列 */}
         <SettingGroup>

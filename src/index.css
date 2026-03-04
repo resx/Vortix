@@ -1,11 +1,125 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@theme {
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+/* 暗黑模式 class 策略 */
+@variant dark (&:where(.dark, .dark *));
+
+/* ── 亮色变量 ── */
+:root {
+  --bg-base: #F2F3F5;
+  --bg-card: #FFFFFF;
+  --bg-subtle: #F7F8FA;
+  --bg-hover: #F2F3F5;
+  --bg-active: #E8F0FF;
+  --border: #E5E6EB;
+  --border-subtle: rgba(229,230,235,0.6);
+  --text-1: #1F2329;
+  --text-2: #4E5969;
+  --text-3: #86909C;
+  --text-disabled: #C9CDD4;
+  --primary: #4080FF;
+  --primary-bg: #E8F0FF;
+  --tooltip-bg: #2D2D2D;
+  --tooltip-text: #FFFFFF;
+  --logo-fill: #1F2329;
+  --logo-text: #FFFFFF;
+
+  /* 终端纯色背景 */
+  --term-bg: #FFFFFF;
+  --term-text: #1F2329;
+  --term-prompt: #067D17;
+  --term-caret: #1F2329;
+
+  /* 终端条纹背景（护眼模式） */
+  --term-stripe-odd: #FFFFFF;
+  --term-stripe-even: #f0f4f9;
+
+  /* 图标语义色 */
+  --icon-folder: #FADC19;
+  --icon-terminal: #409EFF;
+  --status-warning: #E6A23C;
+  --status-success: #00B42A;
+  --status-error: #F53F3F;
+  --status-danger: #F56C6C;
+  --chart-green: #67C23A;
+  --chart-cyan: #13C2C2;
+  --icon-action: #FABC4D;
 }
 
-/* 自定义滚动条 */
+/* ── 暗色变量 ── */
+.dark {
+  --bg-base: #17181A;
+  --bg-card: #242529;
+  --bg-subtle: #2A2B30;
+  --bg-hover: #2E2F35;
+  --bg-active: #1E3A6E;
+  --border: #3A3B42;
+  --border-subtle: rgba(58,59,66,0.6);
+  --text-1: #E5E6EB;
+  --text-2: #9DA3AE;
+  --text-3: #6B7280;
+  --text-disabled: #4B5563;
+  --primary: #5B8FFF;
+  --primary-bg: #1E3A6E;
+  --tooltip-bg: #E5E6EB;
+  --tooltip-text: #1F2329;
+  --logo-fill: #E5E6EB;
+  --logo-text: #1F2329;
+
+  /* 终端纯色背景 */
+  --term-bg: #1E1E1E;
+  --term-text: #D4D4D4;
+  --term-prompt: #6A9955;
+  --term-caret: #D4D4D4;
+
+  /* 终端条纹背景（护眼模式） */
+  --term-stripe-odd: #1A1B1D;
+  --term-stripe-even: #202124;
+
+  /* 图标语义色 */
+  --icon-folder: #F5D547;
+  --icon-terminal: #5BAAFF;
+  --status-warning: #F0B856;
+  --status-success: #34D058;
+  --status-error: #F76D6D;
+  --status-danger: #F78D8D;
+  --chart-green: #85D35B;
+  --chart-cyan: #36D6D6;
+  --icon-action: #FFD06B;
+}
+
+/* ── @theme 注册 ── */
+@theme {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --color-bg-base: var(--bg-base);
+  --color-bg-card: var(--bg-card);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-bg-hover: var(--bg-hover);
+  --color-bg-active: var(--bg-active);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-text-1: var(--text-1);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+  --color-text-disabled: var(--text-disabled);
+  --color-primary: var(--primary);
+  --color-primary-bg: var(--primary-bg);
+  --color-tooltip-bg: var(--tooltip-bg);
+  --color-tooltip-text: var(--tooltip-text);
+  --color-logo-fill: var(--logo-fill);
+  --color-logo-text: var(--logo-text);
+  --color-icon-folder: var(--icon-folder);
+  --color-icon-terminal: var(--icon-terminal);
+  --color-status-warning: var(--status-warning);
+  --color-status-success: var(--status-success);
+  --color-status-error: var(--status-error);
+  --color-status-danger: var(--status-danger);
+  --color-chart-green: var(--chart-green);
+  --color-chart-cyan: var(--chart-cyan);
+  --color-icon-action: var(--icon-action);
+}
+
+/* ── 自定义滚动条 ── */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -19,6 +133,14 @@
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #c9cdd4;
+}
+
+/* 暗色滚动条 */
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #3A3B42;
+}
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #4B5563;
 }
 
 /* 字体列表专用滚动条（Mac 风格） */
@@ -37,13 +159,40 @@
 .font-list-scrollbar::-webkit-scrollbar-thumb:hover {
   background-color: rgba(0, 0, 0, 0.3);
 }
+.dark .font-list-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+.dark .font-list-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
 
 @keyframes loading {
   0% { width: 0%; }
   100% { width: 100%; }
 }
 
-/* Apple Liquid Glass 液态玻璃（深色叠加层） */
+/* ── Logo 动画：终端光标硬闪烁 ── */
+@keyframes terminalBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ── Logo 动画：全息错位故障 ── */
+@keyframes holoFlicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 0.9; transform: skewX(0deg); }
+  20% { opacity: 0.3; transform: skewX(-8deg); }
+  22% { opacity: 1; transform: skewX(8deg); }
+  24% { opacity: 0.4; transform: skewX(0deg); }
+  55% { opacity: 0.2; transform: skewX(-4deg); }
+}
+
+/* ── Logo 动画：底部数据脉冲轨迹 ── */
+@keyframes trackPulse {
+  0% { left: -50%; }
+  100% { left: 150%; }
+}
+
+/* ── Apple Liquid Glass 液态玻璃（深色叠加层） ── */
 .glass-dropdown {
   background: rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(24px) saturate(180%) brightness(1.05);
@@ -73,7 +222,7 @@
   z-index: 1;
 }
 
-/* Apple Liquid Glass 液态玻璃（浅色背景 — 右键菜单用） */
+/* ── Apple Liquid Glass 液态玻璃（浅色背景 — 右键菜单用） ── */
 .glass-context {
   background: rgba(246, 246, 246, 0.72);
   backdrop-filter: blur(20px) saturate(180%) brightness(1.05);
@@ -101,4 +250,35 @@
   );
   pointer-events: none;
   z-index: 1;
+}
+
+/* ── Glass 暗色覆盖 ── */
+.dark .glass-context {
+  background: rgba(36, 37, 41, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.3),
+    inset 0 1px 0 rgba(255,255,255,0.06), inset 0 -1px 0 rgba(255,255,255,0.02);
+}
+.dark .glass-context::before {
+  background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 35%, transparent 60%);
+}
+.dark .glass-dropdown {
+  background: rgba(36, 37, 41, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.dark .glass-dropdown::before {
+  background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, transparent 60%);
+}
+
+/* ── 终端条纹背景（护眼模式） ── */
+.terminal-stripe {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--term-stripe-odd) 0px,
+    var(--term-stripe-odd) var(--term-line-height, 24px),
+    var(--term-stripe-even) var(--term-line-height, 24px),
+    var(--term-stripe-even) calc(var(--term-line-height, 24px) * 2)
+  ) !important;
+  background-attachment: local;
 }

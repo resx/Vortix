@@ -37,10 +37,10 @@ export default function AssetTable() {
       }}
     >
       <table className="w-full text-left border-collapse whitespace-nowrap select-none">
-        <thead className="sticky top-0 bg-[#F7F8FA] z-10">
+        <thead className="sticky top-0 bg-bg-subtle z-10">
           <tr>
             {columns.map(col => (
-              <th key={col.key} className={`px-4 py-3 text-[12px] font-medium text-[#4E5969] border-b border-[#E5E6EB] ${col.width}`}>
+              <th key={col.key} className={`px-4 py-3 text-[12px] font-medium text-text-2 border-b border-border ${col.width}`}>
                 <div className="flex items-center gap-1">
                   {col.label}
                   <ChevronDown className="w-4 h-4 opacity-50" />
@@ -54,7 +54,7 @@ export default function AssetTable() {
             {TABLE_DATA.map((row, idx) => (
               <tr
                 key={row.id}
-                className={`${idx % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'} hover:bg-[#F2F3F5] cursor-pointer transition-colors group`}
+                className={`${idx % 2 === 0 ? 'bg-bg-card' : 'bg-bg-subtle'} hover:bg-bg-hover cursor-pointer transition-colors group`}
                 onDoubleClick={() => {
                   if (row.type === 'folder') {
                     setCurrentFolder(row.id)
@@ -71,22 +71,22 @@ export default function AssetTable() {
                   })
                 }}
               >
-                <td className="px-5 py-3 text-[13px] text-[#1F2329] flex items-center gap-1.5">
+                <td className="px-5 py-3 text-[13px] text-text-1 flex items-center gap-1.5">
                   {row.type === 'folder' ? (
-                    <Folder className="w-3.5 h-3.5 text-[#FADC19] fill-[#FADC19]" />
+                    <Folder className="w-3.5 h-3.5 text-icon-folder fill-icon-folder" />
                   ) : (
-                    <Terminal className="w-3.5 h-3.5 text-[#409EFF]" />
+                    <Terminal className="w-3.5 h-3.5 text-icon-terminal" />
                   )}
                   {maskText(row.name, isAnonymized)}
                 </td>
-                <td className="px-4 py-3 text-[13px] text-[#4E5969]">
+                <td className="px-4 py-3 text-[13px] text-text-2">
                   {row.type === 'folder' ? '-' : (showPing ? (pings[row.id] || row.latency) : '-')}
                 </td>
-                <td className="px-4 py-3 text-[13px] text-[#4E5969]">{maskText(row.host, isAnonymized)}</td>
-                <td className="px-4 py-3 text-[13px] text-[#4E5969]">{maskText(row.user, isAnonymized)}</td>
-                <td className="px-4 py-3 text-[13px] text-[#4E5969] font-mono">{row.created}</td>
-                <td className="px-4 py-3 text-[13px] text-[#4E5969]">{row.expire}</td>
-                <td className="px-4 py-3 text-[13px] text-[#4E5969]">{row.remark}</td>
+                <td className="px-4 py-3 text-[13px] text-text-2">{maskText(row.host, isAnonymized)}</td>
+                <td className="px-4 py-3 text-[13px] text-text-2">{maskText(row.user, isAnonymized)}</td>
+                <td className="px-4 py-3 text-[13px] text-text-2 font-mono">{row.created}</td>
+                <td className="px-4 py-3 text-[13px] text-text-2">{row.expire}</td>
+                <td className="px-4 py-3 text-[13px] text-text-2">{row.remark}</td>
               </tr>
             ))}
           </tbody>

@@ -47,6 +47,16 @@ export interface SettingsState {
   logRetentionDays: number
   cloudSync: boolean
 
+  // 终端
+  termFontFamily: string
+  termFontSize: number
+  termLineHeight: number
+  termLetterSpacing: number
+
+  // 编辑器
+  editorFontFamily: string
+  editorFontSize: number
+
   // 数据库
   dbTableFont: string
   dbAutoExpand: boolean
@@ -106,6 +116,16 @@ const DEFAULTS: SettingsState = {
   dataStoragePath: '',
   logRetentionDays: 30,
   cloudSync: false,
+
+  // 终端
+  termFontFamily: 'JetBrainsMono',
+  termFontSize: 14,
+  termLineHeight: 1.6,
+  termLetterSpacing: 0,
+
+  // 编辑器
+  editorFontFamily: 'JetBrainsMono',
+  editorFontSize: 14,
 
   // 数据库
   dbTableFont: 'JetBrainsMono',

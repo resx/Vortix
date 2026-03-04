@@ -17,7 +17,7 @@ const DropdownMenuGroup = DropdownMenuPrimitive.Group
 
 /* ── Content ── */
 const contentVariants = cva(
-  'z-[200] min-w-[200px] overflow-hidden rounded-xl py-1.5 text-[13px] text-[#1F2329] animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
+  'z-[200] min-w-[200px] overflow-hidden rounded-xl py-1.5 text-[13px] text-text-1 animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2',
   {
     variants: {
       variant: {
@@ -87,7 +87,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
         'flex items-center justify-between px-3 h-[32px] mx-1.5 my-[2px] rounded-lg text-[13px] cursor-pointer select-none outline-none transition-colors duration-150',
         variant === 'glass'
           ? 'focus:bg-white/20 data-[state=open]:bg-white/20'
-          : 'focus:bg-[#E8F0FF] data-[state=open]:bg-[#E8F0FF]',
+          : 'focus:bg-bg-active data-[state=open]:bg-bg-active',
         inset && 'pl-8',
         className,
       )}
@@ -115,7 +115,7 @@ const DropdownMenuItem = React.forwardRef<
         'flex items-center justify-between px-3 h-[32px] mx-1.5 my-[2px] rounded-lg text-[13px] cursor-pointer select-none outline-none transition-colors duration-150',
         variant === 'glass'
           ? 'focus:bg-white/20'
-          : 'focus:bg-[#E8F0FF]',
+          : 'focus:bg-bg-active',
         inset && 'pl-8',
         className,
       )}
@@ -132,7 +132,7 @@ const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn('h-px mx-3 my-1 bg-[#E5E6EB]/60', className)}
+    className={cn('h-px mx-3 my-1 bg-border/60', className)}
     {...props}
   />
 ))
@@ -142,7 +142,7 @@ DropdownMenuSeparator.displayName = DropdownMenuPrimitive.Separator.displayName
 function DropdownMenuShortcut({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
-      className={cn('text-[11px] font-sans tracking-wide text-[#86909C]', className)}
+      className={cn('text-[11px] font-sans tracking-wide text-text-3', className)}
       {...props}
     />
   )

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { SettingRow, SettingGroup } from './SettingGroup'
-import { SToggle, SDropdown, SNumberDropdown, SFontSelect } from './SettingControls'
+import { SToggle, SDropdown, SNumberDropdown, SFontSelect, SNumberInput } from './SettingControls'
 import { Eye, EyeOff } from 'lucide-react'
 
 /* ── 锁屏密码行 ── */
@@ -13,14 +13,14 @@ function LockPasswordRow() {
         <button
           type="button"
           onClick={() => setVisible(!visible)}
-          className="w-[26px] h-[26px] rounded-full bg-[#F2F3F5] flex items-center justify-center cursor-pointer hover:bg-[#E5E6EB] transition-colors"
+          className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
         >
-          <Icon size={13} className="text-[#4E5969]" />
+          <Icon size={13} className="text-text-2" />
         </button>
         <input
           disabled
           type={visible ? 'text' : 'password'}
-          className="w-[140px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 outline-none text-[12px]"
+          className="w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 outline-none text-[12px]"
         />
       </div>
     </SettingRow>
@@ -31,7 +31,7 @@ function LockPasswordRow() {
 export default function BasicSettings() {
   return (
     <>
-      <div className="text-[16px] font-medium text-[#1F2329] mb-5">基本</div>
+      <div className="text-[16px] font-medium text-text-1 mb-5">基本</div>
       <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-start">
         {/* 左列 */}
         <SettingGroup>
@@ -82,7 +82,7 @@ export default function BasicSettings() {
             width="w-[140px]"
             desc="修改后需重启生效，通道之间资产不共享"
           />
-          <SFontSelect k="defaultAuthMethod" label="编辑器字体" />
+          <SFontSelect k="editorFontFamily" label="编辑器字体" />
           <SDropdown
             k="proxyAddress" label="缩放比例"
             options={[
@@ -92,12 +92,12 @@ export default function BasicSettings() {
             ]}
             width="w-[100px]"
           />
-          <SDropdown
-            k="proxyPort" label="编辑器字号"
+          <SNumberDropdown
+            k="editorFontSize" label="编辑器字号"
             options={[
-              { value: '12', label: '12px' },
-              { value: '14', label: '14px' },
-              { value: '16', label: '16px' },
+              { value: 12, label: '12px' },
+              { value: 14, label: '14px' },
+              { value: 16, label: '16px' },
             ]}
             width="w-[100px]"
           />

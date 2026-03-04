@@ -39,10 +39,16 @@ export type ContextMenuType =
   | 'sidebar-blank-asset'
   | 'sidebar-asset'
   | 'table-context'
+  | 'terminal'
 
 export interface TableContextData {
   targetContext: 'blank' | 'folder' | 'asset'
   rowData?: AssetRow
+}
+
+export interface TerminalContextData {
+  tabId: string
+  hasSelection: boolean
 }
 
 export interface ContextMenuState {
@@ -50,5 +56,5 @@ export interface ContextMenuState {
   x: number
   y: number
   type: ContextMenuType | null
-  data: TreeItem | TableContextData | null
+  data: TreeItem | TableContextData | TerminalContextData | null
 }

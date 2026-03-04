@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import Header from './components/layout/Header'
 import ActivityBar from './components/layout/ActivityBar'
 import Sidebar from './components/layout/Sidebar'
@@ -14,6 +15,7 @@ import ContextMenu from './components/context-menu/ContextMenu'
 import SettingsPanel from './components/settings/SettingsPanel'
 import { AnimatePresence } from 'framer-motion'
 import { useAppStore } from './stores/useAppStore'
+import { useSettingsStore } from './stores/useSettingsStore'
 import { TooltipProvider } from './components/ui/tooltip'
 
 export default function App() {
@@ -26,6 +28,25 @@ export default function App() {
   const serverPanelOpen = useAppStore((s) => s.serverPanelOpen)
   const settingsOpen = useAppStore((s) => s.settingsOpen)
 
+  // 主题切换
+  const theme = useSettingsStore((s) => s.proxyMode)
+
+  useEffect(() => {
+    const root = document.documentElement
+    if (theme === 'dark') {
+      root.classList.add('dark')
+    } else if (theme === 'light') {
+      root.classList.remove('dark')
+    } else {
+      // auto: 跟随系统
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      const apply = () => mq.matches ? root.classList.add('dark') : root.classList.remove('dark')
+      apply()
+      mq.addEventListener('change', apply)
+      return () => mq.removeEventListener('change', apply)
+    }
+  }, [theme])
+
   const activeTab = tabs.find(t => t.id === activeTabId)
   const isListView = activeTab?.type === 'list'
   const isAssetView = activeTab?.type === 'asset'
@@ -33,7 +54,7 @@ export default function App() {
 
   return (
     <TooltipProvider delayDuration={300}>
-    <div id="app-root" className="h-screen w-screen bg-[#F2F3F5] font-sans flex flex-col overflow-hidden">
+    <div id="app-root" className="h-screen w-screen bg-bg-base font-sans flex flex-col overflow-hidden">
       <Header />
 
       <div className="flex-1 flex overflow-hidden">
@@ -46,7 +67,7 @@ export default function App() {
           <Sidebar />
 
           {/* 主内容区 - 独立白色卡片 */}
-          <div id="main-content" className="flex-1 flex flex-col bg-white rounded-xl border border-[#E5E6EB] shadow-sm relative min-w-0 ml-3 overflow-clip" onContextMenu={(e) => e.preventDefault()}>
+          <div id="main-content" className="flex-1 flex flex-col bg-bg-card rounded-xl border border-border shadow-sm relative min-w-0 ml-3 overflow-clip" onContextMenu={(e) => e.preventDefault()}>
             <TabBar />
 
             <div className="flex-1 flex overflow-hidden">

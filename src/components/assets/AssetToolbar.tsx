@@ -24,7 +24,7 @@ function ToolbarActionBtn({
       <TooltipTrigger asChild>
         <button
           onClick={(e) => { e.stopPropagation(); onClick?.(e) }}
-          className="p-1 rounded-md text-[#4E5969] hover:bg-[#F2F3F5] hover:text-[#1F2329] transition-colors"
+          className="p-1 rounded-md text-text-2 hover:bg-bg-hover hover:text-text-1 transition-colors"
         >
           <Icon className="w-[15px] h-[15px]" />
         </button>
@@ -51,19 +51,19 @@ function DropdownMenuItem({
 
   return (
     <div
-      className="relative flex items-center justify-between px-3 h-[34px] mx-1.5 my-[2px] rounded-lg text-[13px] text-[#1F2329] hover:bg-[#4080FF] hover:text-white cursor-pointer group select-none"
+      className="relative flex items-center justify-between px-3 h-[34px] mx-1.5 my-[2px] rounded-lg text-[13px] text-text-1 hover:bg-primary hover:text-white cursor-pointer group select-none"
       onMouseEnter={() => hasSubmenu && setActiveNewSubmenu(submenuKey ?? null)}
       onMouseLeave={() => hasSubmenu && setActiveNewSubmenu(null)}
     >
       <div className="flex items-center gap-2.5">
-        <Icon className="w-3.5 h-3.5 text-[#4E5969] group-hover:text-white transition-colors" />
+        <Icon className="w-3.5 h-3.5 text-text-2 group-hover:text-white transition-colors" />
         <span>{label}</span>
       </div>
-      {hasSubmenu && <ChevronRight className="w-3.5 h-3.5 text-[#86909C] group-hover:text-white" />}
+      {hasSubmenu && <ChevronRight className="w-3.5 h-3.5 text-text-3 group-hover:text-white" />}
 
       {hasSubmenu && activeNewSubmenu === submenuKey && (
         <div className="absolute top-0 left-full pl-1 z-[101]">
-          <div className="bg-white/75 backdrop-blur-2xl border border-white/60 rounded-xl shadow-lg py-1.5 min-w-[150px]">
+          <div className="bg-bg-card/75 backdrop-blur-2xl border border-bg-card/60 rounded-xl shadow-lg py-1.5 min-w-[150px]">
             {submenuKey === 'remote' && (
               <>
                 <SubItem icon={Terminal} label="SSH" />
@@ -95,8 +95,8 @@ function DropdownMenuItem({
 
 function SubItem({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
-    <div className="px-3 py-1.5 hover:bg-[#F2F3F5] text-[#1F2329] text-[13px] flex items-center gap-2 cursor-pointer">
-      <Icon className="w-3.5 h-3.5 text-[#4E5969]" />
+    <div className="px-3 py-1.5 hover:bg-bg-hover text-text-1 text-[13px] flex items-center gap-2 cursor-pointer">
+      <Icon className="w-3.5 h-3.5 text-text-2" />
       {label}
     </div>
   )
@@ -127,11 +127,11 @@ export default function AssetToolbar() {
   }, [setNewMenuOpen])
 
   return (
-    <div id="asset-toolbar" className="h-[44px] border-b border-[#E5E6EB] flex items-center justify-between px-3 shrink-0">
+    <div id="asset-toolbar" className="h-[44px] border-b border-border flex items-center justify-between px-3 shrink-0">
       <div className="flex items-center gap-2">
-        <AlignJustify className="w-3.5 h-3.5 text-[#86909C]" />
-        <span className="text-[13px] font-medium text-[#1F2329]">资产列表</span>
-        <span className="text-[12px] text-[#86909C] ml-4">已选择 0 个连接</span>
+        <AlignJustify className="w-3.5 h-3.5 text-text-3" />
+        <span className="text-[13px] font-medium text-text-1">资产列表</span>
+        <span className="text-[12px] text-text-3 ml-4">已选择 0 个连接</span>
       </div>
 
       <div className="flex items-center gap-1.5">
@@ -139,7 +139,7 @@ export default function AssetToolbar() {
           <input
             type="text"
             placeholder="名称,IP,User (Ctrl+Shift+F)"
-            className="w-[200px] border border-[#E5E6EB] rounded-lg px-2.5 py-0.5 text-[12px] text-[#1F2329] placeholder-[#86909C] outline-none focus:border-[#4080FF] shadow-sm transition-colors"
+            className="w-[200px] border border-border rounded-lg px-2.5 py-0.5 text-[12px] text-text-1 placeholder-text-3 outline-none focus:border-primary shadow-sm transition-colors"
           />
         </div>
 
@@ -151,7 +151,7 @@ export default function AssetToolbar() {
         <div className="relative" ref={newMenuRef}>
           <ToolbarActionBtn icon={LinkIcon} tooltip="新建" onClick={() => setNewMenuOpen(!newMenuOpen)} />
           {newMenuOpen && (
-            <div className="absolute top-full right-0 mt-2 bg-white/75 backdrop-blur-2xl border border-white/60 rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.1)] py-1.5 min-w-[140px] z-[101]">
+            <div className="absolute top-full right-0 mt-2 bg-bg-card/75 backdrop-blur-2xl border border-bg-card/60 rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.1)] py-1.5 min-w-[140px] z-[101]">
               <DropdownMenuItem icon={FolderPlus} label="目录" />
               <DropdownMenuItem icon={Terminal} label="本地终端" />
               <DropdownMenuItem icon={Package} label="Docker" />

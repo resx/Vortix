@@ -29,7 +29,7 @@ function fmtDisk(gb: number): string {
 function HBadge({ label, value, tint }: { label: string; value: string; tint: string }) {
   return (
     <div className="flex flex-col items-center gap-0.5 w-full">
-      <span className="text-[8px] text-[#86909C] leading-none">{label}</span>
+      <span className="text-[8px] text-text-3 leading-none">{label}</span>
       <div
         className="relative rounded-md w-[36px] h-[20px] flex items-center justify-center overflow-hidden isolate"
         style={{
@@ -60,7 +60,7 @@ function VBar({ label, display, percent, tint }: {
 }) {
   return (
     <div className="flex flex-col items-center gap-0.5 w-full">
-      <span className="text-[8px] text-[#86909C] leading-none">{label}</span>
+      <span className="text-[8px] text-text-3 leading-none">{label}</span>
       <div
         className="relative w-[36px] h-[42px] rounded-md overflow-hidden isolate"
         style={{
@@ -120,7 +120,7 @@ export default function ServerMonitor({ connected }: Props) {
   if (!connected || !data) {
     return (
       <div id="server-monitor" className="w-[48px] shrink-0 flex flex-col items-center justify-center">
-        <span className="text-[9px] text-[#C9CDD4]">未连接</span>
+        <span className="text-[9px] text-text-disabled">未连接</span>
       </div>
     )
   }
@@ -132,30 +132,30 @@ export default function ServerMonitor({ connected }: Props) {
     <div id="server-monitor" className="w-[48px] shrink-0 flex flex-col items-center py-2 gap-2 overflow-y-auto custom-scrollbar">
       {/* 操作按钮 */}
       <button
-        className="p-1.5 rounded-md text-[#4E5969] hover:bg-white/40 hover:text-[#1F2329] transition-colors"
+        className="p-1.5 rounded-md text-text-2 hover:bg-bg-card/40 hover:text-text-1 transition-colors"
         onClick={toggleServerPanel}
       >
         <TerminalSquare className="w-3.5 h-3.5" />
       </button>
 
       <button
-        className="p-1.5 rounded-md text-[#4E5969] hover:bg-white/40 hover:text-[#1F2329] transition-colors"
+        className="p-1.5 rounded-md text-text-2 hover:bg-bg-card/40 hover:text-text-1 transition-colors"
         onClick={toggleSftp}
       >
         <FolderOpen className="w-3.5 h-3.5" />
       </button>
 
-      <div className="w-6 h-px bg-[#E5E6EB]" />
+      <div className="w-6 h-px bg-border" />
 
       {/* Liquid Glass 徽章 */}
       <HBadge label="CPU" value={`${data.cpuCores}`} tint="#4080FF" />
-      <HBadge label="上行" value={fmtNet(data.netUp)} tint="#D4883A" />
-      <HBadge label="下行" value={fmtNet(data.netDown)} tint="#52B060" />
+      <HBadge label="上行" value={fmtNet(data.netUp)} tint="#E6A23C" />
+      <HBadge label="下行" value={fmtNet(data.netDown)} tint="#67C23A" />
 
-      <div className="w-6 h-px bg-[#E5E6EB]" />
+      <div className="w-6 h-px bg-border" />
 
       {/* Liquid Glass 进度条 */}
-      <VBar label="CPU" display={`${data.cpuUsage}%`} percent={data.cpuUsage} tint="#52C41A" />
+      <VBar label="CPU" display={`${data.cpuUsage}%`} percent={data.cpuUsage} tint="#67C23A" />
       <VBar label="内存" display={fmtDisk(data.memUsed)} percent={memPercent} tint="#4080FF" />
       <VBar label="磁盘" display={fmtDisk(data.diskUsed)} percent={diskPercent} tint="#13C2C2" />
     </div>

@@ -35,10 +35,10 @@ interface HistoryPoint {
 function InfoItem({ icon: Icon, label, value }: { icon: typeof User; label: string; value: string }) {
   return (
     <div className="flex items-center gap-2 py-1.5">
-      <Icon className="w-3.5 h-3.5 text-[#86909C] shrink-0" />
+      <Icon className="w-3.5 h-3.5 text-text-3 shrink-0" />
       <div className="min-w-0">
-        <div className="text-[10px] text-[#86909C] leading-none">{label}</div>
-        <div className="text-[11px] text-[#1F2329] font-medium truncate mt-0.5">{value}</div>
+        <div className="text-[10px] text-text-3 leading-none">{label}</div>
+        <div className="text-[11px] text-text-1 font-medium truncate mt-0.5">{value}</div>
       </div>
     </div>
   )
@@ -47,8 +47,8 @@ function InfoItem({ icon: Icon, label, value }: { icon: typeof User; label: stri
 function StatCell({ value, label }: { value: string; label: string }) {
   return (
     <div className="text-center py-1">
-      <div className="text-[12px] text-[#1F2329] font-semibold tabular-nums">{value}</div>
-      <div className="text-[9px] text-[#86909C] mt-0.5">{label}</div>
+      <div className="text-[12px] text-text-1 font-semibold tabular-nums">{value}</div>
+      <div className="text-[9px] text-text-3 mt-0.5">{label}</div>
     </div>
   )
 }
@@ -59,9 +59,9 @@ function MemBar({ label, used, total, color }: { label: string; used: number; to
   return (
     <div className="mb-2">
       <div className="flex items-center justify-between text-[10px] mb-1">
-        <span className="text-[#86909C]">{label}</span>
+        <span className="text-text-3">{label}</span>
       </div>
-      <div className="relative h-[18px] bg-[#F2F3F5] rounded overflow-hidden">
+      <div className="relative h-[18px] bg-bg-base rounded overflow-hidden">
         <div className={cn('h-full rounded transition-all duration-700', color)} style={{ width: `${percent}%` }} />
         <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-white mix-blend-difference tabular-nums">
           {fmtMem(used)}/{fmtMem(total)}
@@ -72,14 +72,14 @@ function MemBar({ label, used, total, color }: { label: string; used: number; to
 }
 
 function CoreBar({ index, percent }: { index: number; percent: number }) {
-  const color = percent > 80 ? 'bg-[#F56C6C]' : percent > 60 ? 'bg-[#E6A23C]' : 'bg-[#4080FF]'
+  const color = percent > 80 ? 'bg-status-danger' : percent > 60 ? 'bg-status-warning' : 'bg-primary'
   return (
     <div className="flex items-center gap-2 py-0.5">
-      <span className="text-[10px] text-[#1F2329] font-medium w-[36px] shrink-0">CPU{index + 1}</span>
-      <div className="flex-1 h-[10px] bg-[#F2F3F5] rounded-sm overflow-hidden">
+      <span className="text-[10px] text-text-1 font-medium w-[36px] shrink-0">CPU{index + 1}</span>
+      <div className="flex-1 h-[10px] bg-bg-base rounded-sm overflow-hidden">
         <div className={cn('h-full rounded-sm transition-all duration-700', color)} style={{ width: `${percent}%` }} />
       </div>
-      <span className="text-[10px] text-[#86909C] tabular-nums w-[36px] text-right">{percent}%</span>
+      <span className="text-[10px] text-text-3 tabular-nums w-[36px] text-right">{percent}%</span>
     </div>
   )
 }
@@ -180,16 +180,16 @@ export default function ServerInfoPanel() {
   return (
     <motion.div
       id="server-info-panel"
-      className="w-[380px] shrink-0 bg-white border-l border-[#E5E6EB] flex flex-col h-full shadow-[-4px_0_16px_rgba(0,0,0,0.06)]"
+      className="w-[380px] shrink-0 bg-bg-card border-l border-border flex flex-col h-full shadow-[-4px_0_16px_rgba(0,0,0,0.06)]"
       initial={{ width: 0, opacity: 0 }}
       animate={{ width: 380, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
     >
       {/* 标题栏 */}
-      <div className="h-[48px] flex items-center justify-between px-4 shrink-0 border-b border-[#E5E6EB]">
-        <span className="text-[15px] font-bold text-[#1F2329] tracking-wide">服务器面板</span>
-        <button className="p-1 rounded-md text-[#4E5969] hover:bg-[#F2F3F5] hover:text-[#1F2329] transition-colors" onClick={toggleServerPanel}>
+      <div className="h-[48px] flex items-center justify-between px-4 shrink-0 border-b border-border">
+        <span className="text-[15px] font-bold text-text-1 tracking-wide">服务器面板</span>
+        <button className="p-1 rounded-md text-text-2 hover:bg-bg-hover hover:text-text-1 transition-colors" onClick={toggleServerPanel}>
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -198,7 +198,7 @@ export default function ServerInfoPanel() {
       <div className="flex-1 overflow-y-auto custom-scrollbar">
 
         {/* 系统信息 */}
-        <div className="px-4 pt-3 pb-2 grid grid-cols-2 gap-x-4 border-b border-[#F2F3F5]">
+        <div className="px-4 pt-3 pb-2 grid grid-cols-2 gap-x-4 border-b border-bg-base">
           <InfoItem icon={User} label="用户" value={info.user} />
           <InfoItem icon={Clock} label="运行时间" value={info.uptime} />
           <InfoItem icon={Globe} label="Host" value={info.host} />
@@ -206,7 +206,7 @@ export default function ServerInfoPanel() {
         </div>
 
         {/* CPU 统计 4列 x 2行 */}
-        <div className="px-4 py-2 border-b border-[#F2F3F5]">
+        <div className="px-4 py-2 border-b border-bg-base">
           <div className="grid grid-cols-4 gap-1">
             <StatCell value={`${info.cpuAvg}%`} label="平均CPU占用" />
             <StatCell value={`${info.cpuKernel}%`} label="内核态" />
@@ -222,45 +222,45 @@ export default function ServerInfoPanel() {
         </div>
 
         {/* 内存 */}
-        <div className="px-4 py-2 border-b border-[#F2F3F5]">
-          <MemBar label="物理内存" used={info.memUsed} total={info.memTotal} color="bg-[#4080FF]" />
-          <MemBar label="Swap内存" used={info.swapUsed} total={info.swapTotal} color="bg-[#67C23A]" />
+        <div className="px-4 py-2 border-b border-bg-base">
+          <MemBar label="物理内存" used={info.memUsed} total={info.memTotal} color="bg-primary" />
+          <MemBar label="Swap内存" used={info.swapUsed} total={info.swapTotal} color="bg-chart-green" />
         </div>
 
         {/* 网络概览 */}
-        <div className="px-4 py-2 border-b border-[#F2F3F5]">
+        <div className="px-4 py-2 border-b border-bg-base">
           <div className="grid grid-cols-4 gap-2">
             <div>
-              <div className="text-[10px] text-[#86909C]">总上行</div>
-              <div className="text-[11px] text-[#1F2329] font-medium">{info.netTotalUp}</div>
+              <div className="text-[10px] text-text-3">总上行</div>
+              <div className="text-[11px] text-text-1 font-medium">{info.netTotalUp}</div>
             </div>
             <div>
-              <div className="text-[10px] text-[#86909C]">总下行</div>
-              <div className="text-[11px] text-[#1F2329] font-medium">{info.netTotalDown}</div>
+              <div className="text-[10px] text-text-3">总下行</div>
+              <div className="text-[11px] text-text-1 font-medium">{info.netTotalDown}</div>
             </div>
             <div>
-              <div className="text-[10px] text-[#67C23A]">实时上行</div>
-              <div className="text-[11px] text-[#67C23A] font-semibold">{info.netRealtimeUp}</div>
+              <div className="text-[10px] text-chart-green">实时上行</div>
+              <div className="text-[11px] text-chart-green font-semibold">{info.netRealtimeUp}</div>
             </div>
             <div>
-              <div className="text-[10px] text-[#67C23A]">实时下行</div>
-              <div className="text-[11px] text-[#67C23A] font-semibold">{info.netRealtimeDown}</div>
+              <div className="text-[10px] text-chart-green">实时下行</div>
+              <div className="text-[11px] text-chart-green font-semibold">{info.netRealtimeDown}</div>
             </div>
           </div>
         </div>
 
         {/* 实时图表 */}
-        <div className="px-4 py-2 border-b border-[#F2F3F5]">
+        <div className="px-4 py-2 border-b border-bg-base">
           <div className="flex items-center gap-3 mb-1">
             {[
-              { label: 'CPU', color: '#4080FF' },
-              { label: '内存', color: '#67C23A' },
-              { label: '上行', color: '#E6A23C' },
-              { label: '下行', color: '#13C2C2' },
+              { label: 'CPU', color: 'var(--primary)' },
+              { label: '内存', color: 'var(--chart-green)' },
+              { label: '上行', color: 'var(--status-warning)' },
+              { label: '下行', color: 'var(--chart-cyan)' },
             ].map(({ label, color }) => (
               <div key={label} className="flex items-center gap-1">
                 <div className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />
-                <span className="text-[10px] text-[#86909C]">{label}</span>
+                <span className="text-[10px] text-text-3">{label}</span>
               </div>
             ))}
           </div>
@@ -268,44 +268,44 @@ export default function ServerInfoPanel() {
             <RLineChart data={history} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
               <YAxis domain={[0, 100]} hide />
               <Tooltip content={<ChartTooltip />} />
-              <Line type="monotone" dataKey="CPU" stroke="#4080FF" strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={800} />
-              <Line type="monotone" dataKey="内存" stroke="#67C23A" strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={800} />
-              <Line type="monotone" dataKey="上行" stroke="#E6A23C" strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={800} />
-              <Line type="monotone" dataKey="下行" stroke="#13C2C2" strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={800} />
+              <Line type="monotone" dataKey="CPU" stroke="var(--primary)" strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={800} />
+              <Line type="monotone" dataKey="内存" stroke="var(--chart-green)" strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={800} />
+              <Line type="monotone" dataKey="上行" stroke="var(--status-warning)" strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={800} />
+              <Line type="monotone" dataKey="下行" stroke="var(--chart-cyan)" strokeWidth={2} dot={false} isAnimationActive={true} animationDuration={800} />
             </RLineChart>
           </ResponsiveContainer>
         </div>
 
         {/* CPU 核心 */}
-        <div className="px-4 py-2 border-b border-[#F2F3F5]">
+        <div className="px-4 py-2 border-b border-bg-base">
           {info.cpuPerCore.map((usage, i) => (
             <CoreBar key={i} index={i} percent={usage} />
           ))}
         </div>
 
         {/* 进程列表 */}
-        <div className="px-4 py-2 border-b border-[#F2F3F5]">
+        <div className="px-4 py-2 border-b border-bg-base">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[11px] font-medium text-[#1F2329]">进程列表</span>
-            <span className="text-[10px] text-[#86909C] bg-[#F2F3F5] rounded px-1.5 py-0.5">{info.processes.length}</span>
+            <span className="text-[11px] font-medium text-text-1">进程列表</span>
+            <span className="text-[10px] text-text-3 bg-bg-base rounded px-1.5 py-0.5">{info.processes.length}</span>
           </div>
           <div className="space-y-1">
             {info.processes.map((p) => (
-              <div key={p.pid} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-[#F7F8FA] hover:bg-[#F2F3F5] transition-colors text-[10px]">
-                <TerminalSquare className="w-3.5 h-3.5 text-[#4E5969] shrink-0" />
+              <div key={p.pid} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-bg-subtle hover:bg-bg-hover transition-colors text-[10px]">
+                <TerminalSquare className="w-3.5 h-3.5 text-text-2 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="text-[#1F2329] font-medium truncate block">{p.name}</span>
-                  <span className="text-[#86909C] tabular-nums">PID {p.pid}</span>
+                  <span className="text-text-1 font-medium truncate block">{p.name}</span>
+                  <span className="text-text-3 tabular-nums">PID {p.pid}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <div className="text-right">
                     <div className="text-[#4080FF] font-semibold tabular-nums">{p.cpu}</div>
-                    <div className="text-[9px] text-[#86909C]">CPU</div>
+                    <div className="text-[9px] text-text-3">CPU</div>
                   </div>
-                  <div className="w-px h-5 bg-[#E5E6EB]" />
+                  <div className="w-px h-5 bg-border" />
                   <div className="text-right">
                     <div className="text-[#67C23A] font-semibold tabular-nums">{p.mem}</div>
-                    <div className="text-[9px] text-[#86909C]">内存</div>
+                    <div className="text-[9px] text-text-3">内存</div>
                   </div>
                 </div>
               </div>
@@ -314,16 +314,16 @@ export default function ServerInfoPanel() {
         </div>
 
         {/* 网卡信息 */}
-        <div className="px-4 py-2 border-b border-[#F2F3F5]">
-          <span className="text-[11px] font-medium text-[#1F2329] block mb-2">网卡信息</span>
+        <div className="px-4 py-2 border-b border-bg-base">
+          <span className="text-[11px] font-medium text-text-1 block mb-2">网卡信息</span>
           <div className="space-y-2">
             {info.nics.map((nic) => (
-              <div key={nic.name} className="rounded-lg bg-[#F7F8FA] px-3 py-2 text-[10px]">
+              <div key={nic.name} className="rounded-lg bg-bg-subtle px-3 py-2 text-[10px]">
                 {/* 网卡名 + IP */}
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
                     <Network className="w-3.5 h-3.5 text-[#4080FF]" />
-                    <span className="text-[#1F2329] font-semibold">{nic.name}</span>
+                    <span className="text-text-1 font-semibold">{nic.name}</span>
                   </div>
                   <div className="flex items-center gap-1 text-[#4080FF]">
                     <Globe className="w-3 h-3" />
@@ -332,21 +332,21 @@ export default function ServerInfoPanel() {
                 </div>
                 {/* 实时速率 + 总流量 */}
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="flex items-center justify-between bg-white rounded px-2 py-1">
+                  <div className="flex items-center justify-between bg-bg-card rounded px-2 py-1">
                     <span className="text-[#C87A30] font-medium">↑ 实时</span>
                     <span className="text-[#C87A30] font-semibold tabular-nums">{nic.up}</span>
                   </div>
-                  <div className="flex items-center justify-between bg-white rounded px-2 py-1">
-                    <span className="text-[#86909C]">↑ 总计</span>
-                    <span className="text-[#1F2329] font-medium tabular-nums">{nic.totalUp}</span>
+                  <div className="flex items-center justify-between bg-bg-card rounded px-2 py-1">
+                    <span className="text-text-3">↑ 总计</span>
+                    <span className="text-text-1 font-medium tabular-nums">{nic.totalUp}</span>
                   </div>
-                  <div className="flex items-center justify-between bg-white rounded px-2 py-1">
+                  <div className="flex items-center justify-between bg-bg-card rounded px-2 py-1">
                     <span className="text-[#3D8B4F] font-medium">↓ 实时</span>
                     <span className="text-[#3D8B4F] font-semibold tabular-nums">{nic.down}</span>
                   </div>
-                  <div className="flex items-center justify-between bg-white rounded px-2 py-1">
-                    <span className="text-[#86909C]">↓ 总计</span>
-                    <span className="text-[#1F2329] font-medium tabular-nums">{nic.totalDown}</span>
+                  <div className="flex items-center justify-between bg-bg-card rounded px-2 py-1">
+                    <span className="text-text-3">↓ 总计</span>
+                    <span className="text-text-1 font-medium tabular-nums">{nic.totalDown}</span>
                   </div>
                 </div>
               </div>
@@ -356,24 +356,24 @@ export default function ServerInfoPanel() {
 
         {/* 磁盘挂载 */}
         <div className="px-4 py-2">
-          <span className="text-[11px] font-medium text-[#1F2329] block mb-2">磁盘挂载</span>
+          <span className="text-[11px] font-medium text-text-1 block mb-2">磁盘挂载</span>
           <div className="space-y-2">
             {info.disks.map((d) => {
-              const barColor = d.percent > 80 ? 'bg-[#F56C6C]' : d.percent > 60 ? 'bg-[#E6A23C]' : 'bg-[#4080FF]'
-              const textColor = d.percent > 80 ? 'text-[#F56C6C]' : d.percent > 60 ? 'text-[#E6A23C]' : 'text-[#4080FF]'
+              const barColor = d.percent > 80 ? 'bg-status-danger' : d.percent > 60 ? 'bg-status-warning' : 'bg-primary'
+              const textColor = d.percent > 80 ? 'text-status-danger' : d.percent > 60 ? 'text-status-warning' : 'text-primary'
               return (
-                <div key={d.path} className="rounded-lg bg-[#F7F8FA] px-3 py-2 text-[10px]">
+                <div key={d.path} className="rounded-lg bg-bg-subtle px-3 py-2 text-[10px]">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5">
-                      <HardDrive className="w-3.5 h-3.5 text-[#E6A23C]" />
-                      <span className="text-[#1F2329] font-semibold">{d.name}</span>
+                      <HardDrive className={cn('w-3.5 h-3.5', textColor)} />
+                      <span className="text-text-1 font-semibold">{d.name}</span>
                     </div>
                     <span className={cn('font-bold tabular-nums', textColor)}>{d.percent}%</span>
                   </div>
-                  <div className="relative h-[6px] bg-[#E5E6EB] rounded-full overflow-hidden mb-1.5">
+                  <div className="relative h-[6px] bg-border rounded-full overflow-hidden mb-1.5">
                     <div className={cn('h-full rounded-full transition-all duration-700', barColor)} style={{ width: `${d.percent}%` }} />
                   </div>
-                  <div className="flex items-center justify-between text-[#86909C]">
+                  <div className="flex items-center justify-between text-text-3">
                     <span>{d.used}MB / {d.total}GB</span>
                     <div className="flex items-center gap-1">
                       <HardDrive className="w-2.5 h-2.5" />

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { Plus, X, Terminal as TerminalIcon, Circle } from 'lucide-react'
 import SshTerminal from './SshTerminal'
 import SshConnectDialog from './SshConnectDialog'
+import { useAppStore } from '../../stores/useAppStore'
 
 interface SshTab {
   id: string
@@ -22,6 +23,7 @@ export default function TerminalPanel() {
   const [tabs, setTabs] = useState<SshTab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const showContextMenu = useAppStore((s) => s.showContextMenu)
 
   const handleConnect = useCallback((config: SshTab['connection']) => {
     const id = `ssh-${++tabCounter}`
@@ -51,34 +53,34 @@ export default function TerminalPanel() {
   }, [])
 
   const statusColor: Record<SshTab['status'], string> = {
-    connecting: 'text-[#E6A23C]',
-    connected: 'text-[#00B42A]',
-    closed: 'text-[#86909C]',
-    error: 'text-[#F53F3F]',
+    connecting: 'text-status-warning',
+    connected: 'text-status-success',
+    closed: 'text-text-3',
+    error: 'text-status-error',
   }
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
 
   return (
-    <div className="flex-1 flex flex-col bg-white min-w-0">
+    <div className="flex-1 flex flex-col bg-bg-card min-w-0">
       {/* 标签栏 */}
-      <div className="h-10 flex items-end px-2 border-b border-[#E5E6EB] bg-[#F7F8FA] shrink-0 gap-0.5 pt-1">
+      <div className="h-10 flex items-end px-2 border-b border-border bg-bg-subtle shrink-0 gap-0.5 pt-1">
         {tabs.map((tab) => (
           <div
             key={tab.id}
             onClick={() => setActiveTabId(tab.id)}
             className={`flex items-center gap-1.5 px-3 h-full rounded-t-md text-[13px] cursor-pointer transition-colors group ${
               tab.id === activeTabId
-                ? 'bg-white border border-[#E5E6EB] border-b-0 text-[#1F2329] font-medium'
-                : 'text-[#86909C] hover:text-[#4E5969] hover:bg-[#F2F3F5]'
+                ? 'bg-bg-card border border-border border-b-0 text-text-1 font-medium'
+                : 'text-text-3 hover:text-text-2 hover:bg-bg-hover'
             }`}
           >
             <Circle className={`w-2 h-2 fill-current ${statusColor[tab.status]}`} />
-            <TerminalIcon className="w-3.5 h-3.5 text-[#86909C]" />
+            <TerminalIcon className="w-3.5 h-3.5 text-text-3" />
             <span className="max-w-[140px] truncate">{tab.label}</span>
             <button
               onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
-              className="ml-1 text-[#86909C] hover:text-[#1F2329] opacity-0 group-hover:opacity-100 transition-opacity"
+              className="ml-1 text-text-3 hover:text-text-1 opacity-0 group-hover:opacity-100 transition-opacity"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -88,7 +90,7 @@ export default function TerminalPanel() {
         {/* 新建标签按钮 */}
         <button
           onClick={() => setDialogOpen(true)}
-          className="flex items-center justify-center w-8 h-full text-[#86909C] hover:text-[#1F2329] hover:bg-[#F2F3F5] rounded-t-md transition-colors"
+          className="flex items-center justify-center w-8 h-full text-text-3 hover:text-text-1 hover:bg-bg-hover rounded-t-md transition-colors"
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -101,14 +103,17 @@ export default function TerminalPanel() {
             key={activeTab.id}
             connection={activeTab.connection}
             onStatusChange={(status) => updateTabStatus(activeTab.id, status)}
+            onContextMenu={(x, y, hasSelection) => {
+              showContextMenu(x, y, 'terminal', { tabId: activeTab.id, hasSelection })
+            }}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-[#86909C] gap-4">
+          <div className="flex flex-col items-center justify-center h-full text-text-3 gap-4">
             <TerminalIcon className="w-16 h-16 opacity-20" />
             <p className="text-[14px]">暂无终端会话</p>
             <button
               onClick={() => setDialogOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] text-white bg-[#4080FF] hover:bg-[#3070EE] transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] text-white bg-primary hover:opacity-90 transition-colors"
             >
               <Plus className="w-4 h-4" />
               新建 SSH 连接

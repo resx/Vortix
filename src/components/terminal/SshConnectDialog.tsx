@@ -34,21 +34,21 @@ export default function SshConnectDialog({ open, onClose, onConnect }: SshConnec
     })
   }
 
-  const inputClass = 'w-full border border-[#E5E6EB] rounded px-3 py-2 text-[13px] text-[#1F2329] placeholder-[#86909C] outline-none focus:border-[#4080FF] transition-colors bg-white'
+  const inputClass = 'w-full border border-border rounded px-3 py-2 text-[13px] text-text-1 placeholder-text-3 outline-none focus:border-primary transition-colors bg-bg-card'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30" onClick={onClose}>
       <div
-        className="bg-white rounded-xl shadow-xl w-[440px] border border-[#E5E6EB] overflow-hidden"
+        className="bg-bg-card rounded-xl shadow-xl w-[440px] border border-border overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5E6EB]">
-          <div className="flex items-center gap-2 text-[#1F2329]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="flex items-center gap-2 text-text-1">
             <Terminal className="w-5 h-5" />
             <span className="font-medium text-[15px]">新建 SSH 连接</span>
           </div>
-          <button onClick={onClose} className="text-[#86909C] hover:text-[#1F2329] transition-colors">
+          <button onClick={onClose} className="text-text-3 hover:text-text-1 transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -58,7 +58,7 @@ export default function SshConnectDialog({ open, onClose, onConnect }: SshConnec
           {/* 主机 & 端口 */}
           <div className="flex gap-3">
             <div className="flex-1">
-              <label className="block text-[13px] text-[#4E5969] mb-1">主机地址</label>
+              <label className="block text-[13px] text-text-2 mb-1">主机地址</label>
               <input
                 type="text"
                 value={host}
@@ -70,7 +70,7 @@ export default function SshConnectDialog({ open, onClose, onConnect }: SshConnec
               />
             </div>
             <div className="w-24">
-              <label className="block text-[13px] text-[#4E5969] mb-1">端口</label>
+              <label className="block text-[13px] text-text-2 mb-1">端口</label>
               <input
                 type="number"
                 value={port}
@@ -82,7 +82,7 @@ export default function SshConnectDialog({ open, onClose, onConnect }: SshConnec
 
           {/* 用户名 */}
           <div>
-            <label className="block text-[13px] text-[#4E5969] mb-1">用户名</label>
+            <label className="block text-[13px] text-text-2 mb-1">用户名</label>
             <input
               type="text"
               value={username}
@@ -95,15 +95,15 @@ export default function SshConnectDialog({ open, onClose, onConnect }: SshConnec
 
           {/* 认证方式 */}
           <div>
-            <label className="block text-[13px] text-[#4E5969] mb-1">认证方式</label>
+            <label className="block text-[13px] text-text-2 mb-1">认证方式</label>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setAuthType('password')}
                 className={`flex-1 py-1.5 rounded text-[13px] font-medium transition-colors ${
                   authType === 'password'
-                    ? 'bg-[#4080FF] text-white'
-                    : 'bg-[#F2F3F5] text-[#4E5969] hover:bg-[#E5E6EB]'
+                    ? 'bg-primary text-white'
+                    : 'bg-bg-base text-text-2 hover:bg-border'
                 }`}
               >
                 密码
@@ -113,8 +113,8 @@ export default function SshConnectDialog({ open, onClose, onConnect }: SshConnec
                 onClick={() => setAuthType('key')}
                 className={`flex-1 py-1.5 rounded text-[13px] font-medium transition-colors ${
                   authType === 'key'
-                    ? 'bg-[#4080FF] text-white'
-                    : 'bg-[#F2F3F5] text-[#4E5969] hover:bg-[#E5E6EB]'
+                    ? 'bg-primary text-white'
+                    : 'bg-bg-base text-text-2 hover:bg-border'
                 }`}
               >
                 私钥
@@ -125,7 +125,7 @@ export default function SshConnectDialog({ open, onClose, onConnect }: SshConnec
           {/* 密码 / 私钥 */}
           {authType === 'password' ? (
             <div>
-              <label className="block text-[13px] text-[#4E5969] mb-1">密码</label>
+              <label className="block text-[13px] text-text-2 mb-1">密码</label>
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
@@ -137,7 +137,7 @@ export default function SshConnectDialog({ open, onClose, onConnect }: SshConnec
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#86909C] hover:text-[#1F2329]"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-text-3 hover:text-text-1"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -145,7 +145,7 @@ export default function SshConnectDialog({ open, onClose, onConnect }: SshConnec
             </div>
           ) : (
             <div>
-              <label className="block text-[13px] text-[#4E5969] mb-1">私钥内容</label>
+              <label className="block text-[13px] text-text-2 mb-1">私钥内容</label>
               <textarea
                 value={privateKey}
                 onChange={(e) => setPrivateKey(e.target.value)}
@@ -161,13 +161,13 @@ export default function SshConnectDialog({ open, onClose, onConnect }: SshConnec
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded text-[13px] text-[#4E5969] bg-[#F2F3F5] hover:bg-[#E5E6EB] transition-colors"
+              className="px-4 py-2 rounded text-[13px] text-text-2 bg-bg-base hover:bg-border transition-colors"
             >
               取消
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded text-[13px] text-white bg-[#4080FF] hover:bg-[#3070EE] transition-colors"
+              className="px-4 py-2 rounded text-[13px] text-white bg-primary hover:opacity-90 transition-colors"
             >
               连接
             </button>

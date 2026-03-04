@@ -85,7 +85,7 @@ export function SColumnSelect({ label }: { label: string }) {
   return (
     <SettingRow label={label}>
       <DropdownMenuPrimitive.Root open={open} onOpenChange={setOpen}>
-        <DropdownMenuPrimitive.Trigger className="flex items-center gap-1 cursor-pointer text-[#4E5969] hover:text-[#1F2329] transition-colors text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-[#4080FF]/40 focus-visible:rounded">
+        <DropdownMenuPrimitive.Trigger className="flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded">
           <span className="max-w-[200px] truncate">{selectedText || '未选择'}</span>
           {open ? <ChevronUp size={14} className="shrink-0" /> : <ChevronDown size={14} className="shrink-0" />}
         </DropdownMenuPrimitive.Trigger>
@@ -102,14 +102,14 @@ export function SColumnSelect({ label }: { label: string }) {
                 checked={checked.has(col.key)}
                 onCheckedChange={() => toggle(col.key)}
                 onSelect={(e) => e.preventDefault()}
-                className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] cursor-pointer select-none outline-none data-[highlighted]:bg-[#E8F0FF] text-[#1F2329]"
+                className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] cursor-pointer select-none outline-none data-[highlighted]:bg-bg-active text-text-1"
               >
                 <div
                   className={cn(
                     'w-[16px] h-[16px] rounded-[4px] flex items-center justify-center border transition-colors shrink-0',
                     checked.has(col.key)
-                      ? 'bg-[#4080FF] border-[#4080FF]'
-                      : 'bg-white border-[#C9CDD4]',
+                      ? 'bg-primary border-primary'
+                      : 'bg-bg-card border-text-disabled',
                   )}
                 >
                   {checked.has(col.key) && <Check size={11} className="text-white" strokeWidth={3} />}
@@ -286,7 +286,7 @@ export function SFontSelect({ k, label, desc }: {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 cursor-pointer text-[#4E5969] hover:text-[#1F2329] transition-colors text-[13px] outline-none max-w-[280px]"
+        className="flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none max-w-[280px]"
       >
         <span className="truncate">{selectedLabel}</span>
         <ChevronDown size={14} className={cn('shrink-0 transition-transform', open && 'rotate-180')} />
@@ -310,7 +310,7 @@ export function SFontSelect({ k, label, desc }: {
           <div className="flex items-center gap-2 px-2.5 pt-2 pb-1.5">
             <div className="relative flex-1">
               <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-                <Search size={12} className="text-[#86909C]" />
+                <Search size={12} className="text-text-3" />
               </div>
               <input
                 ref={inputRef}
@@ -318,16 +318,16 @@ export function SFontSelect({ k, label, desc }: {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="搜索..."
-                className="w-full h-7 pl-7 pr-2 text-[11.5px] bg-black/5 border border-black/5 rounded-md outline-none focus:bg-white/80 focus:border-[#4080FF] focus:ring-1 focus:ring-[#4080FF]/40 transition-all placeholder-[#86909C] text-[#1F2329]"
+                className="w-full h-7 pl-7 pr-2 text-[11px] bg-black/5 border border-black/5 rounded-md outline-none focus:bg-white/80 focus:border-primary focus:ring-1 focus:ring-primary/40 transition-all placeholder-text-3 text-text-1"
               />
             </div>
-            <label className="flex items-center gap-1 cursor-pointer text-[11.5px] text-[#4E5969] hover:text-[#1F2329] shrink-0 pr-0.5 select-none">
-              <div className="relative flex items-center justify-center w-3.5 h-3.5 rounded-sm border border-[#86909C] bg-transparent transition-colors">
+            <label className="flex items-center gap-1 cursor-pointer text-[11px] text-text-2 hover:text-text-1 shrink-0 pr-0.5 select-none">
+              <div className="relative flex items-center justify-center w-3.5 h-3.5 rounded-sm border border-text-3 bg-transparent transition-colors">
                 {isIndeterminate && !isAllSelected && (
-                  <div className="w-2 h-0.5 bg-[#4080FF] rounded-sm" />
+                  <div className="w-2 h-0.5 bg-primary rounded-sm" />
                 )}
                 {isAllSelected && (
-                  <Check size={10} className="text-[#4080FF]" strokeWidth={3} />
+                  <Check size={10} className="text-primary" strokeWidth={3} />
                 )}
                 <input
                   type="checkbox"
@@ -343,28 +343,28 @@ export function SFontSelect({ k, label, desc }: {
           {/* 字体列表 */}
           <div className="h-[320px] overflow-y-auto font-list-scrollbar p-1.5 pt-0">
             {filteredFonts.length === 0 ? (
-              <div className="text-center text-[#86909C] py-8 text-[12.5px]">无匹配字体</div>
+              <div className="text-center text-text-3 py-8 text-[12px]">无匹配字体</div>
             ) : (
               filteredFonts.map(font => {
                 const isSelected = selectedFonts.has(font.value)
                 return (
                   <div
                     key={font.value}
-                    className="group flex items-center gap-2.5 px-2 py-1 rounded-lg cursor-pointer transition-colors hover:bg-[#a6c8ff]"
+                    className="group flex items-center gap-2.5 px-2 py-1 rounded-lg cursor-pointer transition-colors hover:bg-primary/40"
                     onClick={() => handleToggleFont(font.value)}
                   >
                     <div className={cn(
                       'relative flex items-center justify-center w-[15px] h-[15px] rounded-[3px] border-[1.5px] transition-all shrink-0',
                       isSelected
-                        ? 'bg-[#4080FF] border-[#4080FF] group-hover:bg-white group-hover:border-white'
-                        : 'bg-transparent border-[#4080FF] group-hover:border-white',
+                        ? 'bg-primary border-primary group-hover:bg-white group-hover:border-white'
+                        : 'bg-transparent border-primary group-hover:border-white',
                     )}>
                       {isSelected && (
-                        <Check size={11} className="text-white group-hover:text-[#4080FF]" strokeWidth={3} />
+                        <Check size={11} className="text-white group-hover:text-primary" strokeWidth={3} />
                       )}
                     </div>
                     <span
-                      className="text-[12.5px] text-[#1F2329] group-hover:text-white select-none truncate"
+                      className="text-[12px] text-text-1 group-hover:text-white select-none truncate"
                       style={{ fontFamily: font.family, fontWeight: font.fontWeight || 'normal' }}
                     >
                       {font.label}
@@ -398,7 +398,7 @@ export function SNumberInput({ k, label, desc, width = 'w-[60px]' }: {
           if (!isNaN(num)) update(k, num as never)
           else if (e.target.value === '') update(k, 0 as never)
         }}
-        className={`${width} h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none`}
+        className={`${width} h-[26px] border border-border bg-bg-card rounded px-2 text-right text-[12px] text-text-1 outline-none`}
       />
     </SettingRow>
   )
@@ -418,7 +418,7 @@ export function STextInput({ k, label, desc, width = 'w-[60px]', placeholder }: 
         value={value}
         onChange={(e) => update(k, e.target.value as never)}
         placeholder={placeholder}
-        className={`${width} h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-center text-[12.5px] text-[#1F2329] outline-none placeholder-[#C9CDD4]`}
+        className={`${width} h-[26px] border border-border bg-bg-card rounded px-2 text-center text-[12px] text-text-1 outline-none placeholder-text-disabled`}
       />
     </SettingRow>
   )

@@ -7,30 +7,69 @@ import BasicSettings from './BasicSettings'
 import SSHSettings from './SSHSettings'
 import DatabaseSettings from './DatabaseSettings'
 
-/* ── 正八边形 Logo（与主 Header 一致） ── */
+/* ── 全息指令盒 Logo（与主 Header 一致） ── */
 
-function VortixLogo({ size = 20 }: { size?: number }) {
+function GlitchBox({ size = 20 }: { size?: number }) {
+  const fontSize = Math.round(size * 0.55)
+  const scanLineSize = size <= 24 ? 2 : 4
+  const isDark = document.documentElement.classList.contains('dark')
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <polygon
-        points="9.4,1 22.6,1 31,9.4 31,22.6 22.6,31 9.4,31 1,22.6 1,9.4"
-        fill="#1F2329"
+    <div
+      className={`relative rounded-md flex items-center justify-center overflow-hidden flex-shrink-0 ${
+        isDark
+          ? 'bg-[#000] border border-gray-700 shadow-[0_0_12px_rgba(34,211,238,0.12)]'
+          : 'bg-[#111] border border-gray-800 shadow-sm'
+      }`}
+      style={{ width: size, height: size }}
+    >
+      <div
+        className="absolute inset-0 z-20 pointer-events-none opacity-40"
+        style={{ background: `linear-gradient(transparent 50%, rgba(0,0,0,0.5) 50%)`, backgroundSize: `100% ${scanLineSize}px` }}
       />
-      <text
-        x="16" y="23"
-        textAnchor="middle"
-        fill="white"
-        fontSize="20"
-        fontWeight="700"
-        fontFamily="Inter, system-ui, sans-serif"
-      >V</text>
-    </svg>
+      <div className="relative flex font-mono font-black tracking-tighter" style={{ fontSize: `${fontSize}px` }}>
+        <span className="absolute text-cyan-400 -left-[1px] top-[1px] mix-blend-screen blur-[0.3px]" style={{ animation: 'holoFlicker 5s infinite' }}>
+          &gt;<span style={{ animation: 'terminalBlink 2s step-end infinite' }}>_</span>
+        </span>
+        <span className="absolute text-rose-500 left-[1px] -top-[1px] mix-blend-screen blur-[0.3px]" style={{ animation: 'holoFlicker 5s infinite 150ms' }}>
+          &gt;<span style={{ animation: 'terminalBlink 2s step-end infinite' }}>_</span>
+        </span>
+        <span className="relative z-10 text-white">
+          &gt;<span style={{ animation: 'terminalBlink 2s step-end infinite', filter: 'drop-shadow(0 0 4px rgba(255,255,255,0.8))' }}>_</span>
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function SettingsLogoGroup() {
+  return (
+    <div className="flex items-center">
+      <GlitchBox />
+      <div className="flex flex-col ml-1.5 mt-0.5">
+        <span
+          className="text-text-1"
+          style={{
+            fontFamily: "'Chakra Petch', sans-serif",
+            fontSize: '14px',
+            fontWeight: 700,
+            lineHeight: 1,
+            letterSpacing: '-0.01em',
+          }}
+        >
+          Vortix
+        </span>
+        <div className="h-[2px] w-full mt-1 relative overflow-hidden rounded-full bg-border/60">
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/0 via-cyan-400/40 to-transparent" />
+          <div className="absolute h-full w-6 bg-gradient-to-r from-transparent via-cyan-400 to-transparent" style={{ animation: 'trackPulse 2.5s cubic-bezier(0.4,0,0.2,1) infinite' }} />
+        </div>
+      </div>
+    </div>
   )
 }
 
 /* ── 窗口控制按钮 ── */
 
-function WinBtn({ children, onClick, hoverClass = 'hover:bg-[#E5E6EB]' }: {
+function WinBtn({ children, onClick, hoverClass = 'hover:bg-border' }: {
   children: React.ReactNode
   onClick?: () => void
   hoverClass?: string
@@ -38,7 +77,7 @@ function WinBtn({ children, onClick, hoverClass = 'hover:bg-[#E5E6EB]' }: {
   return (
     <button
       onClick={onClick}
-      className={`w-[28px] h-[28px] flex items-center justify-center rounded-md text-[#86909C] hover:text-[#1F2329] transition-colors ${hoverClass}`}
+      className={`w-[28px] h-[28px] flex items-center justify-center rounded-md text-text-3 hover:text-text-1 transition-colors ${hoverClass}`}
     >
       {children}
     </button>
@@ -121,31 +160,30 @@ export default function SettingsPanel() {
         animate={{ scale: 1 }}
         exit={{ scale: 0.96 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
-        className={`pointer-events-auto ${panelSize} bg-[#F2F3F5] shadow-[0_16px_48px_rgba(0,0,0,0.16),0_4px_12px_rgba(0,0,0,0.08)] flex flex-col overflow-hidden transition-all duration-200`}
+        className={`pointer-events-auto ${panelSize} bg-bg-base shadow-[0_16px_48px_rgba(0,0,0,0.16),0_4px_12px_rgba(0,0,0,0.08)] flex flex-col overflow-hidden transition-all duration-200`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header — 缩减版主 Header */}
         <div
-          className="h-[48px] flex items-center px-4 shrink-0 select-none bg-[#F2F3F5] cursor-grab active:cursor-grabbing"
+          className="h-[48px] flex items-center px-4 shrink-0 select-none bg-bg-base cursor-grab active:cursor-grabbing"
           onPointerDown={(e) => {
             if (!(e.target as HTMLElement).closest('button')) dragControls.start(e)
           }}
         >
           {/* 左：Logo */}
-          <div className="flex items-center gap-0 w-[120px]">
-            <VortixLogo />
-            <span className="text-[#1F2329] font-bold text-[14px] tracking-wide ml-[1px]">ortix</span>
+          <div className="flex items-center w-[120px]">
+            <SettingsLogoGroup />
           </div>
 
           {/* 中：标题 */}
           <div className="flex-1 text-center">
-            <span className="text-[#1F2329] font-medium text-[14px]">设置</span>
+            <span className="text-text-1 font-medium text-[14px]">设置</span>
           </div>
 
           {/* 右：窗口控制 */}
           <div className="flex items-center gap-0.5 w-[120px] justify-end">
             <WinBtn onClick={() => setPinned(!pinned)}>
-              <PinIcon size={13} className={pinned ? 'text-[#4080FF]' : ''} />
+              <PinIcon size={13} className={pinned ? 'text-primary' : ''} />
             </WinBtn>
             <WinBtn onClick={toggleSettings}>
               <Minus size={14} />
@@ -162,11 +200,11 @@ export default function SettingsPanel() {
         {/* Body */}
         <div className="flex-1 flex overflow-hidden">
           {/* 左侧导航 */}
-          <div className="w-[180px] flex flex-col py-2 overflow-y-auto custom-scrollbar shrink-0 select-none bg-[#F2F3F5]">
+          <div className="w-[180px] flex flex-col py-2 overflow-y-auto custom-scrollbar shrink-0 select-none bg-bg-base">
             {NAV_DATA.map((item, i) => {
               if (item.type === 'group') {
                 return (
-                  <div key={i} className={`text-[12px] text-[#86909C] px-5 py-1.5 mb-1 font-medium ${'mt' in item && item.mt ? 'mt-3' : 'mt-1'}`}>
+                  <div key={i} className={`text-[12px] text-text-3 px-5 py-1.5 mb-1 font-medium ${'mt' in item && item.mt ? 'mt-3' : 'mt-1'}`}>
                     {item.label}
                   </div>
                 )
@@ -180,8 +218,8 @@ export default function SettingsPanel() {
                     'mt' in item && item.mt ? 'mt-2' : ''
                   } ${
                     isActive
-                      ? 'text-[#1F2329] bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]'
-                      : 'text-[#4E5969] hover:bg-[#E5E6EB]/50'
+                      ? 'text-text-1 bg-bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)]'
+                      : 'text-text-2 hover:bg-border/50'
                   }`}
                 >
                   {item.label}
@@ -191,20 +229,20 @@ export default function SettingsPanel() {
           </div>
 
           {/* 右侧内容 */}
-          <div className="flex-1 bg-white rounded-tl-2xl shadow-[-4px_0_12px_rgba(0,0,0,0.02)] flex flex-col overflow-hidden relative">
+          <div className="flex-1 bg-bg-card rounded-tl-2xl shadow-[-4px_0_12px_rgba(0,0,0,0.02)] flex flex-col overflow-hidden relative">
             <div className="flex-1 overflow-y-auto custom-scrollbar p-8 pb-24">
               {ContentComponent ? <ContentComponent /> : (
-                <div className="flex items-center justify-center h-full text-[#86909C] text-[14px]">
+                <div className="flex items-center justify-center h-full text-text-3 text-[14px]">
                   即将推出
                 </div>
               )}
             </div>
 
             {/* 底部栏 */}
-            <div className="absolute bottom-0 left-0 right-0 h-[64px] bg-white/90 backdrop-blur-md border-t border-[#E5E6EB] flex items-center justify-end px-8 gap-4 rounded-br-2xl z-10">
-              <span className="text-[#86909C] text-[12px] mr-2">修改设置后如未生效，请重启页面或重启应用</span>
+            <div className="absolute bottom-0 left-0 right-0 h-[64px] bg-bg-card/90 backdrop-blur-md border-t border-border flex items-center justify-end px-8 gap-4 rounded-br-2xl z-10">
+              <span className="text-text-3 text-[12px] mr-2">修改设置后如未生效，请重启页面或重启应用</span>
               <button
-                className="px-5 py-2 bg-[#F2F3F5] text-[#4E5969] rounded-lg text-[13px] hover:bg-[#E5E6EB] transition-colors font-medium"
+                className="px-5 py-2 bg-bg-base text-text-2 rounded-lg text-[13px] hover:bg-border transition-colors font-medium"
                 onClick={resetToDefaults}
               >
                 恢复默认
@@ -212,8 +250,8 @@ export default function SettingsPanel() {
               <button
                 className={`px-5 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                   dirty
-                    ? 'bg-[#E8F0FF] text-[#4080FF] hover:bg-[#DCE6FA] cursor-pointer'
-                    : 'bg-[#F2F3F5] text-[#C9CDD4] cursor-not-allowed'
+                    ? 'bg-bg-active text-primary hover:opacity-90 cursor-pointer'
+                    : 'bg-bg-base text-text-disabled cursor-not-allowed'
                 }`}
                 disabled={!dirty}
                 onClick={applySettings}

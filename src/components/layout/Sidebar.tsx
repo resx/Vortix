@@ -37,7 +37,7 @@ function SidebarHeaderButton({
         <button
           onClick={!disabled ? onClick : undefined}
           className={`p-[5px] rounded-md flex items-center justify-center transition-colors
-            ${disabled ? 'text-[#C9CDD4] cursor-not-allowed' : 'text-[#1F2329] hover:text-[#1F2329] hover:bg-[#F2F3F5]'} ${className}`}
+            ${disabled ? 'text-text-disabled cursor-not-allowed' : 'text-text-1 hover:text-text-1 hover:bg-bg-hover'} ${className}`}
         >
           <Icon className="w-3.5 h-3.5" />
         </button>
@@ -73,14 +73,14 @@ export default function Sidebar() {
   return (
     <div
       id="sidebar"
-      className="bg-white rounded-xl border border-[#E5E6EB] shadow-sm flex flex-col shrink-0 select-none transition-all duration-300 overflow-hidden"
+      className="bg-bg-card rounded-xl border border-border shadow-sm flex flex-col shrink-0 select-none transition-all duration-300 overflow-hidden"
       style={{ width: isSidebarOpen ? '270px' : '0px', opacity: isSidebarOpen ? 1 : 0 }}
     >
       <div className="w-[270px] flex flex-col h-full">
         {/* 侧边栏头部工具栏 */}
-        <div id="sidebar-header" className="h-[40px] flex items-center justify-between px-3 border-b border-[#E5E6EB] shrink-0">
-          <span className="text-[13px] font-bold text-[#1F2329] tracking-wide">{title}</span>
-          <div className="flex items-center gap-0.5 text-[#1F2329]">
+        <div id="sidebar-header" className="h-[40px] flex items-center justify-between px-3 border-b border-border shrink-0">
+          <span className="text-[13px] font-bold text-text-1 tracking-wide">{title}</span>
+          <div className="flex items-center gap-0.5 text-text-1">
             <SidebarHeaderButton icon={Search} tooltipText="搜索" />
             <SidebarHeaderButton icon={Crosshair} tooltipText="定位到选中项" />
             <SidebarHeaderButton icon={CopyPlus} tooltipText="点击全部展开" />
@@ -89,7 +89,7 @@ export default function Sidebar() {
               tooltipText="点击隐藏空文件夹"
               disabled={disableHideEmptyFolders}
               onClick={toggleHideEmptyFolders}
-              className={hideEmptyFolders && !disableHideEmptyFolders ? 'bg-[#E5E6EB] text-[#1F2329]' : ''}
+              className={hideEmptyFolders && !disableHideEmptyFolders ? 'bg-border text-text-1' : ''}
             />
             <SidebarHeaderButton icon={LinkIcon} tooltipText={isShortcuts ? '创建快捷命令' : '新建连接'} />
           </div>
@@ -104,33 +104,33 @@ export default function Sidebar() {
           {data.map(item => (
             <div key={item.id} className="flex flex-col">
               <div
-                className="flex items-center px-1 py-1.5 rounded-md hover:bg-[#F2F3F5] cursor-pointer"
+                className="flex items-center px-1 py-1.5 rounded-md hover:bg-bg-hover cursor-pointer"
                 onClick={() => toggleFolder(target, item.id)}
                 onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', item)}
               >
-                <span className="w-4 flex justify-center text-[#86909C]">
+                <span className="w-4 flex justify-center text-text-3">
                   {item.isOpen
                     ? <ChevronDown className="w-3.5 h-3.5" />
                     : <ChevronRight className="w-3.5 h-3.5" />}
                 </span>
                 <span className="w-5 flex justify-center mr-1">
-                  <Folder className="w-3.5 h-3.5 text-[#FADC19] fill-[#FADC19]" />
+                  <Folder className="w-3.5 h-3.5 text-icon-folder fill-icon-folder" />
                 </span>
-                <span className="text-[12px] text-[#4E5969] truncate flex-1">{item.name}</span>
+                <span className="text-[12px] text-text-2 truncate flex-1">{item.name}</span>
               </div>
 
               {item.isOpen && item.children?.map(child => (
                 <div
                   key={child.id}
-                  className="flex items-center px-1 py-1.5 pl-[28px] rounded-md hover:bg-[#F2F3F5] cursor-pointer"
+                  className="flex items-center px-1 py-1.5 pl-[28px] rounded-md hover:bg-bg-hover cursor-pointer"
                   onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', child)}
                 >
                   <span className="w-5 flex justify-center mr-1">
-                    <div className="bg-[#E5E6EB]/50 p-0.5 rounded text-[#86909C]">
+                    <div className="bg-border/50 p-0.5 rounded text-text-3">
                       <ArrowUpRight className="w-3 h-3" />
                     </div>
                   </span>
-                  <span className="text-[12px] text-[#4E5969] truncate flex-1">{child.name}</span>
+                  <span className="text-[12px] text-text-2 truncate flex-1">{child.name}</span>
                 </div>
               ))}
             </div>

@@ -1,5 +1,5 @@
 import { SettingRow, SettingGroup } from './SettingGroup'
-import { SToggle, SDropdown, SColumnSelect, SFontSelect } from './SettingControls'
+import { SToggle, SDropdown, SNumberDropdown, SColumnSelect, SFontSelect, SNumberInput } from './SettingControls'
 import { FolderPlus } from 'lucide-react'
 
 /* ── SSH/SFTP 设置 ── */
@@ -7,11 +7,11 @@ export default function SSHSettings() {
   return (
     <>
       {/* SSH 区域 */}
-      <div className="text-[16px] font-medium text-[#1F2329] mb-5">SSH</div>
+      <div className="text-[16px] font-medium text-text-1 mb-5">SSH</div>
       <div className="grid grid-cols-2 gap-x-10 gap-y-7 mb-10 items-start">
         {/* 左列 */}
         <SettingGroup>
-          <SFontSelect k="defaultAuthMethod" label="终端字体" desc="(请选择等宽字体，否则将显示异常)" />
+          <SFontSelect k="termFontFamily" label="终端字体" desc="(请选择等宽字体，否则将显示异常)" />
           <SToggle k="sshCompression" label="终端高亮增强" />
           <SToggle k="agentForwarding" label="SSH/SFTP 路径联动" />
           <SToggle k="rememberPassword" label="鼠标选中自动复制" />
@@ -23,7 +23,7 @@ export default function SSHSettings() {
               type="text"
               defaultValue="100"
               readOnly
-              className="w-[60px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none"
+              className="w-[60px] h-[26px] border border-border bg-bg-card rounded px-2 text-right text-[12px] text-text-1 outline-none"
             />
           </SettingRow>
           <SToggle k="masterPassword" label="终端护眼模式-条纹背景" />
@@ -32,12 +32,14 @@ export default function SSHSettings() {
 
         {/* 右列 */}
         <SettingGroup>
-          <SDropdown
-            k="proxyPort" label="终端字号"
+          <SNumberDropdown
+            k="termFontSize" label="终端字号"
             options={[
-              { value: '12', label: '12px' },
-              { value: '13', label: '13px' },
-              { value: '14', label: '14px' },
+              { value: 12, label: '12px' },
+              { value: 13, label: '13px' },
+              { value: 14, label: '14px' },
+              { value: 15, label: '15px' },
+              { value: 16, label: '16px' },
             ]}
             width="w-[100px]"
           />
@@ -66,39 +68,25 @@ export default function SSHSettings() {
           />
           <SToggle k="x11Forwarding" label="终端声音" />
           <SToggle k="clearClipboardOnExit" label="Ctrl+V 粘贴" desc="将拦截 Ctrl+V 作为粘贴快捷键" />
-          <SettingRow label="终端行高" desc="基准值为 1">
-            <input
-              type="text"
-              defaultValue="1"
-              readOnly
-              className="w-[60px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none"
-            />
-          </SettingRow>
-          <SettingRow label="终端间距">
-            <input
-              type="text"
-              defaultValue="0"
-              readOnly
-              className="w-[60px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none"
-            />
-          </SettingRow>
+          <SNumberInput k="termLineHeight" label="终端行高" desc="基准值为 1" />
+          <SNumberInput k="termLetterSpacing" label="终端间距" />
           <SettingRow label="终端最大缓存行数">
             <input
               type="text"
               defaultValue="1000"
               readOnly
-              className="w-[60px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none"
+              className="w-[60px] h-[26px] border border-border bg-bg-card rounded px-2 text-right text-[12px] text-text-1 outline-none"
             />
           </SettingRow>
           <SettingRow label="日志存储目录">
             <div className="flex items-center gap-1.5 shrink-0">
-              <div className="w-[26px] h-[26px] rounded-full bg-[#F2F3F5] flex items-center justify-center cursor-pointer hover:bg-[#E5E6EB] transition-colors">
-                <FolderPlus size={13} className="text-[#4E5969]" />
+              <div className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors">
+                <FolderPlus size={13} className="text-text-2" />
               </div>
               <input
                 type="text"
                 placeholder="不填则关闭日志录制"
-                className="w-[140px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-[11.5px] text-[#1F2329] outline-none placeholder-[#C9CDD4]"
+                className="w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled"
               />
             </div>
           </SettingRow>
@@ -106,7 +94,7 @@ export default function SSHSettings() {
       </div>
 
       {/* SFTP 区域 */}
-      <div className="text-[16px] font-medium text-[#1F2329] mb-5">SFTP</div>
+      <div className="text-[16px] font-medium text-text-1 mb-5">SFTP</div>
       <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-start">
         {/* 左列 */}
         <SettingGroup>
@@ -137,7 +125,7 @@ export default function SSHSettings() {
               type="text"
               defaultValue="60"
               readOnly
-              className="w-[40px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-right text-[12.5px] text-[#1F2329] outline-none"
+              className="w-[40px] h-[26px] border border-border bg-bg-card rounded px-2 text-right text-[12px] text-text-1 outline-none"
             />
           </SettingRow>
         </SettingGroup>
@@ -146,13 +134,13 @@ export default function SSHSettings() {
         <SettingGroup>
           <SettingRow label="默认保存路径">
             <div className="flex items-center gap-1.5 shrink-0">
-              <div className="w-[26px] h-[26px] rounded-full bg-[#F2F3F5] flex items-center justify-center cursor-pointer hover:bg-[#E5E6EB] transition-colors">
-                <FolderPlus size={13} className="text-[#4E5969]" />
+              <div className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors">
+                <FolderPlus size={13} className="text-text-2" />
               </div>
               <input
                 type="text"
                 placeholder="不填则使用默认路径"
-                className="w-[140px] h-[26px] border border-[#E5E6EB] bg-white rounded px-2 text-[11.5px] text-[#1F2329] outline-none placeholder-[#C9CDD4]"
+                className="w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled"
               />
             </div>
           </SettingRow>

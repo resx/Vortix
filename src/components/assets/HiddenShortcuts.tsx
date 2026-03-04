@@ -11,14 +11,14 @@ export default function HiddenShortcuts() {
   const setCurrentFolder = useAppStore((s) => s.setCurrentFolder)
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center bg-white">
-      <div className="flex flex-col items-end gap-5 text-[13px] text-[#4E5969]">
+    <div className="flex-1 flex flex-col items-center justify-center bg-bg-card">
+      <div className="flex flex-col items-end gap-5 text-[13px] text-text-2">
         {shortcuts.map(({ label, keys }) => (
           <div key={label} className="flex items-center gap-6 w-[260px] justify-between">
             <span>{label}</span>
             <div className="flex gap-1.5">
               {keys.map((k) => (
-                <kbd key={k} className="bg-white border border-[#C9CDD4] rounded-lg px-1.5 py-0.5 text-[11px] font-sans font-medium text-[#1F2329] shadow-sm">
+                <kbd key={k} className="bg-bg-card border border-text-disabled rounded-lg px-1.5 py-0.5 text-[11px] font-sans font-medium text-text-1 shadow-sm">
                   {k}
                 </kbd>
               ))}
@@ -27,7 +27,7 @@ export default function HiddenShortcuts() {
         ))}
       </div>
       <button
-        className="mt-12 flex items-center gap-2 px-4 py-1.5 border border-[#C9CDD4] rounded-lg bg-white text-[#4E5969] text-[13px] font-medium hover:bg-[#F2F3F5] transition-colors shadow-sm"
+        className="mt-12 flex items-center gap-2 px-4 py-1.5 border border-text-disabled rounded-lg bg-bg-card text-text-2 text-[13px] font-medium hover:bg-bg-hover transition-colors shadow-sm"
         onClick={() => { setAssetHidden(false); setCurrentFolder(null) }}
       >
         <ChevronUp className="w-3.5 h-3.5" /> 显示资产列表

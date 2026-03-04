@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { AssetRow } from '../../types'
+import { useAppStore } from '../../stores/useAppStore'
+import { useSettingsStore } from '../../stores/useSettingsStore'
 
 interface Props {
   asset: AssetRow
@@ -14,6 +16,31 @@ export default function TerminalSimulation({ asset, onExit, setConnected }: Prop
   const [shellStack, setShellStack] = useState<string[]>(['bash'])
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const showContextMenu = useAppStore((s) => s.showContextMenu)
+  const stripeEnabled = useSettingsStore((s) => s.masterPassword)
+  const baseFontSize = useSettingsStore((s) => s.termFontSize)
+  const termLineHeight = useSettingsStore((s) => s.termLineHeight)
+  const zoomEnabled = useSettingsStore((s) => s.notifyOnComplete)
+  const [zoomLevel, setZoomLevel] = useState(1)
+
+  const effectiveFontSize = Math.round(baseFontSize * zoomLevel)
+  const lineHeight = Math.round(effectiveFontSize * termLineHeight)
+
+  // Ctrl+滚轮缩放
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || !zoomEnabled) return
+    const handleWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      setZoomLevel(prev => {
+        const delta = e.deltaY > 0 ? -0.1 : 0.1
+        return Math.max(0.5, Math.min(3, +(prev + delta).toFixed(1)))
+      })
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [zoomEnabled])
 
   // 模拟连接
   useEffect(() => {
@@ -90,30 +117,48 @@ export default function TerminalSimulation({ asset, onExit, setConnected }: Prop
   return (
     <div
       ref={containerRef}
-      className="flex-1 bg-[#1E1E1E] text-[#D4D4D4] font-mono text-[13px] p-4 overflow-auto custom-scrollbar cursor-text"
+      className={`flex-1 font-mono px-4 overflow-auto custom-scrollbar cursor-text ${stripeEnabled ? 'terminal-stripe' : ''}`}
+      style={{
+        fontSize: `${effectiveFontSize}px`,
+        lineHeight: `${lineHeight}px`,
+        '--term-line-height': `${lineHeight}px`,
+        backgroundColor: stripeEnabled ? undefined : 'var(--term-bg)',
+        color: 'var(--term-text)',
+        caretColor: 'var(--term-caret)',
+      } as React.CSSProperties}
       onClick={() => inputRef.current?.focus()}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const selection = window.getSelection()?.toString()
+        showContextMenu(e.clientX, e.clientY, 'terminal', {
+          tabId: asset.id,
+          hasSelection: !!selection,
+        })
+      }}
     >
       {lines.map((line, i) => (
-        <div key={i} className="leading-6 whitespace-pre-wrap">{line}</div>
+        <div key={i} className="whitespace-pre-wrap break-all" style={{ backgroundColor: 'transparent' }}>{line}</div>
       ))}
       {connected && (
-        <div className="flex leading-6">
-          <span className="text-[#6A9955] whitespace-pre">{prompt}</span>
+        <div className="flex">
+          <span className="whitespace-pre" style={{ color: 'var(--term-prompt)' }}>{prompt}</span>
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="flex-1 bg-transparent outline-none text-[#D4D4D4] font-mono text-[13px] caret-[#D4D4D4]"
+            className="flex-1 bg-transparent outline-none font-mono"
+            style={{ fontSize: 'inherit', color: 'var(--term-text)', caretColor: 'var(--term-caret)' }}
             autoFocus
             spellCheck={false}
           />
         </div>
       )}
       {!connected && (
-        <div className="flex items-center gap-2 text-[#86909C]">
-          <div className="w-3 h-3 border-2 border-[#4080FF] border-t-transparent rounded-full animate-spin" />
+        <div className="flex items-center gap-2 text-text-3">
+          <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           正在连接...
         </div>
       )}

@@ -22,8 +22,8 @@ function TooltipButton({
       <TooltipTrigger asChild>
         <button
           onClick={onClick}
-          className={`w-[32px] h-[32px] rounded-full transition-colors flex items-center justify-center ${
-            isActive ? 'bg-[#E5E6EB] text-[#1F2329]' : 'text-[#86909C] hover:bg-[#E5E6EB]/60'
+          className={`w-[32px] h-[32px] rounded-[10px] transition-colors flex items-center justify-center ${
+            isActive ? 'bg-border text-text-1' : 'text-text-3 hover:bg-border/60'
           }`}
         >
           <Icon className="w-[18px] h-[18px]" />
@@ -59,7 +59,7 @@ export default function ActivityBar() {
         />
       </div>
 
-      <div className="w-[24px] h-px bg-[#E5E6EB] mb-2" />
+      <div className="w-[24px] h-px bg-border mb-2" />
 
       {/* 筛选按钮 */}
       <div className="flex flex-col gap-1.5 w-full items-center">

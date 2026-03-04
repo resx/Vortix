@@ -4,10 +4,13 @@ import {
   Clipboard, RefreshCw, FileDown, FileUp, ChevronRight, ChevronDown,
   Terminal, Network, Monitor, Usb, Package, Database,
   Key, Activity, FilePlus, ExternalLink, Columns, CopyPlus,
+  ClipboardType, Search, SquareArrowOutUpRight, Trash2, SquareX,
+  FileEdit, SplitSquareVertical, SplitSquareHorizontal,
+  Clock, Save, TerminalSquare, AppWindow,
 } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
 import type { LucideIcon } from 'lucide-react'
-import type { TableContextData } from '../../types'
+import type { TableContextData, TerminalContextData } from '../../types'
 
 /* ---- MenuItem ---- */
 function MenuItem({
@@ -80,24 +83,24 @@ function MenuItem({
   return (
     <div
       ref={itemRef}
-      className={`group/item relative flex items-center justify-between px-3 h-[34px] mx-1.5 my-[2px] rounded-lg text-[13px] transition-colors select-none
-        ${disabled ? 'text-[#C9CDD4] cursor-not-allowed' : 'text-[#1F2329] hover:bg-[#E8F0FF] cursor-pointer'}`}
+      className={`group/item relative flex items-center justify-between px-2.5 h-[28px] mx-1 my-[2px] rounded-md text-[12px] transition-colors select-none
+        ${disabled ? 'text-text-disabled cursor-not-allowed' : 'text-text-1 hover:bg-bg-active cursor-pointer'}`}
       onMouseEnter={openSubmenu}
       onMouseLeave={closeSubmenu}
     >
       <div className="flex items-center gap-2.5">
-        {Icon && <Icon className={`w-3.5 h-3.5 transition-colors ${disabled ? 'text-[#C9CDD4]' : 'text-[#4E5969] group-hover/item:text-[#4080FF]'}`} />}
+        {Icon && <Icon className={`w-3 h-3 transition-colors ${disabled ? 'text-text-disabled' : 'text-text-2 group-hover/item:text-primary'}`} />}
         <span>{label}</span>
       </div>
       <div className="flex items-center gap-3">
-        {shortcut && <span className={`text-[11px] font-sans ${disabled ? 'text-[#C9CDD4]' : 'text-[#86909C]'}`}>{shortcut}</span>}
-        {hasSubmenu && <ChevronRight className={`w-3.5 h-3.5 ${disabled ? 'text-[#C9CDD4]' : 'text-[#86909C]'}`} />}
+        {shortcut && <span className={`text-[10px] font-sans ${disabled ? 'text-text-disabled' : 'text-text-3'}`}>{shortcut}</span>}
+        {hasSubmenu && <ChevronRight className={`w-3 h-3 ${disabled ? 'text-text-disabled' : 'text-text-3'}`} />}
       </div>
 
       {hasSubmenu && children && !disabled && showSub && (
         <div
           ref={submenuRef}
-          className="absolute glass-context rounded-xl py-1.5 w-max z-[101] pointer-events-auto"
+          className="absolute glass-context rounded-xl py-1 w-max z-[101] pointer-events-auto"
           style={subPos}
           onMouseEnter={() => { if (hideTimer.current) clearTimeout(hideTimer.current) }}
           onMouseLeave={closeSubmenu}
@@ -110,22 +113,22 @@ function MenuItem({
 }
 
 function MenuDivider() {
-  return <div className="h-px bg-[#E5E6EB]/60 mx-1.5 my-1" />
+  return <div className="h-px bg-border/60 mx-1.5 my-0.5" />
 }
 
 /* ---- ActionButton（右键菜单顶部工具栏按钮 + tooltip） ---- */
 function ActionButton({ icon: Icon, tooltip, disabled }: { icon: LucideIcon; tooltip: string; disabled: boolean }) {
   return (
     <div className="group/action relative flex items-center">
-      <button className={`px-[8px] py-[6px] rounded-md transition-colors ${disabled ? 'text-[#C9CDD4] cursor-not-allowed' : 'hover:bg-[#E8F0FF] hover:text-[#4080FF] text-[#4E5969]'}`}>
-        <Icon className="w-3.5 h-3.5" />
+      <button className={`px-[6px] py-[4px] rounded-md transition-colors ${disabled ? 'text-text-disabled cursor-not-allowed' : 'hover:bg-bg-active hover:text-primary text-text-2'}`}>
+        <Icon className="w-3 h-3" />
       </button>
       {!disabled && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/action:flex items-center justify-center z-[150]">
-          <div className="bg-[#2D2D2D] text-white text-[12px] px-2 py-1.5 rounded-md shadow-lg whitespace-nowrap font-medium">
+          <div className="bg-tooltip-bg text-tooltip-text text-[11px] px-2 py-1.5 rounded-md shadow-lg whitespace-nowrap font-medium">
             {tooltip}
           </div>
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-t-[4px] border-t-[#333333] border-x-[4px] border-x-transparent" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 border-t-[4px] border-t-tooltip-bg border-x-[4px] border-x-transparent" />
         </div>
       )}
     </div>
@@ -208,7 +211,7 @@ export default function ContextMenu() {
   if (contextMenu.type === 'sidebar-shortcut' || contextMenu.type === 'sidebar-blank-shortcut') {
     content = (
       <>
-        <div className="px-4 py-1 text-[12px] text-[#86909C] font-medium">操作</div>
+        <div className="px-4 py-1 text-[11px] text-text-1 font-medium">操作</div>
         <MenuItem icon={FolderPlus} label="新建分组" />
         <MenuItem icon={LinkIcon} label="新建快捷命令" />
         <MenuDivider />
@@ -226,10 +229,10 @@ export default function ContextMenu() {
   else if (contextMenu.type === 'sidebar-asset' || contextMenu.type === 'sidebar-blank-asset') {
     content = (
       <>
-        <div className="px-4 py-1 text-[12px] text-[#86909C] font-medium">操作</div>
+        <div className="px-4 py-1 text-[11px] text-text-1 font-medium">操作</div>
         <MenuItem icon={FolderPlus} label="新建目录" />
         <MenuItem icon={LinkIcon} label="新建连接" hasSubmenu>
-          <div className="px-4 py-1 text-[12px] text-[#86909C] border-b border-[#E5E6EB]/50 mb-1">新建连接</div>
+          <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">新建连接</div>
           <NewConnectionSubmenu />
         </MenuItem>
         {contextMenu.type === 'sidebar-asset' && <MenuItem icon={LinkIcon} label="批量打开" />}
@@ -255,13 +258,13 @@ export default function ContextMenu() {
 
     content = (
       <>
-        <div className="flex items-center justify-between px-3.5 py-[5px] mb-1 border-b border-[#E5E6EB]/50">
-          <span className="text-[12px] text-[#86909C] font-medium tracking-wide">操作</span>
-          <div className="flex items-center bg-[#F2F3F5] rounded border border-[#E5E6EB] p-[2px]">
+        <div className="flex items-center justify-between px-3 py-[4px] mb-1 border-b border-border/50">
+          <span className="text-[11px] text-text-1 font-medium tracking-wide">操作</span>
+          <div className="flex items-center bg-bg-base rounded border border-border p-[2px]">
             <ActionButton icon={Clipboard} tooltip="粘贴(Ctrl+V)" disabled={false} />
-            <div className="w-px h-3.5 bg-[#E5E6EB] mx-[1px]" />
+            <div className="w-px h-3 bg-border mx-[1px]" />
             <ActionButton icon={Scissors} tooltip="剪切(Ctrl+X)" disabled={isBlank} />
-            <div className="w-px h-3.5 bg-[#E5E6EB] mx-[1px]" />
+            <div className="w-px h-3 bg-border mx-[1px]" />
             <ActionButton icon={Copy} tooltip="复制(Ctrl+C)" disabled={isBlank} />
           </div>
         </div>
@@ -289,13 +292,54 @@ export default function ContextMenu() {
       </>
     )
   }
+  // ---- 终端右键菜单 ----
+  else if (contextMenu.type === 'terminal') {
+    const data = contextMenu.data as TerminalContextData | null
+    const noSelection = !data?.hasSelection
+
+    content = (
+      <>
+        <div className="px-4 py-1 text-[11px] text-text-1 font-medium">操作</div>
+        <MenuItem icon={Copy} label="复制" shortcut="Ctrl+Shift+C" disabled={noSelection} />
+        <MenuItem icon={Clipboard} label="粘贴" shortcut="Ctrl+Shift+V" />
+        <MenuItem icon={ClipboardType} label="粘贴选中文本" disabled={noSelection} />
+        <MenuItem icon={Search} label="搜索" hasSubmenu>
+          <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">搜索引擎</div>
+          <MenuItem icon={Search} label="Google" />
+          <MenuItem icon={Search} label="Bing" />
+          <MenuItem icon={Search} label="百度" />
+        </MenuItem>
+        <MenuItem icon={AppWindow} label="通过服务器代理 Chrome" />
+        <MenuDivider />
+        <MenuItem icon={SquareArrowOutUpRight} label="新终端窗口" shortcut="Ctrl+Shift+N" />
+        <MenuItem icon={RefreshCw} label="重新连接" shortcut="Ctrl+Shift+R" />
+        <MenuItem icon={Trash2} label="清屏" shortcut="Ctrl+Shift+L" />
+        <MenuItem icon={SquareX} label="断开连接" shortcut="Ctrl+W" />
+        <MenuItem icon={FileEdit} label="唤起输入框输入" shortcut="Ctrl+I" />
+        <MenuDivider />
+        <MenuItem icon={SplitSquareVertical} label="垂直分屏" shortcut="Ctrl+Shift+=" />
+        <MenuItem icon={SplitSquareHorizontal} label="水平分屏" shortcut="Ctrl+Shift+-" />
+        <MenuDivider />
+        <MenuItem icon={ChevronDown} label="更多" hasSubmenu>
+          <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">更多</div>
+          <MenuItem icon={Clock} label="开始记录日志" />
+          <MenuItem icon={Save} label="保存为日志" />
+          <MenuItem icon={TerminalSquare} label="批量执行命令" />
+          <MenuItem icon={FileDown} label="SCP 下载" shortcut="Ctrl+Shift+D" />
+          <MenuItem icon={FileUp} label="SCP 上传" shortcut="Ctrl+Shift+U" />
+        </MenuItem>
+      </>
+    )
+  }
 
   if (!content) return null
+
+  const menuWidth = contextMenu.type === 'terminal' ? 'min-w-[260px]' : 'min-w-[210px]'
 
   return (
     <div
       ref={menuRef}
-      className="fixed glass-context rounded-xl py-1.5 min-w-[210px] z-[100]"
+      className={`fixed glass-context rounded-xl py-1 ${menuWidth} z-[100]`}
       style={{ top: position.top, left: position.left }}
       onClick={(e) => e.stopPropagation()}
     >

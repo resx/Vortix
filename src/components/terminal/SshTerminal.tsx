@@ -3,7 +3,54 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
+import { useSettingsStore } from '../../stores/useSettingsStore'
 import '@xterm/xterm/css/xterm.css'
+
+const lightTermTheme = {
+  background: '#FFFFFF',
+  foreground: '#1F2329',
+  cursor: '#1F2329',
+  selectionBackground: '#B4D5FE',
+  black: '#000000',
+  red: '#CD3131',
+  green: '#067D17',
+  yellow: '#B5890F',
+  blue: '#0451A5',
+  magenta: '#BC05BC',
+  cyan: '#0598BC',
+  white: '#555555',
+  brightBlack: '#666666',
+  brightRed: '#CD3131',
+  brightGreen: '#14CE14',
+  brightYellow: '#B5BA1F',
+  brightBlue: '#0451A5',
+  brightMagenta: '#BC05BC',
+  brightCyan: '#0598BC',
+  brightWhite: '#A5A5A5',
+}
+
+const darkTermTheme = {
+  background: '#1E1E2E',
+  foreground: '#CDD6F4',
+  cursor: '#F5E0DC',
+  selectionBackground: '#585B7066',
+  black: '#45475A',
+  red: '#F38BA8',
+  green: '#A6E3A1',
+  yellow: '#F9E2AF',
+  blue: '#89B4FA',
+  magenta: '#F5C2E7',
+  cyan: '#94E2D5',
+  white: '#BAC2DE',
+  brightBlack: '#585B70',
+  brightRed: '#F38BA8',
+  brightGreen: '#A6E3A1',
+  brightYellow: '#F9E2AF',
+  brightBlue: '#89B4FA',
+  brightMagenta: '#F5C2E7',
+  brightCyan: '#94E2D5',
+  brightWhite: '#A6ADC8',
+}
 
 interface SshTerminalProps {
   /** WebSocket 服务地址 */
@@ -18,9 +65,11 @@ interface SshTerminalProps {
   } | null
   /** 连接状态回调 */
   onStatusChange?: (status: 'connecting' | 'connected' | 'closed' | 'error') => void
+  /** 右键菜单回调 */
+  onContextMenu?: (x: number, y: number, hasSelection: boolean) => void
 }
 
-export default function SshTerminal({ wsUrl = 'ws://localhost:3001/ws/ssh', connection, onStatusChange }: SshTerminalProps) {
+export default function SshTerminal({ wsUrl = 'ws://localhost:3001/ws/ssh', connection, onStatusChange, onContextMenu }: SshTerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -39,33 +88,19 @@ export default function SshTerminal({ wsUrl = 'ws://localhost:3001/ws/ssh', conn
 
     cleanup()
 
+    // 根据当前主题选择配色
+    const isDark = document.documentElement.classList.contains('dark')
+    const termTheme = isDark ? darkTermTheme : lightTermTheme
+
+    // 从 store 读取终端字号
+    const termFontSize = useSettingsStore.getState().termFontSize
+
     // 初始化 xterm
     const term = new Terminal({
       cursorBlink: true,
-      fontSize: 14,
+      fontSize: termFontSize,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace",
-      theme: {
-        background: '#1E1E2E',
-        foreground: '#CDD6F4',
-        cursor: '#F5E0DC',
-        selectionBackground: '#585B7066',
-        black: '#45475A',
-        red: '#F38BA8',
-        green: '#A6E3A1',
-        yellow: '#F9E2AF',
-        blue: '#89B4FA',
-        magenta: '#F5C2E7',
-        cyan: '#94E2D5',
-        white: '#BAC2DE',
-        brightBlack: '#585B70',
-        brightRed: '#F38BA8',
-        brightGreen: '#A6E3A1',
-        brightYellow: '#F9E2AF',
-        brightBlue: '#89B4FA',
-        brightMagenta: '#F5C2E7',
-        brightCyan: '#94E2D5',
-        brightWhite: '#A6ADC8',
-      },
+      theme: termTheme,
       allowProposedApi: true,
     })
 
@@ -159,11 +194,30 @@ export default function SshTerminal({ wsUrl = 'ws://localhost:3001/ws/ssh', conn
     }
   }, [connection, wsUrl, onStatusChange, cleanup])
 
+  // 监听主题变化，动态更新 xterm 主题
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      if (termRef.current) {
+        const isDark = document.documentElement.classList.contains('dark')
+        termRef.current.options.theme = isDark ? darkTermTheme : lightTermTheme
+      }
+    })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    return () => observer.disconnect()
+  }, [])
+
+  const isDark = document.documentElement.classList.contains('dark')
+
   return (
     <div
       ref={containerRef}
       className="w-full h-full"
-      style={{ padding: '4px', backgroundColor: '#1E1E2E' }}
+      style={{ padding: '4px', backgroundColor: isDark ? '#1E1E2E' : '#FFFFFF' }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        const hasSelection = !!termRef.current?.getSelection()
+        onContextMenu?.(e.clientX, e.clientY, hasSelection)
+      }}
     />
   )
 }
