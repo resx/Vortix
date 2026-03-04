@@ -119,6 +119,14 @@
   --color-icon-action: var(--icon-action);
 }
 
+/* ── 主题切换时禁用所有 transition，防止闪烁 ── */
+html.theme-switching,
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition-duration: 0s !important;
+}
+
 /* ── 自定义滚动条 ── */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;

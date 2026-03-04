@@ -1,5 +1,4 @@
 import { Folder, Terminal, ChevronDown } from 'lucide-react'
-import { TABLE_DATA } from '../../data/mock'
 import { useAppStore } from '../../stores/useAppStore'
 
 const columns = [
@@ -26,6 +25,7 @@ export default function AssetTable() {
   const showPing = useAppStore((s) => s.showPing)
   const pings = useAppStore((s) => s.pings)
   const openAssetTab = useAppStore((s) => s.openAssetTab)
+  const tableData = useAppStore((s) => s.tableData)
 
   return (
     <div
@@ -51,7 +51,7 @@ export default function AssetTable() {
         </thead>
         {currentFolder === null && (
           <tbody>
-            {TABLE_DATA.map((row, idx) => (
+            {tableData.map((row, idx) => (
               <tr
                 key={row.id}
                 className={`${idx % 2 === 0 ? 'bg-bg-card' : 'bg-bg-subtle'} hover:bg-bg-hover cursor-pointer transition-colors group`}

@@ -36,7 +36,7 @@ export default function BasicSettings() {
         {/* 左列 */}
         <SettingGroup>
           <SDropdown
-            k="proxyMode" label="主题"
+            k="theme" label="主题"
             options={[
               { value: 'auto', label: 'auto' },
               { value: 'light', label: 'light' },
@@ -58,9 +58,9 @@ export default function BasicSettings() {
           <SToggle k="sshCompression" label="显示右侧实时信息" desc="关闭后将隐藏服务器实时指标" />
           <SToggle k="agentForwarding" label="Tab 栏关闭按钮位置" desc="靠左" />
           <SToggle k="x11Forwarding" label="连体字效果" />
-          <SToggle k="notifyOnComplete" label="鼠标滚轮缩放" />
+          <SToggle k="termZoomEnabled" label="鼠标滚轮缩放" />
           <SToggle k="rememberPassword" label="标签关闭确认" desc="关闭后 SSH、终端等标签关闭时不显示确认提示弹窗" />
-          <SToggle k="masterPassword" label="标签闪烁提醒" desc="非当前标签页有新活动时，将触发闪烁提醒" />
+          <SToggle k="termStripeEnabled" label="标签闪烁提醒" desc="非当前标签页有新活动时，将触发闪烁提醒" />
           <SToggle k="autoReconnect" label="多行显示标签卡" desc="标签卡过多时以多行方式显示，而不是横向滚动" />
         </SettingGroup>
 

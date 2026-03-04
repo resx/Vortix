@@ -27,6 +27,14 @@ export interface AppTab {
   label: string
   assetRow?: AssetRow
   status: 'idle' | 'connecting' | 'connected' | 'closed' | 'error'
+  /** 快速连接凭据（不保存到数据库） */
+  quickConnect?: { host: string; port: number; username: string; password?: string; privateKey?: string }
+  /** 数据库连接 ID */
+  connectionId?: string
+  /** 连接建立时间 */
+  connectedAt?: string
+  /** 错误信息 */
+  errorMessage?: string
 }
 
 export type ListViewMode = 'list' | 'card' | 'thumbnail'

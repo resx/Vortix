@@ -1,8 +1,10 @@
 import { create } from 'zustand'
+import * as api from '../api/client'
 
 export interface SettingsState {
   // 通用
   language: string
+  theme: 'auto' | 'light' | 'dark'
   restoreSession: boolean
   checkUpdate: boolean
   autoSaveLog: boolean
@@ -52,6 +54,8 @@ export interface SettingsState {
   termFontSize: number
   termLineHeight: number
   termLetterSpacing: number
+  termStripeEnabled: boolean
+  termZoomEnabled: boolean
 
   // 编辑器
   editorFontFamily: string
@@ -79,32 +83,33 @@ export interface SettingsState {
 
 const DEFAULTS: SettingsState = {
   language: 'zh-CN',
+  theme: 'auto',
   restoreSession: false,
   checkUpdate: true,
   autoSaveLog: false,
 
-  proxyMode: 'auto',
-  proxyAddress: '100',
-  proxyPort: '14',
+  proxyMode: 'none',
+  proxyAddress: '',
+  proxyPort: '',
   proxyUsername: '',
   proxyPassword: '',
 
   connectionTimeout: 30,
   heartbeatInterval: 60,
-  defaultEncoding: 'JetBrainsMono',
+  defaultEncoding: 'utf-8',
   defaultPort: 22,
   autoReconnect: true,
   reconnectCount: 3,
   reconnectInterval: 5,
 
-  defaultAuthMethod: 'MonoLisa',
+  defaultAuthMethod: 'password',
   sshCompression: false,
   agentForwarding: false,
   x11Forwarding: false,
-  keyExchangeAlgorithm: 'crlf',
+  keyExchangeAlgorithm: 'auto',
 
-  downloadDir: 'tab',
-  overwritePolicy: 'stable',
+  downloadDir: '',
+  overwritePolicy: 'ask',
   maxConcurrentTransfers: 3,
   notifyOnComplete: true,
 
@@ -122,6 +127,8 @@ const DEFAULTS: SettingsState = {
   termFontSize: 14,
   termLineHeight: 1.6,
   termLetterSpacing: 0,
+  termStripeEnabled: false,
+  termZoomEnabled: true,
 
   // 编辑器
   editorFontFamily: 'JetBrainsMono',
@@ -149,16 +156,58 @@ const DEFAULTS: SettingsState = {
 
 interface SettingsStore extends SettingsState {
   _dirty: boolean
+  _loaded: boolean
   updateSetting: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void
-  applySettings: () => void
-  resetToDefaults: () => void
+  loadSettings: () => Promise<void>
+  applySettings: () => Promise<void>
+  resetToDefaults: () => Promise<void>
 }
 
-export const useSettingsStore = create<SettingsStore>((set) => ({
+export const useSettingsStore = create<SettingsStore>((set, get) => ({
   ...DEFAULTS,
   _dirty: false,
+  _loaded: false,
 
   updateSetting: (key, value) => set({ [key]: value, _dirty: true }),
-  applySettings: () => set({ _dirty: false }),
-  resetToDefaults: () => set({ ...DEFAULTS, _dirty: false }),
+
+  loadSettings: async () => {
+    try {
+      const remote = await api.getSettings()
+      // 合并远程设置到 store（仅覆盖已有键）
+      const merged: Partial<SettingsState> = {}
+      for (const [k, v] of Object.entries(remote)) {
+        if (k in DEFAULTS) {
+          (merged as Record<string, unknown>)[k] = v
+        }
+      }
+      set({ ...merged, _loaded: true, _dirty: false })
+    } catch {
+      // API 不可用时使用默认值
+      set({ _loaded: true })
+    }
+  },
+
+  applySettings: async () => {
+    const state = get()
+    // 收集所有 SettingsState 字段
+    const settings: Record<string, unknown> = {}
+    for (const k of Object.keys(DEFAULTS)) {
+      settings[k] = state[k as keyof SettingsState]
+    }
+    try {
+      await api.saveSettings(settings)
+      set({ _dirty: false })
+    } catch (e) {
+      console.error('[Vortix] 保存设置失败', e)
+    }
+  },
+
+  resetToDefaults: async () => {
+    try {
+      await api.resetSettings()
+    } catch {
+      // 忽略 API 错误
+    }
+    set({ ...DEFAULTS, _dirty: false })
+  },
 }))

@@ -74,8 +74,15 @@ export default function SshTerminal({ wsUrl = 'ws://localhost:3001/ws/ssh', conn
   const termRef = useRef<Terminal | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reconnectCountRef = useRef(0)
+  const isManualDisconnectRef = useRef(false)
 
   const cleanup = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
     wsRef.current?.close()
     wsRef.current = null
     termRef.current?.dispose()
@@ -83,22 +90,108 @@ export default function SshTerminal({ wsUrl = 'ws://localhost:3001/ws/ssh', conn
     fitAddonRef.current = null
   }, [])
 
+  /** 建立 WebSocket 连接（支持重连） */
+  const connectWs = useCallback((term: Terminal, fitAddon: FitAddon, conn: NonNullable<SshTerminalProps['connection']>) => {
+    const settings = useSettingsStore.getState()
+
+    const ws = new WebSocket(wsUrl)
+    wsRef.current = ws
+
+    ws.onopen = () => {
+      reconnectCountRef.current = 0
+      ws.send(JSON.stringify({
+        type: 'connect',
+        data: conn,
+      }))
+    }
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data)
+      switch (msg.type) {
+        case 'output':
+          term.write(msg.data)
+          break
+        case 'status':
+          if (msg.data === 'connected') {
+            term.writeln('\x1b[32m[Vortix]\x1b[0m 连接成功！')
+            onStatusChange?.('connected')
+            const dims = fitAddon.proposeDimensions()
+            if (dims) {
+              ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
+            }
+          } else if (msg.data === 'closed') {
+            term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接已断开')
+            onStatusChange?.('closed')
+          } else if (msg.data === 'timeout') {
+            term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接超时断开')
+            onStatusChange?.('closed')
+          }
+          break
+        case 'ping':
+          // 响应服务端心跳
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'pong' }))
+          }
+          break
+        case 'error':
+          term.writeln('\r\n\x1b[31m[Vortix 错误]\x1b[0m ' + msg.data)
+          onStatusChange?.('error')
+          break
+      }
+    }
+
+    ws.onclose = () => {
+      if (isManualDisconnectRef.current) return
+
+      term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m WebSocket 已断开')
+      onStatusChange?.('closed')
+
+      // 自动重连
+      const maxRetries = settings.autoReconnect ? settings.reconnectCount : 0
+      const interval = settings.reconnectInterval * 1000
+
+      if (reconnectCountRef.current < maxRetries) {
+        reconnectCountRef.current++
+        term.writeln(`\x1b[36m[Vortix]\x1b[0m 正在尝试重连 (${reconnectCountRef.current}/${maxRetries})...`)
+        onStatusChange?.('connecting')
+        reconnectTimerRef.current = setTimeout(() => {
+          if (wsRef.current === ws) {
+            connectWs(term, fitAddon, conn)
+          }
+        }, interval)
+      }
+    }
+
+    ws.onerror = () => {
+      term.writeln('\r\n\x1b[31m[Vortix]\x1b[0m WebSocket 连接失败，请确认后端服务已启动')
+      onStatusChange?.('error')
+    }
+
+    // 终端输入 -> WebSocket
+    term.onData((data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'input', data }))
+      }
+    })
+  }, [wsUrl, onStatusChange])
+
   useEffect(() => {
     if (!containerRef.current || !connection) return
 
+    isManualDisconnectRef.current = false
     cleanup()
 
     // 根据当前主题选择配色
     const isDark = document.documentElement.classList.contains('dark')
     const termTheme = isDark ? darkTermTheme : lightTermTheme
 
-    // 从 store 读取终端字号
-    const termFontSize = useSettingsStore.getState().termFontSize
+    // 从 store 读取终端配置
+    const settings = useSettingsStore.getState()
 
     // 初始化 xterm
     const term = new Terminal({
       cursorBlink: true,
-      fontSize: termFontSize,
+      fontSize: settings.termFontSize,
       fontFamily: "'JetBrains Mono', 'Cascadia Code', 'Fira Code', Consolas, monospace",
       theme: termTheme,
       allowProposedApi: true,
@@ -121,78 +214,38 @@ export default function SshTerminal({ wsUrl = 'ws://localhost:3001/ws/ssh', conn
     term.writeln('\x1b[36m[Vortix]\x1b[0m 正在连接 ' + connection.host + ':' + connection.port + ' ...')
     onStatusChange?.('connecting')
 
-    // 建立 WebSocket
-    const ws = new WebSocket(wsUrl)
-    wsRef.current = ws
-
-    ws.onopen = () => {
-      ws.send(JSON.stringify({
-        type: 'connect',
-        data: connection,
-      }))
-    }
-
-    ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data)
-      switch (msg.type) {
-        case 'output':
-          term.write(msg.data)
-          break
-        case 'status':
-          if (msg.data === 'connected') {
-            term.writeln('\x1b[32m[Vortix]\x1b[0m 连接成功！')
-            onStatusChange?.('connected')
-            // 连接成功后同步终端尺寸
-            const dims = fitAddon.proposeDimensions()
-            if (dims) {
-              ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
-            }
-          } else if (msg.data === 'closed') {
-            term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接已断开')
-            onStatusChange?.('closed')
-          }
-          break
-        case 'error':
-          term.writeln('\r\n\x1b[31m[Vortix 错误]\x1b[0m ' + msg.data)
-          onStatusChange?.('error')
-          break
-      }
-    }
-
-    ws.onclose = () => {
-      term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m WebSocket 已断开')
-      onStatusChange?.('closed')
-    }
-
-    ws.onerror = () => {
-      term.writeln('\r\n\x1b[31m[Vortix]\x1b[0m WebSocket 连接失败，请确认后端服务已启动')
-      onStatusChange?.('error')
-    }
-
-    // 终端输入 -> WebSocket
-    term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'input', data }))
-      }
-    })
+    // 建立连接
+    connectWs(term, fitAddon, connection)
 
     // 窗口 resize
     const handleResize = () => {
       fitAddon.fit()
       const dims = fitAddon.proposeDimensions()
-      if (dims && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
+      if (dims && wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
       }
     }
 
     const resizeObserver = new ResizeObserver(handleResize)
     resizeObserver.observe(containerRef.current)
 
+    // IntersectionObserver：标签切换回来时自动 fit
+    const intersectionObserver = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          fitAddon.fit()
+        }
+      }
+    })
+    intersectionObserver.observe(containerRef.current)
+
     return () => {
+      isManualDisconnectRef.current = true
       resizeObserver.disconnect()
+      intersectionObserver.disconnect()
       cleanup()
     }
-  }, [connection, wsUrl, onStatusChange, cleanup])
+  }, [connection, wsUrl, onStatusChange, cleanup, connectWs])
 
   // 监听主题变化，动态更新 xterm 主题
   useEffect(() => {

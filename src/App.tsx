@@ -3,7 +3,7 @@ import Header from './components/layout/Header'
 import ActivityBar from './components/layout/ActivityBar'
 import Sidebar from './components/layout/Sidebar'
 import TabBar from './components/tabs/TabBar'
-import TerminalSimulation from './components/tabs/TerminalSimulation'
+import SshTerminalWrapper from './components/terminal/SshTerminalWrapper'
 import ServerMonitor from './components/tabs/ServerMonitor'
 import SftpPanel from './components/panels/SftpPanel'
 import ServerInfoPanel from './components/panels/ServerInfoPanel'
@@ -22,17 +22,27 @@ export default function App() {
   const isAssetHidden = useAppStore((s) => s.isAssetHidden)
   const tabs = useAppStore((s) => s.tabs)
   const activeTabId = useAppStore((s) => s.activeTabId)
-  const closeTab = useAppStore((s) => s.closeTab)
-  const updateTabStatus = useAppStore((s) => s.updateTabStatus)
   const sftpOpen = useAppStore((s) => s.sftpOpen)
   const serverPanelOpen = useAppStore((s) => s.serverPanelOpen)
   const settingsOpen = useAppStore((s) => s.settingsOpen)
 
+  // 初始化：加载设置和资产数据
+  useEffect(() => {
+    Promise.all([
+      useSettingsStore.getState().loadSettings(),
+      useAppStore.getState().fetchAssets(),
+    ])
+  }, [])
+
   // 主题切换
-  const theme = useSettingsStore((s) => s.proxyMode)
+  const theme = useSettingsStore((s) => s.theme)
 
   useEffect(() => {
     const root = document.documentElement
+
+    // 主题切换时临时禁用所有 transition 防止闪烁
+    root.classList.add('theme-switching')
+
     if (theme === 'dark') {
       root.classList.add('dark')
     } else if (theme === 'light') {
@@ -40,11 +50,26 @@ export default function App() {
     } else {
       // auto: 跟随系统
       const mq = window.matchMedia('(prefers-color-scheme: dark)')
-      const apply = () => mq.matches ? root.classList.add('dark') : root.classList.remove('dark')
+      const apply = () => {
+        root.classList.add('theme-switching')
+        mq.matches ? root.classList.add('dark') : root.classList.remove('dark')
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => root.classList.remove('theme-switching'))
+        })
+      }
       apply()
       mq.addEventListener('change', apply)
+      // 恢复 transition
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => root.classList.remove('theme-switching'))
+      })
       return () => mq.removeEventListener('change', apply)
     }
+
+    // 等待两帧后恢复 transition（确保所有样式已应用）
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => root.classList.remove('theme-switching'))
+    })
   }, [theme])
 
   const activeTab = tabs.find(t => t.id === activeTabId)
@@ -84,13 +109,16 @@ export default function App() {
                   )
                 )}
 
-                {isAssetView && activeTab?.assetRow && (
-                  <TerminalSimulation
-                    asset={activeTab.assetRow}
-                    onExit={() => closeTab(activeTab.id)}
-                    setConnected={() => updateTabStatus(activeTab.id, 'connected')}
-                  />
-                )}
+                {/* 多标签并行渲染：所有 asset 标签同时挂载，通过 CSS 控制可见性 */}
+                {tabs.filter(t => t.type === 'asset').map(tab => (
+                  <div
+                    key={tab.id}
+                    className="flex-1 flex flex-col min-w-0"
+                    style={{ display: activeTabId === tab.id ? 'flex' : 'none' }}
+                  >
+                    <SshTerminalWrapper tab={tab} />
+                  </div>
+                ))}
               </div>
 
               {/* SFTP 面板 - 向左展开，压缩终端 */}

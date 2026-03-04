@@ -257,13 +257,13 @@ export default function Header() {
   const toggleSettings = useAppStore((s) => s.toggleSettings)
 
   // 主题切换
-  const themeMode = useSettingsStore((s) => s.proxyMode)
+  const themeMode = useSettingsStore((s) => s.theme)
   const updateSetting = useSettingsStore((s) => s.updateSetting)
   const themeIcon = themeMode === 'light' ? Sun : themeMode === 'dark' ? Moon : Monitor
   const themeLabel = themeMode === 'light' ? '亮色模式' : themeMode === 'dark' ? '暗黑模式' : '跟随系统'
   const cycleTheme = () => {
     const next = themeMode === 'light' ? 'dark' : themeMode === 'dark' ? 'auto' : 'light'
-    updateSetting('proxyMode', next)
+    updateSetting('theme', next)
   }
 
   const activeTab = tabs.find(t => t.id === activeTabId)

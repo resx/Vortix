@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { TreeItem, ActiveFilter, ContextMenuState, AppTab, ListViewMode, AssetRow } from '../types'
-import { ASSETS_DATA, SHORTCUTS_DATA, TABLE_DATA } from '../data/mock'
+import * as api from '../api/client'
+import type { Folder, Connection } from '../api/types'
 
 interface AppState {
   activeFilter: ActiveFilter
@@ -14,7 +15,13 @@ interface AppState {
 
   assets: TreeItem[]
   shortcuts: TreeItem[]
+  tableData: AssetRow[]
   toggleFolder: (target: 'assets' | 'shortcuts', id: string) => void
+
+  // 数据加载
+  isDataLoading: boolean
+  dataError: string | null
+  fetchAssets: () => Promise<void>
 
   // 右键菜单
   contextMenu: ContextMenuState
@@ -51,10 +58,15 @@ interface AppState {
   activeTabId: string
   listViewMode: ListViewMode
   openAssetTab: (row: AssetRow) => void
+  openQuickConnect: (config: { host: string; port: number; username: string; password?: string; privateKey?: string }) => void
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
   setListViewMode: (mode: ListViewMode) => void
   updateTabStatus: (id: string, status: AppTab['status']) => void
+
+  // 连接 CRUD
+  createConnectionAction: (data: api.CreateConnectionDto) => Promise<void>
+  deleteConnectionAction: (id: string) => Promise<void>
 
   // 主菜单
   menuVariant: 'default' | 'glass'
@@ -76,7 +88,70 @@ const toggleInTree = (items: TreeItem[], id: string): TreeItem[] =>
     item.id === id ? { ...item, isOpen: !item.isOpen } : item
   )
 
-export const useAppStore = create<AppState>((set) => ({
+/** 将 API 数据合成前端 TreeItem[] */
+function buildTree(folders: Folder[], connections: Connection[]): TreeItem[] {
+  const tree: TreeItem[] = folders.map(f => ({
+    id: f.id,
+    name: f.name,
+    type: 'folder' as const,
+    isOpen: false,
+    children: connections
+      .filter(c => c.folder_id === f.id)
+      .map(c => ({
+        id: c.id,
+        name: c.name,
+        type: 'connection' as const,
+        protocol: c.protocol,
+      })),
+  }))
+
+  // 没有文件夹的连接放在顶层
+  const orphanConnections = connections
+    .filter(c => !c.folder_id)
+    .map(c => ({
+      id: c.id,
+      name: c.name,
+      type: 'connection' as const,
+      protocol: c.protocol,
+    }))
+
+  return [...tree, ...orphanConnections]
+}
+
+/** 将 API 数据合成前端 AssetRow[] */
+function buildTableData(folders: Folder[], connections: Connection[]): AssetRow[] {
+  const folderMap = new Map(folders.map(f => [f.id, f.name]))
+
+  const folderRows: AssetRow[] = folders.map(f => ({
+    id: f.id,
+    name: f.name,
+    type: 'folder',
+    latency: '-',
+    host: '-',
+    user: '-',
+    created: f.created_at.replace('T', ' ').slice(0, 16),
+    expire: '-',
+    remark: '-',
+  }))
+
+  const connectionRows: AssetRow[] = connections.map(c => ({
+    id: c.id,
+    name: c.name,
+    type: 'asset',
+    protocol: c.protocol,
+    latency: '-',
+    host: c.host,
+    user: c.username,
+    created: c.created_at.replace('T', ' ').slice(0, 16),
+    expire: '-',
+    remark: c.remark || '-',
+    folderName: c.folder_id ? folderMap.get(c.folder_id) : undefined,
+  }))
+
+  return [...folderRows, ...connectionRows]
+}
+
+export const useAppStore = create<AppState>((set, get) => ({
   activeFilter: 'all',
   setActiveFilter: (filter) => set({ activeFilter: filter }),
 
@@ -86,12 +161,34 @@ export const useAppStore = create<AppState>((set) => ({
   hideEmptyFolders: false,
   toggleHideEmptyFolders: () => set((s) => ({ hideEmptyFolders: !s.hideEmptyFolders })),
 
-  assets: ASSETS_DATA,
-  shortcuts: SHORTCUTS_DATA,
+  assets: [],
+  shortcuts: [],
+  tableData: [],
   toggleFolder: (target, id) =>
     set((state) => ({
       [target]: toggleInTree(state[target], id),
     })),
+
+  // 数据加载
+  isDataLoading: false,
+  dataError: null,
+
+  fetchAssets: async () => {
+    set({ isDataLoading: true, dataError: null })
+    try {
+      const [folders, connections] = await Promise.all([
+        api.getFolders(),
+        api.getConnections(),
+      ])
+      set({
+        assets: buildTree(folders, connections),
+        tableData: buildTableData(folders, connections),
+        isDataLoading: false,
+      })
+    } catch (e) {
+      set({ isDataLoading: false, dataError: (e as Error).message })
+    }
+  },
 
   contextMenu: { visible: false, x: 0, y: 0, type: null, data: null },
   showContextMenu: (x, y, type, data = null) => {
@@ -114,7 +211,7 @@ export const useAppStore = create<AppState>((set) => ({
   togglePing: () => set((s) => {
     if (!s.showPing) {
       const newPings: Record<string, string> = {}
-      TABLE_DATA.forEach(row => {
+      s.tableData.forEach(row => {
         if (row.type === 'asset') {
           newPings[row.id] = Math.floor(Math.random() * 80 + 10) + 'ms'
         }
@@ -123,9 +220,9 @@ export const useAppStore = create<AppState>((set) => ({
     }
     return { showPing: false }
   }),
-  refreshPing: () => set(() => {
+  refreshPing: () => set((s) => {
     const newPings: Record<string, string> = {}
-    TABLE_DATA.forEach(row => {
+    s.tableData.forEach(row => {
       if (row.type === 'asset') {
         newPings[row.id] = Math.floor(Math.random() * 80 + 10) + 'ms'
       }
@@ -157,8 +254,21 @@ export const useAppStore = create<AppState>((set) => ({
       label: row.name,
       assetRow: row,
       status: 'connecting',
+      connectionId: row.id,
     }
     return { tabs: [...s.tabs, newTab], activeTabId: newTab.id }
+  }),
+
+  openQuickConnect: (config) => set((s) => {
+    const id = `quick-${Date.now()}`
+    const newTab: AppTab = {
+      id,
+      type: 'asset',
+      label: `${config.host}:${config.port}`,
+      status: 'connecting',
+      quickConnect: config,
+    }
+    return { tabs: [...s.tabs, newTab], activeTabId: id }
   }),
 
   closeTab: (id) => set((s) => {
@@ -173,8 +283,25 @@ export const useAppStore = create<AppState>((set) => ({
   setListViewMode: (mode) => set({ listViewMode: mode }),
 
   updateTabStatus: (id, status) => set((s) => ({
-    tabs: s.tabs.map(t => t.id === id ? { ...t, status } : t),
+    tabs: s.tabs.map(t => t.id === id ? { ...t, status, connectedAt: status === 'connected' ? new Date().toISOString() : t.connectedAt } : t),
   })),
+
+  // 连接 CRUD
+  createConnectionAction: async (data) => {
+    await api.createConnection(data)
+    await get().fetchAssets()
+  },
+
+  deleteConnectionAction: async (id) => {
+    await api.deleteConnection(id)
+    // 关闭对应标签
+    set((s) => {
+      const newTabs = s.tabs.filter(t => t.connectionId !== id)
+      const newActiveId = s.tabs.find(t => t.connectionId === id && t.id === s.activeTabId) ? 'list' : s.activeTabId
+      return { tabs: newTabs, activeTabId: newActiveId }
+    })
+    await get().fetchAssets()
+  },
 
   // 主菜单
   menuVariant: 'default',
