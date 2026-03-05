@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { SettingRow, SettingGroup } from './SettingGroup'
-import { SToggle, SDropdown, SNumberDropdown, SFontSelect, SNumberInput } from './SettingControls'
+import { SToggle, SDropdown, SNumberDropdown, SFontSelect } from './SettingControls'
+import { useSettingsStore } from '../../stores/useSettingsStore'
 import { Eye, EyeOff } from 'lucide-react'
 
 /* ── 锁屏密码行 ── */
 function LockPasswordRow() {
   const [visible, setVisible] = useState(false)
+  const value = useSettingsStore((s) => s.lockPassword)
+  const update = useSettingsStore((s) => s.updateSetting)
   const Icon = visible ? EyeOff : Eye
   return (
     <SettingRow label="锁屏密码" desc="(登录账号后，可启用锁屏)">
@@ -18,9 +21,10 @@ function LockPasswordRow() {
           <Icon size={13} className="text-text-2" />
         </button>
         <input
-          disabled
           type={visible ? 'text' : 'password'}
-          className="w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 outline-none text-[12px]"
+          value={value}
+          onChange={(e) => update('lockPassword', e.target.value)}
+          className="w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 outline-none text-[12px] text-text-1"
         />
       </div>
     </SettingRow>
@@ -43,25 +47,25 @@ export default function BasicSettings() {
               { value: 'dark', label: 'dark' },
             ]}
           />
-          <SToggle k="checkUpdate" label="鼠标中键关闭选项卡" />
-          <SFontSelect k="defaultEncoding" label="UI 字体" />
+          <SToggle k="middleClickCloseTab" label="鼠标中键关闭选项卡" />
+          <SFontSelect k="uiFontFamily" label="UI 字体" />
           <SDropdown
-            k="keyExchangeAlgorithm" label="编辑器换行符"
+            k="editorLineEnding" label="编辑器换行符"
             options={[
-              { value: 'crlf', label: '(兼容) \\r\\n' },
-              { value: 'lf', label: '(Windows) \\n' },
-              { value: 'cr', label: '(Linux) \\r' },
+              { value: 'lf', label: '(Linux) \\n' },
+              { value: 'crlf', label: '(Windows) \\r\\n' },
+              { value: 'cr', label: '(Mac) \\r' },
             ]}
             width="w-[150px]"
           />
-          <SToggle k="restoreSession" label="是否开启动画" />
-          <SToggle k="sshCompression" label="显示右侧实时信息" desc="关闭后将隐藏服务器实时指标" />
-          <SToggle k="agentForwarding" label="Tab 栏关闭按钮位置" desc="靠左" />
-          <SToggle k="x11Forwarding" label="连体字效果" />
+          <SToggle k="enableAnimation" label="是否开启动画" />
+          <SToggle k="showRealtimeInfo" label="显示右侧实时信息" desc="关闭后将隐藏服务器实时指标" />
+          <SToggle k="tabCloseButtonLeft" label="Tab 栏关闭按钮位置" desc="靠左" />
+          <SToggle k="fontLigatures" label="连体字效果" />
           <SToggle k="termZoomEnabled" label="鼠标滚轮缩放" />
-          <SToggle k="rememberPassword" label="标签关闭确认" desc="关闭后 SSH、终端等标签关闭时不显示确认提示弹窗" />
-          <SToggle k="termStripeEnabled" label="标签闪烁提醒" desc="非当前标签页有新活动时，将触发闪烁提醒" />
-          <SToggle k="autoReconnect" label="多行显示标签卡" desc="标签卡过多时以多行方式显示，而不是横向滚动" />
+          <SToggle k="tabCloseConfirm" label="标签关闭确认" desc="关闭后 SSH、终端等标签关闭时不显示确认提示弹窗" />
+          <SToggle k="tabFlashNotify" label="标签闪烁提醒" desc="非当前标签页有新活动时，将触发闪烁提醒" />
+          <SToggle k="tabMultiLine" label="多行显示标签卡" desc="标签卡过多时以多行方式显示，而不是横向滚动" />
         </SettingGroup>
 
         {/* 右列 */}
@@ -74,7 +78,7 @@ export default function BasicSettings() {
             ]}
           />
           <SDropdown
-            k="overwritePolicy" label="更新通道"
+            k="updateChannel" label="更新通道"
             options={[
               { value: 'stable', label: '稳定通道' },
               { value: 'experimental', label: '实验性通道' },
@@ -83,12 +87,15 @@ export default function BasicSettings() {
             desc="修改后需重启生效，通道之间资产不共享"
           />
           <SFontSelect k="editorFontFamily" label="编辑器字体" />
-          <SDropdown
-            k="proxyAddress" label="缩放比例"
+          <SNumberDropdown
+            k="uiZoom" label="缩放比例"
             options={[
-              { value: '90', label: '90%' },
-              { value: '100', label: '100%' },
-              { value: '110', label: '110%' },
+              { value: 80, label: '80%' },
+              { value: 90, label: '90%' },
+              { value: 100, label: '100%' },
+              { value: 110, label: '110%' },
+              { value: 120, label: '120%' },
+              { value: 150, label: '150%' },
             ]}
             width="w-[100px]"
           />
@@ -96,14 +103,16 @@ export default function BasicSettings() {
             k="editorFontSize" label="编辑器字号"
             options={[
               { value: 12, label: '12px' },
+              { value: 13, label: '13px' },
               { value: 14, label: '14px' },
+              { value: 15, label: '15px' },
               { value: 16, label: '16px' },
             ]}
             width="w-[100px]"
           />
-          <SToggle k="autoSaveLog" label="编辑器自动换行" />
+          <SToggle k="editorWordWrap" label="编辑器自动换行" />
           <SDropdown
-            k="downloadDir" label="编辑器 Tab 键模式"
+            k="editorTabMode" label="编辑器 Tab 键模式"
             options={[
               { value: 'tab', label: '制表符\\t' },
               { value: 'two-spaces', label: '两个空格' },
@@ -111,7 +120,7 @@ export default function BasicSettings() {
             ]}
             width="w-[120px]"
           />
-          <SToggle k="clearClipboardOnExit" label="启动锁屏" desc="启动时询问密码，登录账号后启用" />
+          <SToggle k="lockOnStart" label="启动锁屏" desc="启动时询问密码，登录账号后启用" />
           <SNumberDropdown
             k="idleLockMinutes" label="自动锁屏时间"
             options={[
@@ -122,8 +131,8 @@ export default function BasicSettings() {
             ]}
           />
           <LockPasswordRow />
-          <SToggle k="cloudSync" label="会话标签记忆" desc="(启用后，启动会自动还原上次打开的标签)" />
-          <SToggle k="autoSaveLog" label="显示会员标志" desc="(关闭后，付费用户将不会在顶部显示会员图标)" />
+          <SToggle k="restoreSession" label="会话标签记忆" desc="(启用后，启动会自动还原上次打开的标签)" />
+          <SToggle k="showMemberBadge" label="显示会员标志" desc="(关闭后，付费用户将不会在顶部显示会员图标)" />
         </SettingGroup>
       </div>
     </>

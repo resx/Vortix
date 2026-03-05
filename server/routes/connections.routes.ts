@@ -43,13 +43,16 @@ router.get('/connections/:id/credential', (req, res) => {
   if (raw.encrypted_private_key) {
     credential.private_key = decrypt(raw.encrypted_private_key)
   }
+  if (raw.proxy_password) {
+    credential.proxy_password = decrypt(raw.proxy_password)
+  }
 
   res.json({ success: true, data: credential })
 })
 
 // 创建连接
 router.post('/connections', (req, res) => {
-  const { name, host, username, password, private_key, ...rest } = req.body
+  const { name, host, username, password, private_key, proxy_password, ...rest } = req.body
   if (!name || !host || !username) {
     res.status(400).json({ success: false, error: '名称、主机和用户名不能为空' })
     return
@@ -57,11 +60,13 @@ router.post('/connections', (req, res) => {
 
   const encryptedPassword = password ? encrypt(password) : null
   const encryptedPrivateKey = private_key ? encrypt(private_key) : null
+  const encryptedProxyPassword = proxy_password ? encrypt(proxy_password) : null
 
   const connection = connectionRepo.create(
     { name, host, username, ...rest },
     encryptedPassword,
     encryptedPrivateKey,
+    encryptedProxyPassword,
   )
   res.status(201).json({ success: true, data: connection })
 })
@@ -69,13 +74,14 @@ router.post('/connections', (req, res) => {
 // 更新连接
 router.put('/connections/:id', (req, res) => {
   const { id } = req.params
-  const { password, private_key, ...rest } = req.body
+  const { password, private_key, proxy_password, ...rest } = req.body
 
   // 仅在明确传入时更新凭据
   const encryptedPassword = password !== undefined ? (password ? encrypt(password) : null) : undefined
   const encryptedPrivateKey = private_key !== undefined ? (private_key ? encrypt(private_key) : null) : undefined
+  const encryptedProxyPassword = proxy_password !== undefined ? (proxy_password ? encrypt(proxy_password) : null) : undefined
 
-  const connection = connectionRepo.update(id, rest, encryptedPassword, encryptedPrivateKey)
+  const connection = connectionRepo.update(id, rest, encryptedPassword, encryptedPrivateKey, encryptedProxyPassword)
   if (!connection) {
     res.status(404).json({ success: false, error: '连接不存在' })
     return

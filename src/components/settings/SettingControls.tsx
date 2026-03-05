@@ -64,17 +64,18 @@ const FILE_COLUMNS = [
 
 const DEFAULT_CHECKED = new Set(['name', 'mtime', 'type', 'size'])
 
-export function SColumnSelect({ label }: { label: string }) {
-  const [checked, setChecked] = useState(() => new Set(DEFAULT_CHECKED))
+export function SColumnSelect({ k, label }: { k: keyof SettingsState; label: string }) {
+  const storeValue = useSettingsStore((s) => s[k]) as string[]
+  const update = useSettingsStore((s) => s.updateSetting)
   const [open, setOpen] = useState(false)
 
+  const checked = new Set(storeValue)
+
   const toggle = (key: string) => {
-    setChecked((prev) => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
+    const next = new Set(checked)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    update(k, Array.from(next) as never)
   }
 
   const selectedText = FILE_COLUMNS
@@ -200,16 +201,15 @@ function useSystemFonts() {
   return fonts
 }
 
-/* ── 字体选择器（Portal + 毛玻璃面板 + 复选框 + 搜索 + 全选） ── */
+/* ── 字体选择器（Portal + 毛玻璃面板 + 有序多选 + 置顶 + 序号） ── */
 
 export function SFontSelect({ k, label, desc }: {
   k: keyof SettingsState; label: string; desc?: string
 }) {
-  const value = useSettingsStore((s) => s[k]) as string
+  const selectedFonts = useSettingsStore((s) => s[k]) as string[]
   const update = useSettingsStore((s) => s.updateSetting)
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const [selectedFonts, setSelectedFonts] = useState<Set<string>>(() => new Set([value]))
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -225,27 +225,52 @@ export function SFontSelect({ k, label, desc }: {
     return allFonts.filter(f => f.label.toLowerCase().includes(q) || f.family.toLowerCase().includes(q))
   }, [allFonts, search])
 
+  /* 排序：已选置顶（按选择顺序），未选在下方 */
+  const sortedFonts = useMemo(() => {
+    const selectedSet = new Set(selectedFonts)
+    const selected = selectedFonts
+      .map(v => (search.trim() ? filteredFonts : allFonts).find(f => f.value === v))
+      .filter(Boolean) as FontItem[]
+    const unselected = filteredFonts.filter(f => !selectedSet.has(f.value))
+    return { selected, unselected }
+  }, [selectedFonts, filteredFonts, allFonts, search])
+
   /* 全选逻辑 */
-  const isAllSelected = filteredFonts.length > 0 && filteredFonts.every(f => selectedFonts.has(f.value))
-  const isIndeterminate = filteredFonts.some(f => selectedFonts.has(f.value)) && !isAllSelected
+  const isAllSelected = filteredFonts.length > 0 && filteredFonts.every(f => selectedFonts.includes(f.value))
+  const isIndeterminate = filteredFonts.some(f => selectedFonts.includes(f.value)) && !isAllSelected
 
   const handleToggleFont = (fontId: string) => {
-    const next = new Set(selectedFonts)
-    if (next.has(fontId)) next.delete(fontId)
-    else next.add(fontId)
-    setSelectedFonts(next)
-    /* 最后点击的字体作为当前值 */
-    update(k, fontId as never)
+    const current = [...selectedFonts]
+    const idx = current.indexOf(fontId)
+    if (idx >= 0) {
+      current.splice(idx, 1)
+    } else {
+      current.push(fontId)
+    }
+    // 至少保留一个字体
+    if (current.length === 0) return
+    update(k, current as never)
   }
 
   const handleToggleAll = () => {
-    const next = new Set(selectedFonts)
+    const current = [...selectedFonts]
     if (isAllSelected) {
-      filteredFonts.forEach(f => next.delete(f.value))
+      // 取消：移除过滤列表中的字体，但保留不在过滤结果中的已选字体
+      const removeSet = new Set(filteredFonts.map(f => f.value))
+      const next = current.filter(v => !removeSet.has(v))
+      // 至少保留一个
+      if (next.length === 0) return
+      update(k, next as never)
     } else {
-      filteredFonts.forEach(f => next.add(f.value))
+      // 全选：将过滤列表中未选的追加到末尾
+      const currentSet = new Set(current)
+      for (const f of filteredFonts) {
+        if (!currentSet.has(f.value)) {
+          current.push(f.value)
+        }
+      }
+      update(k, current as never)
     }
-    setSelectedFonts(next)
   }
 
   /* Portal 定位：基于 trigger 按钮的 viewport 坐标 */
@@ -278,7 +303,46 @@ export function SFontSelect({ k, label, desc }: {
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  const selectedLabel = allFonts.find(f => f.value === value)?.label ?? value
+  /* 触发按钮展示：逗号分隔 */
+  const displayText = selectedFonts
+    .map(v => allFonts.find(f => f.value === v)?.label ?? v)
+    .join(', ')
+
+  /* 序号圆标 */
+  const NUM_BADGES = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
+
+  const renderFontItem = (font: FontItem, isSelected: boolean) => {
+    const orderIdx = selectedFonts.indexOf(font.value)
+    return (
+      <div
+        key={font.value}
+        className="group flex items-center gap-2.5 px-2 py-1 rounded-lg cursor-pointer transition-colors hover:bg-primary/40"
+        onClick={() => handleToggleFont(font.value)}
+      >
+        <div className={cn(
+          'relative flex items-center justify-center w-[15px] h-[15px] rounded-[3px] border-[1.5px] transition-all shrink-0',
+          isSelected
+            ? 'bg-primary border-primary group-hover:bg-white group-hover:border-white'
+            : 'bg-transparent border-primary group-hover:border-white',
+        )}>
+          {isSelected && (
+            <Check size={11} className="text-white group-hover:text-primary" strokeWidth={3} />
+          )}
+        </div>
+        {isSelected && orderIdx >= 0 && (
+          <span className="text-[10px] text-primary font-medium shrink-0 group-hover:text-white">
+            {NUM_BADGES[orderIdx] ?? `${orderIdx + 1}`}
+          </span>
+        )}
+        <span
+          className="text-[12px] text-text-1 group-hover:text-white select-none truncate"
+          style={{ fontFamily: font.family, fontWeight: font.fontWeight || 'normal' }}
+        >
+          {font.label}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <SettingRow label={label} desc={desc}>
@@ -287,8 +351,9 @@ export function SFontSelect({ k, label, desc }: {
         type="button"
         onClick={() => setOpen(!open)}
         className="flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none max-w-[280px]"
+        title={displayText}
       >
-        <span className="truncate">{selectedLabel}</span>
+        <span className="truncate">{displayText}</span>
         <ChevronDown size={14} className={cn('shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
 
@@ -342,36 +407,16 @@ export function SFontSelect({ k, label, desc }: {
 
           {/* 字体列表 */}
           <div className="h-[320px] overflow-y-auto font-list-scrollbar p-1.5 pt-0">
-            {filteredFonts.length === 0 ? (
+            {sortedFonts.selected.length === 0 && sortedFonts.unselected.length === 0 ? (
               <div className="text-center text-text-3 py-8 text-[12px]">无匹配字体</div>
             ) : (
-              filteredFonts.map(font => {
-                const isSelected = selectedFonts.has(font.value)
-                return (
-                  <div
-                    key={font.value}
-                    className="group flex items-center gap-2.5 px-2 py-1 rounded-lg cursor-pointer transition-colors hover:bg-primary/40"
-                    onClick={() => handleToggleFont(font.value)}
-                  >
-                    <div className={cn(
-                      'relative flex items-center justify-center w-[15px] h-[15px] rounded-[3px] border-[1.5px] transition-all shrink-0',
-                      isSelected
-                        ? 'bg-primary border-primary group-hover:bg-white group-hover:border-white'
-                        : 'bg-transparent border-primary group-hover:border-white',
-                    )}>
-                      {isSelected && (
-                        <Check size={11} className="text-white group-hover:text-primary" strokeWidth={3} />
-                      )}
-                    </div>
-                    <span
-                      className="text-[12px] text-text-1 group-hover:text-white select-none truncate"
-                      style={{ fontFamily: font.family, fontWeight: font.fontWeight || 'normal' }}
-                    >
-                      {font.label}
-                    </span>
-                  </div>
-                )
-              })
+              <>
+                {sortedFonts.selected.map(font => renderFontItem(font, true))}
+                {sortedFonts.selected.length > 0 && sortedFonts.unselected.length > 0 && (
+                  <div className="mx-2 my-1 border-t border-black/5" />
+                )}
+                {sortedFonts.unselected.map(font => renderFontItem(font, false))}
+              </>
             )}
           </div>
         </div>,

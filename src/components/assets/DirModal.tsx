@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { X } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
 
 export default function DirModal() {
@@ -5,34 +7,69 @@ export default function DirModal() {
   const dirName = useAppStore((s) => s.dirName)
   const setDirName = useAppStore((s) => s.setDirName)
   const setShowDirModal = useAppStore((s) => s.setShowDirModal)
+  const createFolderAction = useAppStore((s) => s.createFolderAction)
+  const [saving, setSaving] = useState(false)
 
   if (!showDirModal) return null
 
+  const handleConfirm = async () => {
+    const name = dirName.trim()
+    if (!name || saving) return
+    setSaving(true)
+    try {
+      await createFolderAction(name)
+      setShowDirModal(false)
+    } catch {
+      // 静默处理，后续可加 toast
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
-    <div className="fixed inset-0 bg-black/10 backdrop-blur-sm z-[999] flex items-center justify-center">
-      <div className="bg-bg-card/80 backdrop-blur-xl w-[320px] rounded-xl shadow-xl overflow-hidden flex flex-col border border-bg-card/60">
-        <div className="p-4 pt-5 pb-6">
-          <div className="text-[14px] text-text-1 font-medium mb-4">请输入目录名称</div>
-          <input
-            type="text"
-            className="w-full h-[36px] border border-primary rounded-lg px-3 text-[13px] text-text-1 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            value={dirName}
-            onChange={(e) => setDirName(e.target.value)}
-            autoFocus
-          />
-        </div>
-        <div className="flex justify-end gap-3 px-5 pb-4 pt-2 bg-bg-subtle border-t border-border">
+    <div className="fixed inset-0 bg-black/20 backdrop-blur-[1px] z-[999] flex items-center justify-center">
+      <div className="bg-bg-base rounded-xl shadow-2xl border border-border/60 w-[360px] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+
+        {/* 外层头部 */}
+        <div className="flex items-center justify-between px-5 py-3.5 shrink-0">
+          <h3 className="text-[14px] font-bold text-text-1 tracking-wide">新建目录</h3>
           <button
-            className="px-4 py-1.5 text-[13px] text-text-2 hover:text-text-1 rounded-lg hover:bg-border/50 transition-colors"
+            onClick={() => setShowDirModal(false)}
+            className="p-1.5 hover:bg-bg-hover rounded-md text-text-3 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* 白色岛屿区 */}
+        <div className="mx-4 bg-bg-card rounded-xl border border-border/80 shadow-sm overflow-hidden">
+          <div className="px-5 py-4">
+            <input
+              type="text"
+              className="w-full bg-bg-base border border-transparent rounded px-2.5 py-1.5 text-xs h-[30px] outline-none focus:bg-bg-card focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all placeholder-text-3 text-text-1"
+              placeholder="请输入目录名称"
+              value={dirName}
+              onChange={(e) => setDirName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm() }}
+              autoFocus
+            />
+          </div>
+        </div>
+
+        {/* 外层底部按钮 */}
+        <div className="px-5 py-3.5 flex justify-end gap-3 shrink-0">
+          <button
+            className="text-xs text-orange-500 hover:text-orange-600 transition-colors"
             onClick={() => setShowDirModal(false)}
           >
             取消
           </button>
           <button
-            className="px-4 py-1.5 text-[13px] text-white bg-primary rounded-lg hover:opacity-90 transition-colors"
-            onClick={() => setShowDirModal(false)}
+            className={`text-xs font-medium transition-colors ${!dirName.trim() || saving ? 'text-text-disabled cursor-not-allowed' : 'text-primary hover:opacity-80'}`}
+            onClick={handleConfirm}
+            disabled={!dirName.trim() || saving}
           >
-            确定
+            {saving ? '创建中...' : '确定'}
           </button>
         </div>
       </div>

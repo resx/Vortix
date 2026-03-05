@@ -87,5 +87,30 @@ export function runMigrations(): void {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_connection ON connection_logs(connection_id)`)
   })()
 
+  // 扩展字段迁移（兼容已有数据库）
+  const alterColumns = [
+    `color_tag TEXT DEFAULT NULL`,
+    `environment TEXT DEFAULT '无'`,
+    `auth_type TEXT DEFAULT 'password'`,
+    `proxy_type TEXT DEFAULT '关闭'`,
+    `proxy_host TEXT DEFAULT '127.0.0.1'`,
+    `proxy_port INTEGER DEFAULT 7890`,
+    `proxy_username TEXT DEFAULT ''`,
+    `proxy_password TEXT DEFAULT ''`,
+    `proxy_timeout INTEGER DEFAULT 5`,
+    `jump_server_id TEXT DEFAULT NULL`,
+    `tunnels TEXT DEFAULT '[]'`,
+    `env_vars TEXT DEFAULT '[]'`,
+    `advanced TEXT DEFAULT '{}'`,
+  ]
+
+  for (const col of alterColumns) {
+    try {
+      db.exec(`ALTER TABLE connections ADD COLUMN ${col}`)
+    } catch {
+      // 列已存在，忽略
+    }
+  }
+
   console.log('[Vortix] 数据库迁移完成')
 }

@@ -57,14 +57,17 @@ DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 const DropdownMenuSubContent = React.forwardRef<
   React.ComponentRef<typeof DropdownMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.SubContent>
->(({ className, ...props }, ref) => {
+>(({ className, sideOffset = 4, ...props }, ref) => {
   const variant = React.useContext(VariantContext)
   return (
-    <DropdownMenuPrimitive.SubContent
-      ref={ref}
-      className={cn(contentVariants({ variant }), className)}
-      {...props}
-    />
+    <DropdownMenuPrimitive.Portal>
+      <DropdownMenuPrimitive.SubContent
+        ref={ref}
+        sideOffset={sideOffset}
+        className={cn(contentVariants({ variant }), className)}
+        {...props}
+      />
+    </DropdownMenuPrimitive.Portal>
   )
 })
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName

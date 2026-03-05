@@ -65,8 +65,15 @@ interface AppState {
   updateTabStatus: (id: string, status: AppTab['status']) => void
 
   // 连接 CRUD
+  moveConnectionToFolder: (connectionId: string, folderId: string | null) => Promise<void>
   createConnectionAction: (data: api.CreateConnectionDto) => Promise<void>
   deleteConnectionAction: (id: string) => Promise<void>
+
+  // 文件夹 CRUD
+  createFolderAction: (name: string, parentId?: string | null) => Promise<void>
+  deleteFolderAction: (id: string) => Promise<void>
+  renameFolderAction: (id: string, name: string) => Promise<void>
+  renameConnectionAction: (id: string, name: string) => Promise<void>
 
   // 主菜单
   menuVariant: 'default' | 'glass'
@@ -81,6 +88,13 @@ interface AppState {
   toggleSftp: () => void
   serverPanelOpen: boolean
   toggleServerPanel: () => void
+
+  // SSH 配置编辑器
+  sshConfigOpen: boolean
+  sshConfigMode: 'create' | 'edit'
+  sshConfigInitialId: string | null
+  openSshConfig: (mode: 'create' | 'edit', id?: string) => void
+  closeSshConfig: () => void
 }
 
 const toggleInTree = (items: TreeItem[], id: string): TreeItem[] =>
@@ -145,6 +159,7 @@ function buildTableData(folders: Folder[], connections: Connection[]): AssetRow[
     created: c.created_at.replace('T', ' ').slice(0, 16),
     expire: '-',
     remark: c.remark || '-',
+    folderId: c.folder_id,
     folderName: c.folder_id ? folderMap.get(c.folder_id) : undefined,
   }))
 
@@ -287,6 +302,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   })),
 
   // 连接 CRUD
+  moveConnectionToFolder: async (connectionId, folderId) => {
+    await api.updateConnection(connectionId, { folder_id: folderId })
+    await get().fetchAssets()
+  },
+
   createConnectionAction: async (data) => {
     await api.createConnection(data)
     await get().fetchAssets()
@@ -303,6 +323,27 @@ export const useAppStore = create<AppState>((set, get) => ({
     await get().fetchAssets()
   },
 
+  // 文件夹 CRUD
+  createFolderAction: async (name, parentId) => {
+    await api.createFolder({ name, parent_id: parentId ?? null })
+    await get().fetchAssets()
+  },
+
+  deleteFolderAction: async (id) => {
+    await api.deleteFolder(id)
+    await get().fetchAssets()
+  },
+
+  renameFolderAction: async (id, name) => {
+    await api.updateFolder(id, { name })
+    await get().fetchAssets()
+  },
+
+  renameConnectionAction: async (id, name) => {
+    await api.updateConnection(id, { name })
+    await get().fetchAssets()
+  },
+
   // 主菜单
   menuVariant: 'default',
   setMenuVariant: (v) => set({ menuVariant: v }),
@@ -316,4 +357,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   toggleSftp: () => set((s) => ({ sftpOpen: !s.sftpOpen })),
   serverPanelOpen: false,
   toggleServerPanel: () => set((s) => ({ serverPanelOpen: !s.serverPanelOpen })),
+
+  // SSH 配置编辑器
+  sshConfigOpen: false,
+  sshConfigMode: 'create',
+  sshConfigInitialId: null,
+  openSshConfig: (mode, id) => set({ sshConfigOpen: true, sshConfigMode: mode, sshConfigInitialId: id ?? null }),
+  closeSshConfig: () => set({ sshConfigOpen: false, sshConfigInitialId: null }),
 }))

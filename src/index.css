@@ -30,10 +30,6 @@
   --term-prompt: #067D17;
   --term-caret: #1F2329;
 
-  /* 终端条纹背景（护眼模式） */
-  --term-stripe-odd: #FFFFFF;
-  --term-stripe-even: #f0f4f9;
-
   /* 图标语义色 */
   --icon-folder: #FADC19;
   --icon-terminal: #409EFF;
@@ -71,10 +67,6 @@
   --term-text: #D4D4D4;
   --term-prompt: #6A9955;
   --term-caret: #D4D4D4;
-
-  /* 终端条纹背景（护眼模式） */
-  --term-stripe-odd: #1A1B1D;
-  --term-stripe-even: #202124;
 
   /* 图标语义色 */
   --icon-folder: #F5D547;
@@ -125,6 +117,16 @@ html.theme-switching *,
 html.theme-switching *::before,
 html.theme-switching *::after {
   transition-duration: 0s !important;
+}
+
+/* ── 动画开关：关闭动画时禁用所有 transition/animation ── */
+html.reduce-motion,
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
 }
 
 /* ── 自定义滚动条 ── */
@@ -279,14 +281,31 @@ html.theme-switching *::after {
   background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 40%, transparent 60%);
 }
 
-/* ── 终端条纹背景（护眼模式） ── */
-.terminal-stripe {
-  background: repeating-linear-gradient(
-    to bottom,
-    var(--term-stripe-odd) 0px,
-    var(--term-stripe-odd) var(--term-line-height, 24px),
-    var(--term-stripe-even) var(--term-line-height, 24px),
-    var(--term-stripe-even) calc(var(--term-line-height, 24px) * 2)
-  ) !important;
-  background-attachment: local;
+/* ── 终端容器样式 ── */
+.terminal-container {
+  border-radius: 0 0 0.75rem 0.75rem;
+  overflow: hidden;
+}
+
+/* ── 终端 xterm 滚动条美化 ── */
+.terminal-container .xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+.terminal-container .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+.terminal-container .xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: rgba(128, 128, 128, 0.3);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.terminal-container .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(128, 128, 128, 0.5);
+}
+.dark .terminal-container .xterm-viewport::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+.dark .terminal-container .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.3);
 }

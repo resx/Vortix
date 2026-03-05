@@ -17,10 +17,9 @@ export default function TerminalSimulation({ asset, onExit, setConnected }: Prop
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const showContextMenu = useAppStore((s) => s.showContextMenu)
-  const stripeEnabled = useSettingsStore((s) => s.masterPassword)
   const baseFontSize = useSettingsStore((s) => s.termFontSize)
   const termLineHeight = useSettingsStore((s) => s.termLineHeight)
-  const zoomEnabled = useSettingsStore((s) => s.notifyOnComplete)
+  const zoomEnabled = useSettingsStore((s) => s.termZoomEnabled)
   const [zoomLevel, setZoomLevel] = useState(1)
 
   const effectiveFontSize = Math.round(baseFontSize * zoomLevel)
@@ -117,15 +116,14 @@ export default function TerminalSimulation({ asset, onExit, setConnected }: Prop
   return (
     <div
       ref={containerRef}
-      className={`flex-1 font-mono px-4 overflow-auto custom-scrollbar cursor-text ${stripeEnabled ? 'terminal-stripe' : ''}`}
+      className="flex-1 font-mono px-4 overflow-auto custom-scrollbar cursor-text"
       style={{
         fontSize: `${effectiveFontSize}px`,
         lineHeight: `${lineHeight}px`,
-        '--term-line-height': `${lineHeight}px`,
-        backgroundColor: stripeEnabled ? undefined : 'var(--term-bg)',
+        backgroundColor: 'var(--term-bg)',
         color: 'var(--term-text)',
         caretColor: 'var(--term-caret)',
-      } as React.CSSProperties}
+      }}
       onClick={() => inputRef.current?.focus()}
       onContextMenu={(e) => {
         e.preventDefault()

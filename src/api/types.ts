@@ -43,6 +43,18 @@ export interface Connection {
   has_private_key: boolean
   sort_order: number
   remark: string
+  color_tag: string | null
+  environment: string
+  auth_type: string
+  proxy_type: string
+  proxy_host: string
+  proxy_port: number
+  proxy_username: string
+  proxy_timeout: number
+  jump_server_id: string | null
+  tunnels: unknown[]
+  env_vars: unknown[]
+  advanced: Record<string, unknown>
   created_at: string
   updated_at: string
 }
@@ -58,6 +70,19 @@ export interface CreateConnectionDto {
   password?: string
   private_key?: string
   remark?: string
+  color_tag?: string | null
+  environment?: string
+  auth_type?: string
+  proxy_type?: string
+  proxy_host?: string
+  proxy_port?: number
+  proxy_username?: string
+  proxy_password?: string
+  proxy_timeout?: number
+  jump_server_id?: string | null
+  tunnels?: string
+  env_vars?: string
+  advanced?: string
 }
 
 export interface UpdateConnectionDto {
@@ -71,6 +96,19 @@ export interface UpdateConnectionDto {
   password?: string | null
   private_key?: string | null
   remark?: string
+  color_tag?: string | null
+  environment?: string
+  auth_type?: string
+  proxy_type?: string
+  proxy_host?: string
+  proxy_port?: number
+  proxy_username?: string
+  proxy_password?: string | null
+  proxy_timeout?: number
+  jump_server_id?: string | null
+  tunnels?: string
+  env_vars?: string
+  advanced?: string
 }
 
 // 解密后的凭据
@@ -80,6 +118,7 @@ export interface ConnectionCredential {
   username: string
   password?: string
   private_key?: string
+  proxy_password?: string
 }
 
 // 设置

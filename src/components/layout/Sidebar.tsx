@@ -1,9 +1,16 @@
 import {
   Search, Crosshair, Link as LinkIcon, CopyPlus,
   ChevronRight, ChevronDown, Folder, ArrowUpRight,
+  FolderPlus, Terminal, Container, Monitor, Network,
+  Usb, Database,
 } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuSub, DropdownMenuSubTrigger,
+  DropdownMenuSubContent, DropdownMenuSeparator,
+} from '../ui/dropdown-menu'
 import type { LucideIcon } from 'lucide-react'
 
 /* 自定义 FolderEye 图标 */
@@ -47,6 +54,101 @@ function SidebarHeaderButton({
   )
 }
 
+/* 新建资产下拉菜单 */
+function NewAssetDropdown() {
+  const openSshConfig = useAppStore((s) => s.openSshConfig)
+  const setShowDirModal = useAppStore((s) => s.setShowDirModal)
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="p-[5px] rounded-md flex items-center justify-center transition-colors text-text-1 hover:bg-bg-hover">
+          <LinkIcon className="w-3.5 h-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="bottom" align="end" sideOffset={6}>
+        <DropdownMenuItem onSelect={() => setShowDirModal(true)}>
+          <div className="flex items-center gap-2.5">
+            <FolderPlus className="w-3.5 h-3.5 text-text-2" />
+            <span>目录</span>
+          </div>
+        </DropdownMenuItem>
+        <DropdownMenuItem>
+          <div className="flex items-center gap-2.5">
+            <Terminal className="w-3.5 h-3.5 text-text-2" />
+            <span>本地终端</span>
+          </div>
+        </DropdownMenuItem>
+        <DropdownMenuItem>
+          <div className="flex items-center gap-2.5">
+            <Container className="w-3.5 h-3.5 text-text-2" />
+            <span>Docker</span>
+          </div>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+
+        {/* 远程连接子菜单 */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Monitor className="w-3.5 h-3.5 text-text-2" />
+            <span>远程连接</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent sideOffset={6}>
+            <DropdownMenuItem onSelect={() => openSshConfig('create')}>
+              <div className="flex items-center gap-2.5">
+                <Terminal className="w-3.5 h-3.5 text-text-2" />
+                <span>SSH</span>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <div className="flex items-center gap-2.5">
+                <Network className="w-3.5 h-3.5 text-text-2" />
+                <span>SSH隧道</span>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <div className="flex items-center gap-2.5">
+                <Monitor className="w-3.5 h-3.5 text-text-2" />
+                <span>RDP</span>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <div className="flex items-center gap-2.5">
+                <Monitor className="w-3.5 h-3.5 text-text-2" />
+                <span>Telnet</span>
+              </div>
+            </DropdownMenuItem>
+            <DropdownMenuItem>
+              <div className="flex items-center gap-2.5">
+                <Usb className="w-3.5 h-3.5 text-text-2" />
+                <span>串口</span>
+              </div>
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        {/* 数据库子菜单 */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Database className="w-3.5 h-3.5 text-text-2" />
+            <span>数据库</span>
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent sideOffset={6}>
+            {['Redis', 'MySQL', 'MariaDB', 'PostgreSQL', 'SqlServer', 'ClickHouse', 'SQLite', 'Oracle', '达梦'].map((db) => (
+              <DropdownMenuItem key={db}>
+                <div className="flex items-center gap-2.5">
+                  <Database className="w-3.5 h-3.5 text-text-2" />
+                  <span>{db}</span>
+                </div>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export default function Sidebar() {
   const activeFilter = useAppStore((s) => s.activeFilter)
   const isSidebarOpen = useAppStore((s) => s.isSidebarOpen)
@@ -56,6 +158,10 @@ export default function Sidebar() {
   const shortcuts = useAppStore((s) => s.shortcuts)
   const toggleFolder = useAppStore((s) => s.toggleFolder)
   const showContextMenu = useAppStore((s) => s.showContextMenu)
+  const openAssetTab = useAppStore((s) => s.openAssetTab)
+  const currentFolder = useAppStore((s) => s.currentFolder)
+  const setCurrentFolder = useAppStore((s) => s.setCurrentFolder)
+  const moveConnectionToFolder = useAppStore((s) => s.moveConnectionToFolder)
 
   const isShortcuts = activeFilter === 'shortcuts'
   const isAll = activeFilter === 'all'
@@ -91,7 +197,11 @@ export default function Sidebar() {
               onClick={toggleHideEmptyFolders}
               className={hideEmptyFolders && !disableHideEmptyFolders ? 'bg-border text-text-1' : ''}
             />
-            <SidebarHeaderButton icon={LinkIcon} tooltipText={isShortcuts ? '创建快捷命令' : '新建连接'} />
+            {isShortcuts ? (
+              <SidebarHeaderButton icon={LinkIcon} tooltipText="创建快捷命令" />
+            ) : (
+              <NewAssetDropdown />
+            )}
           </div>
         </div>
 
@@ -104,9 +214,34 @@ export default function Sidebar() {
           {data.map(item => (
             <div key={item.id} className="flex flex-col">
               <div
-                className="flex items-center px-1 py-1.5 rounded-md hover:bg-bg-hover cursor-pointer"
-                onClick={() => toggleFolder(target, item.id)}
+                className={`flex items-center px-1 py-1.5 rounded-md hover:bg-bg-hover cursor-pointer transition-colors
+                  ${currentFolder === item.id ? 'bg-primary/10 text-primary' : ''}`}
+                onClick={() => {
+                  if (item.type === 'folder') {
+                    // 点击已选中的文件夹 → 回到根目录，否则进入该文件夹
+                    setCurrentFolder(currentFolder === item.id ? null : item.id)
+                    // 同时展开/折叠
+                    toggleFolder(target, item.id)
+                  }
+                }}
                 onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', item)}
+                onDragOver={(e) => {
+                  if (item.type === 'folder') {
+                    e.preventDefault()
+                    e.currentTarget.classList.add('ring-2', 'ring-primary/50')
+                  }
+                }}
+                onDragLeave={(e) => {
+                  e.currentTarget.classList.remove('ring-2', 'ring-primary/50')
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  e.currentTarget.classList.remove('ring-2', 'ring-primary/50')
+                  const connectionId = e.dataTransfer.getData('text/connection-id')
+                  if (connectionId && item.type === 'folder') {
+                    moveConnectionToFolder(connectionId, item.id)
+                  }
+                }}
               >
                 <span className="w-4 flex justify-center text-text-3">
                   {item.isOpen
@@ -124,6 +259,22 @@ export default function Sidebar() {
                   key={child.id}
                   className="flex items-center px-1 py-1.5 pl-[28px] rounded-md hover:bg-bg-hover cursor-pointer"
                   onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', child)}
+                  onDoubleClick={() => {
+                    if (child.type === 'connection') {
+                      openAssetTab({
+                        id: child.id,
+                        name: child.name,
+                        type: 'asset',
+                        protocol: child.protocol,
+                        latency: '-',
+                        host: '-',
+                        user: '-',
+                        created: '-',
+                        expire: '-',
+                        remark: '-',
+                      })
+                    }
+                  }}
                 >
                   <span className="w-5 flex justify-center mr-1">
                     <div className="bg-border/50 p-0.5 rounded text-text-3">

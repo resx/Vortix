@@ -19,6 +19,7 @@ function MenuItem({
   shortcut,
   hasSubmenu,
   disabled,
+  onClick,
   children,
 }: {
   icon?: LucideIcon
@@ -26,6 +27,7 @@ function MenuItem({
   shortcut?: string
   hasSubmenu?: boolean
   disabled?: boolean
+  onClick?: () => void
   children?: React.ReactNode
 }) {
   const itemRef = useRef<HTMLDivElement>(null)
@@ -87,6 +89,7 @@ function MenuItem({
         ${disabled ? 'text-text-disabled cursor-not-allowed' : 'text-text-1 hover:bg-bg-active cursor-pointer'}`}
       onMouseEnter={openSubmenu}
       onMouseLeave={closeSubmenu}
+      onClick={() => { if (!disabled && !hasSubmenu && onClick) onClick() }}
     >
       <div className="flex items-center gap-2.5">
         {Icon && <Icon className={`w-3 h-3 transition-colors ${disabled ? 'text-text-disabled' : 'text-text-2 group-hover/item:text-primary'}`} />}
@@ -155,11 +158,16 @@ const newConnectionItems: { icon: LucideIcon; label: string }[] = [
   { icon: Database, label: '达梦' },
 ]
 
-function NewConnectionSubmenu() {
+function NewConnectionSubmenu({ onSelectSsh }: { onSelectSsh: () => void }) {
   return (
     <>
       {newConnectionItems.map((item) => (
-        <MenuItem key={item.label} icon={item.icon} label={item.label} />
+        <MenuItem
+          key={item.label}
+          icon={item.icon}
+          label={item.label}
+          onClick={item.label === 'SSH' ? onSelectSsh : undefined}
+        />
       ))}
     </>
   )
@@ -169,6 +177,14 @@ function NewConnectionSubmenu() {
 export default function ContextMenu() {
   const contextMenu = useAppStore((s) => s.contextMenu)
   const hideContextMenu = useAppStore((s) => s.hideContextMenu)
+  const setShowDirModal = useAppStore((s) => s.setShowDirModal)
+  const openSshConfig = useAppStore((s) => s.openSshConfig)
+  const openAssetTab = useAppStore((s) => s.openAssetTab)
+  const fetchAssets = useAppStore((s) => s.fetchAssets)
+  const deleteFolderAction = useAppStore((s) => s.deleteFolderAction)
+  const deleteConnectionAction = useAppStore((s) => s.deleteConnectionAction)
+  const renameFolderAction = useAppStore((s) => s.renameFolderAction)
+  const renameConnectionAction = useAppStore((s) => s.renameConnectionAction)
   const menuRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
@@ -205,6 +221,28 @@ export default function ContextMenu() {
 
   if (!contextMenu.visible || !contextMenu.type) return null
 
+  // 辅助操作
+  const handleDelete = (id: string, type: 'folder' | 'connection' | 'asset') => {
+    hideContextMenu()
+    if (!confirm(`确定要删除吗？此操作不可撤销。`)) return
+    if (type === 'folder') {
+      deleteFolderAction(id)
+    } else {
+      deleteConnectionAction(id)
+    }
+  }
+
+  const handleRename = (id: string, type: 'folder' | 'connection' | 'asset', currentName: string) => {
+    hideContextMenu()
+    const newName = prompt('请输入新名称', currentName)
+    if (!newName || newName === currentName) return
+    if (type === 'folder') {
+      renameFolderAction(id, newName)
+    } else {
+      renameConnectionAction(id, newName)
+    }
+  }
+
   let content: React.ReactNode = null
 
   // ---- 快捷命令右键菜单 ----
@@ -227,25 +265,28 @@ export default function ContextMenu() {
   }
   // ---- 资产侧边栏右键菜单 ----
   else if (contextMenu.type === 'sidebar-asset' || contextMenu.type === 'sidebar-blank-asset') {
+    const item = contextMenu.data as import('../../types').TreeItem | null
+    const isItem = contextMenu.type === 'sidebar-asset' && item
+
     content = (
       <>
         <div className="px-4 py-1 text-[11px] text-text-1 font-medium">操作</div>
-        <MenuItem icon={FolderPlus} label="新建目录" />
+        <MenuItem icon={FolderPlus} label="新建目录" onClick={() => { hideContextMenu(); setShowDirModal(true) }} />
         <MenuItem icon={LinkIcon} label="新建连接" hasSubmenu>
           <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">新建连接</div>
-          <NewConnectionSubmenu />
+          <NewConnectionSubmenu onSelectSsh={() => { hideContextMenu(); openSshConfig('create') }} />
         </MenuItem>
-        {contextMenu.type === 'sidebar-asset' && <MenuItem icon={LinkIcon} label="批量打开" />}
+        {isItem && <MenuItem icon={LinkIcon} label="批量打开" />}
         <MenuDivider />
-        <MenuItem icon={FileX} label="删除" />
-        <MenuItem icon={Edit2} label="重命名" />
-        <MenuItem icon={Copy} label="复制" />
-        <MenuItem icon={Scissors} label="剪切" />
+        <MenuItem icon={FileX} label="删除" disabled={!isItem} onClick={isItem ? () => handleDelete(item!.id, item!.type) : undefined} />
+        <MenuItem icon={Edit2} label="重命名" disabled={!isItem} onClick={isItem ? () => handleRename(item!.id, item!.type, item!.name) : undefined} />
+        <MenuItem icon={Copy} label="复制" disabled={!isItem} />
+        <MenuItem icon={Scissors} label="剪切" disabled={!isItem} />
         <MenuItem icon={Clipboard} label="粘贴" />
-        <MenuItem icon={RefreshCw} label="刷新" />
+        <MenuItem icon={RefreshCw} label="刷新" onClick={() => { hideContextMenu(); fetchAssets() }} />
         <MenuDivider />
         <MenuItem icon={FileDown} label="导入" />
-        <MenuItem icon={FileUp} label="导出" />
+        <MenuItem icon={FileUp} label="导出" disabled={!isItem} />
       </>
     )
   }
@@ -255,6 +296,7 @@ export default function ContextMenu() {
     const target = data?.targetContext || 'asset'
     const isBlank = target === 'blank'
     const isFolder = target === 'folder'
+    const rowData = data?.rowData
 
     content = (
       <>
@@ -268,19 +310,23 @@ export default function ContextMenu() {
             <ActionButton icon={Copy} tooltip="复制(Ctrl+C)" disabled={isBlank} />
           </div>
         </div>
-        <MenuItem icon={LinkIcon} label="打开" shortcut="Enter" disabled={isBlank} />
+        <MenuItem icon={LinkIcon} label="打开" shortcut="Enter" disabled={isBlank} onClick={rowData && !isBlank ? () => { hideContextMenu(); openAssetTab(rowData) } : undefined} />
         <MenuItem icon={CopyPlus} label="批量打开" disabled={isBlank} />
-        <MenuItem icon={RefreshCw} label="刷新" shortcut="F5" />
+        <MenuItem icon={RefreshCw} label="刷新" shortcut="F5" onClick={() => { hideContextMenu(); fetchAssets() }} />
         <MenuItem icon={FilePlus} label="新标签打开" shortcut="Alt+N" disabled={isBlank || isFolder} />
         <MenuItem icon={ExternalLink} label="新窗口打开" shortcut="Ctrl+Shift+N" disabled={isBlank || isFolder} />
         <MenuItem icon={Columns} label="同屏打开" disabled={isBlank || isFolder} />
         <MenuDivider />
         <MenuItem icon={Copy} label="克隆" disabled={isBlank || isFolder} />
-        <MenuItem icon={FolderPlus} label="新建目录" />
-        <MenuItem icon={Edit2} label="编辑" disabled={isBlank || isFolder} />
+        <MenuItem icon={FolderPlus} label="新建目录" onClick={() => { hideContextMenu(); setShowDirModal(true) }} />
+        <MenuItem icon={LinkIcon} label="新建连接" hasSubmenu>
+          <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">新建连接</div>
+          <NewConnectionSubmenu onSelectSsh={() => { hideContextMenu(); openSshConfig('create') }} />
+        </MenuItem>
+        <MenuItem icon={Edit2} label="编辑" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? () => { hideContextMenu(); openSshConfig('edit', rowData.id) } : undefined} />
         <MenuItem icon={CopyPlus} label="批量编辑" disabled={isBlank || isFolder} />
-        <MenuItem icon={FileX} label="删除" shortcut="Backspace" disabled={isBlank} />
-        <MenuItem icon={Edit2} label="重命名" shortcut="F2" disabled={isBlank} />
+        <MenuItem icon={FileX} label="删除" shortcut="Backspace" disabled={isBlank} onClick={rowData && !isBlank ? () => handleDelete(rowData.id, rowData.type === 'folder' ? 'folder' : 'asset') : undefined} />
+        <MenuItem icon={Edit2} label="重命名" shortcut="F2" disabled={isBlank} onClick={rowData && !isBlank ? () => handleRename(rowData.id, rowData.type === 'folder' ? 'folder' : 'asset', rowData.name) : undefined} />
         <MenuDivider />
         <MenuItem icon={ChevronDown} label="更多" hasSubmenu disabled={isBlank}>
           <MenuItem icon={FileDown} label="通过文本批量导入SSH" />

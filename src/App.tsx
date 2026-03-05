@@ -13,9 +13,12 @@ import HiddenShortcuts from './components/assets/HiddenShortcuts'
 import DirModal from './components/assets/DirModal'
 import ContextMenu from './components/context-menu/ContextMenu'
 import SettingsPanel from './components/settings/SettingsPanel'
+import SshConfigDialog from './components/ssh-config/SshConfigDialog'
 import { AnimatePresence } from 'framer-motion'
 import { useAppStore } from './stores/useAppStore'
 import { useSettingsStore } from './stores/useSettingsStore'
+import { useTerminalProfileStore } from './stores/useTerminalProfileStore'
+import { resolveFontChain } from './lib/fonts'
 import { TooltipProvider } from './components/ui/tooltip'
 
 export default function App() {
@@ -25,13 +28,17 @@ export default function App() {
   const sftpOpen = useAppStore((s) => s.sftpOpen)
   const serverPanelOpen = useAppStore((s) => s.serverPanelOpen)
   const settingsOpen = useAppStore((s) => s.settingsOpen)
+  const sshConfigOpen = useAppStore((s) => s.sshConfigOpen)
 
   // 初始化：加载设置和资产数据
   useEffect(() => {
     Promise.all([
       useSettingsStore.getState().loadSettings(),
       useAppStore.getState().fetchAssets(),
-    ])
+    ]).then(() => {
+      // settings 加载完成后再加载 profiles（依赖 settings 数据）
+      useTerminalProfileStore.getState().loadProfiles()
+    })
   }, [])
 
   // 主题切换
@@ -72,6 +79,28 @@ export default function App() {
     })
   }, [theme])
 
+  // UI 字体
+  const uiFontFamily = useSettingsStore((s) => s.uiFontFamily)
+  useEffect(() => {
+    if (uiFontFamily.length === 0 || (uiFontFamily.length === 1 && uiFontFamily[0] === 'system')) {
+      document.body.style.fontFamily = ''
+    } else {
+      document.body.style.fontFamily = resolveFontChain(uiFontFamily, 'system-ui, -apple-system, sans-serif')
+    }
+  }, [uiFontFamily])
+
+  // 缩放比例
+  const uiZoom = useSettingsStore((s) => s.uiZoom)
+  useEffect(() => {
+    ;(document.body.style as any).zoom = uiZoom === 100 ? '' : `${uiZoom}%`
+  }, [uiZoom])
+
+  // 动画开关
+  const enableAnimation = useSettingsStore((s) => s.enableAnimation)
+  useEffect(() => {
+    document.documentElement.classList.toggle('reduce-motion', !enableAnimation)
+  }, [enableAnimation])
+
   const activeTab = tabs.find(t => t.id === activeTabId)
   const isListView = activeTab?.type === 'list'
   const isAssetView = activeTab?.type === 'asset'
@@ -92,7 +121,7 @@ export default function App() {
           <Sidebar />
 
           {/* 主内容区 - 独立白色卡片 */}
-          <div id="main-content" className="flex-1 flex flex-col bg-bg-card rounded-xl border border-border shadow-sm relative min-w-0 ml-3 overflow-clip" onContextMenu={(e) => e.preventDefault()}>
+          <div id="main-content" className={`flex-1 flex flex-col bg-bg-card rounded-xl shadow-sm relative min-w-0 ml-3 overflow-clip border ${isAssetView ? 'dark:border-transparent border-border' : 'border-border'}`} onContextMenu={(e) => e.preventDefault()}>
             <TabBar />
 
             <div className="flex-1 flex overflow-hidden">
@@ -153,6 +182,7 @@ export default function App() {
       <DirModal />
       <ContextMenu />
       {settingsOpen && <SettingsPanel />}
+      {sshConfigOpen && <SshConfigDialog />}
     </div>
     </TooltipProvider>
   )

@@ -1,22 +1,34 @@
 import { create } from 'zustand'
 import * as api from '../api/client'
+import { getThemeById } from '../components/terminal/themes/index'
 
 export interface SettingsState {
-  // 通用
+  // ── 基础设置 ──
   language: string
   theme: 'auto' | 'light' | 'dark'
+  uiFontFamily: string[]
+  uiZoom: number
+  middleClickCloseTab: boolean
+  editorLineEnding: string
+  enableAnimation: boolean
+  showRealtimeInfo: boolean
+  tabCloseButtonLeft: boolean
+  fontLigatures: boolean
+  tabCloseConfirm: boolean
+  tabFlashNotify: boolean
+  tabMultiLine: boolean
+  updateChannel: string
+  editorFontFamily: string[]
+  editorFontSize: number
+  editorWordWrap: boolean
+  editorTabMode: string
+  lockOnStart: boolean
+  lockPassword: string
+  idleLockMinutes: number
   restoreSession: boolean
-  checkUpdate: boolean
-  autoSaveLog: boolean
+  showMemberBadge: boolean
 
-  // 网络
-  proxyMode: string
-  proxyAddress: string
-  proxyPort: string
-  proxyUsername: string
-  proxyPassword: string
-
-  // 连接
+  // ── 连接 ──
   connectionTimeout: number
   heartbeatInterval: number
   defaultEncoding: string
@@ -25,44 +37,55 @@ export interface SettingsState {
   reconnectCount: number
   reconnectInterval: number
 
-  // SSH
-  defaultAuthMethod: string
-  sshCompression: boolean
-  agentForwarding: boolean
-  x11Forwarding: boolean
-  keyExchangeAlgorithm: string
-
-  // 文件传输
-  downloadDir: string
-  overwritePolicy: string
-  maxConcurrentTransfers: number
-  notifyOnComplete: boolean
-
-  // 安全
-  rememberPassword: boolean
-  masterPassword: boolean
-  idleLockMinutes: number
-  clearClipboardOnExit: boolean
-
-  // 数据
-  dataStoragePath: string
-  logRetentionDays: number
-  cloudSync: boolean
-
-  // 终端
-  termFontFamily: string
+  // ── 终端 ──
+  termThemeLight: string
+  termThemeDark: string
+  termCursorStyle: 'block' | 'underline' | 'bar'
+  termCursorBlink: boolean
+  termFontFamily: string[]
   termFontSize: number
   termLineHeight: number
   termLetterSpacing: number
-  termStripeEnabled: boolean
   termZoomEnabled: boolean
+  keywordHighlights: {
+    error: string
+    warning: string
+    ok: string
+    info: string
+    debug: string
+    ipMac: string
+  }
+  activeProfileId: string
 
-  // 编辑器
-  editorFontFamily: string
-  editorFontSize: number
+  // ── SSH 设置 ──
+  termHighlightEnhance: boolean
+  sshSftpPathSync: boolean
+  termSelectAutoCopy: boolean
+  termCommandHint: boolean
+  sshHistoryEnabled: boolean
+  sshHistoryStorage: string
+  sshHistoryLoadCount: number
+  termHighPerformance: boolean
+  termMiddleClickAction: string
+  termRightClickAction: string
+  termSound: boolean
+  termCtrlVPaste: boolean
+  termScrollback: number
+  termLogDir: string
 
-  // 数据库
-  dbTableFont: string
+  // ── SFTP 设置 ──
+  sftpDefaultEditor: string
+  sftpParentDirClick: boolean
+  sftpFileListLayout: string
+  sftpRemoteColumns: string[]
+  sftpListTimeout: number
+  sftpDefaultSavePath: string
+  sftpDoubleClickAction: string
+  sftpShowHidden: boolean
+  sftpLocalColumns: string[]
+
+  // ── 数据库 ──
+  dbTableFont: string[]
   dbAutoExpand: boolean
   dbShowPrimaryKey: boolean
   dbCalcTotalRows: boolean
@@ -75,25 +98,39 @@ export interface SettingsState {
   dbScrollMode: string
   dbCursorScrollSpeed: number
 
-  // Redis
+  // ── Redis ──
   redisMaxLoadCount: number
   redisGroupSeparator: string
   redisShowValue: boolean
 }
 
 const DEFAULTS: SettingsState = {
+  // ── 基础设置 ──
   language: 'zh-CN',
   theme: 'auto',
+  uiFontFamily: ['system'],
+  uiZoom: 100,
+  middleClickCloseTab: false,
+  editorLineEnding: 'lf',
+  enableAnimation: true,
+  showRealtimeInfo: true,
+  tabCloseButtonLeft: false,
+  fontLigatures: false,
+  tabCloseConfirm: true,
+  tabFlashNotify: true,
+  tabMultiLine: false,
+  updateChannel: 'stable',
+  editorFontFamily: ['JetBrainsMono'],
+  editorFontSize: 14,
+  editorWordWrap: true,
+  editorTabMode: 'four-spaces',
+  lockOnStart: false,
+  lockPassword: '',
+  idleLockMinutes: 0,
   restoreSession: false,
-  checkUpdate: true,
-  autoSaveLog: false,
+  showMemberBadge: true,
 
-  proxyMode: 'none',
-  proxyAddress: '',
-  proxyPort: '',
-  proxyUsername: '',
-  proxyPassword: '',
-
+  // ── 连接 ──
   connectionTimeout: 30,
   heartbeatInterval: 60,
   defaultEncoding: 'utf-8',
@@ -102,40 +139,55 @@ const DEFAULTS: SettingsState = {
   reconnectCount: 3,
   reconnectInterval: 5,
 
-  defaultAuthMethod: 'password',
-  sshCompression: false,
-  agentForwarding: false,
-  x11Forwarding: false,
-  keyExchangeAlgorithm: 'auto',
-
-  downloadDir: '',
-  overwritePolicy: 'ask',
-  maxConcurrentTransfers: 3,
-  notifyOnComplete: true,
-
-  rememberPassword: true,
-  masterPassword: false,
-  idleLockMinutes: 0,
-  clearClipboardOnExit: false,
-
-  dataStoragePath: '',
-  logRetentionDays: 30,
-  cloudSync: false,
-
-  // 终端
-  termFontFamily: 'JetBrainsMono',
+  // ── 终端 ──
+  termThemeLight: 'default-light',
+  termThemeDark: 'default-dark',
+  termCursorStyle: 'bar',
+  termCursorBlink: true,
+  termFontFamily: ['JetBrainsMono'],
   termFontSize: 14,
   termLineHeight: 1.6,
   termLetterSpacing: 0,
-  termStripeEnabled: false,
   termZoomEnabled: true,
+  keywordHighlights: {
+    error: '#F53F3F',
+    warning: '#E6A23C',
+    ok: '#00B42A',
+    info: '#4080FF',
+    debug: '#86909C',
+    ipMac: '#9A7ECC',
+  },
+  activeProfileId: '__default__',
 
-  // 编辑器
-  editorFontFamily: 'JetBrainsMono',
-  editorFontSize: 14,
+  // ── SSH 设置 ──
+  termHighlightEnhance: false,
+  sshSftpPathSync: true,
+  termSelectAutoCopy: false,
+  termCommandHint: true,
+  sshHistoryEnabled: true,
+  sshHistoryStorage: 'local',
+  sshHistoryLoadCount: 100,
+  termHighPerformance: false,
+  termMiddleClickAction: 'none',
+  termRightClickAction: 'menu',
+  termSound: false,
+  termCtrlVPaste: true,
+  termScrollback: 1000,
+  termLogDir: '',
 
-  // 数据库
-  dbTableFont: 'JetBrainsMono',
+  // ── SFTP 设置 ──
+  sftpDefaultEditor: 'builtin',
+  sftpParentDirClick: false,
+  sftpFileListLayout: 'horizontal',
+  sftpRemoteColumns: ['name', 'mtime', 'type', 'size'],
+  sftpListTimeout: 60,
+  sftpDefaultSavePath: '',
+  sftpDoubleClickAction: 'auto',
+  sftpShowHidden: false,
+  sftpLocalColumns: ['name', 'mtime', 'type', 'size'],
+
+  // ── 数据库 ──
+  dbTableFont: ['JetBrainsMono'],
   dbAutoExpand: true,
   dbShowPrimaryKey: true,
   dbCalcTotalRows: false,
@@ -148,7 +200,7 @@ const DEFAULTS: SettingsState = {
   dbScrollMode: 'natural',
   dbCursorScrollSpeed: 1,
 
-  // Redis
+  // ── Redis ──
   redisMaxLoadCount: 10000,
   redisGroupSeparator: ':',
   redisShowValue: false,
@@ -180,6 +232,36 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
           (merged as Record<string, unknown>)[k] = v
         }
       }
+
+      // 向后兼容：旧字体字段 string → string[]
+      const FONT_KEYS = ['uiFontFamily', 'editorFontFamily', 'termFontFamily', 'dbTableFont'] as const
+      for (const fk of FONT_KEYS) {
+        if (typeof merged[fk] === 'string') {
+          ;(merged as Record<string, unknown>)[fk] = [merged[fk]]
+        }
+      }
+
+      // 向后兼容：旧 termTheme 字段迁移到 termThemeLight / termThemeDark
+      const legacy = (remote as Record<string, unknown>).termTheme
+      if (typeof legacy === 'string' && !('termThemeLight' in remote)) {
+        if (legacy === 'auto') {
+          merged.termThemeLight = 'default-light'
+          merged.termThemeDark = 'default-dark'
+        } else {
+          // 根据主题 mode 分配到对应字段
+          const preset = getThemeById(legacy)
+          if (preset) {
+            if (preset.mode === 'dark') {
+              merged.termThemeDark = legacy
+              merged.termThemeLight = DEFAULTS.termThemeLight
+            } else {
+              merged.termThemeLight = legacy
+              merged.termThemeDark = DEFAULTS.termThemeDark
+            }
+          }
+        }
+      }
+
       set({ ...merged, _loaded: true, _dirty: false })
     } catch {
       // API 不可用时使用默认值

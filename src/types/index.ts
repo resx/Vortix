@@ -18,6 +18,7 @@ export interface AssetRow {
   created: string
   expire: string
   remark: string
+  folderId?: string | null
   folderName?: string
 }
 
