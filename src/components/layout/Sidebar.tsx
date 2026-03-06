@@ -5,6 +5,7 @@ import {
   Usb, Database,
 } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
+import { useSettingsStore } from '../../stores/useSettingsStore'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -152,8 +153,6 @@ function NewAssetDropdown() {
 export default function Sidebar() {
   const activeFilter = useAppStore((s) => s.activeFilter)
   const isSidebarOpen = useAppStore((s) => s.isSidebarOpen)
-  const hideEmptyFolders = useAppStore((s) => s.hideEmptyFolders)
-  const toggleHideEmptyFolders = useAppStore((s) => s.toggleHideEmptyFolders)
   const assets = useAppStore((s) => s.assets)
   const shortcuts = useAppStore((s) => s.shortcuts)
   const toggleFolder = useAppStore((s) => s.toggleFolder)
@@ -166,16 +165,50 @@ export default function Sidebar() {
   const moveConnectionToFolder = useAppStore((s) => s.moveConnectionToFolder)
   const selectedItemId = useAppStore((s) => s.selectedSidebarItemId)
   const setSelectedItemId = useAppStore((s) => s.setSelectedSidebarItemId)
+  const hideEmptyFolders = useSettingsStore((s) => s.hideEmptyFolders)
+  const updateSetting = useSettingsStore((s) => s.updateSetting)
 
   const isShortcuts = activeFilter === 'shortcuts'
   const isAll = activeFilter === 'all'
   const title = isShortcuts ? '快捷命令' : '资产列表'
   const data = isShortcuts ? shortcuts : assets
   const target = isShortcuts ? 'shortcuts' as const : 'assets' as const
+  // "显示全部"和"快捷命令"下不启用隐藏空文件夹
   const disableHideEmptyFolders = isAll || isShortcuts
 
   // 判断是否所有文件夹都已展开
   const allExpanded = data.filter(i => i.type === 'folder').every(i => i.isOpen)
+
+  // 按筛选类型匹配协议
+  const protocolMap: Record<string, string[]> = {
+    ssh: ['ssh', 'sftp'],
+    db: ['database'],
+    docker: ['docker'],
+  }
+  const activeProtocols = protocolMap[activeFilter] ?? null
+
+  // 判断连接项是否匹配当前筛选
+  const matchesFilter = (item: typeof data[number]) => {
+    if (isAll || isShortcuts) return true
+    return !!item.protocol && !!activeProtocols && activeProtocols.includes(item.protocol)
+  }
+
+  // 根据当前筛选类型判断文件夹是否为空
+  const isFolderEmpty = (item: typeof data[number]) => {
+    if (item.type !== 'folder' || !item.children) return true
+    if (isAll) return item.children.length === 0
+    return !item.children.some(matchesFilter)
+  }
+
+  // 筛选数据：过滤不匹配的根目录连接 + 隐藏空文件夹
+  const filteredData = data
+    .filter(item => {
+      // 根目录连接项：按协议筛选
+      if (item.type === 'connection') return matchesFilter(item)
+      // 文件夹：隐藏空文件夹开启时过滤
+      if (item.type === 'folder' && hideEmptyFolders && !disableHideEmptyFolders) return !isFolderEmpty(item)
+      return true
+    })
 
   const handleContextMenu = (e: React.MouseEvent, type: 'sidebar-blank-shortcut' | 'sidebar-shortcut' | 'sidebar-blank-asset' | 'sidebar-asset', item?: typeof data[number]) => {
     e.preventDefault()
@@ -199,9 +232,9 @@ export default function Sidebar() {
             <SidebarHeaderButton icon={CopyPlus} tooltipText={allExpanded ? '折叠所有' : '展开所有'} onClick={() => allExpanded ? collapseAllFolders(target) : expandAllFolders(target)} />
             <SidebarHeaderButton
               icon={FolderEyeIcon}
-              tooltipText="点击隐藏空文件夹"
+              tooltipText={hideEmptyFolders ? '显示空文件夹' : '隐藏空文件夹'}
               disabled={disableHideEmptyFolders}
-              onClick={toggleHideEmptyFolders}
+              onClick={() => updateSetting('hideEmptyFolders', !hideEmptyFolders)}
               className={hideEmptyFolders && !disableHideEmptyFolders ? 'bg-border text-text-1' : ''}
             />
             {isShortcuts ? (
@@ -218,7 +251,7 @@ export default function Sidebar() {
           className="flex-1 overflow-y-auto py-1.5 px-1 custom-scrollbar relative"
           onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-blank-shortcut' : 'sidebar-blank-asset')}
         >
-          {data.map(item => (
+          {filteredData.map(item => (
             <div key={item.id} className="flex flex-col">
               {item.type === 'folder' ? (
                 <>
@@ -264,7 +297,7 @@ export default function Sidebar() {
                     <span className="text-[12px] text-text-2 truncate flex-1">{item.name}</span>
                   </div>
 
-                  {item.isOpen && item.children?.map(child => (
+                  {item.isOpen && item.children?.filter(matchesFilter).map(child => (
                     <div
                       key={child.id}
                       className={`flex items-center px-1 py-1.5 pl-[28px] rounded-md hover:bg-bg-hover cursor-pointer transition-colors
@@ -292,7 +325,7 @@ export default function Sidebar() {
                     >
                       <span className="w-5 flex justify-center mr-1">
                         <div className="bg-border/50 p-0.5 rounded text-text-3">
-                          <ArrowUpRight className="w-3 h-3" />
+                          <Terminal className="w-3 h-3" />
                         </div>
                       </span>
                       <span className="text-[12px] text-text-2 truncate flex-1">{child.name}</span>

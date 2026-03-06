@@ -47,15 +47,21 @@ export default function ActivityBar() {
   const isSidebarOpen = useAppStore((s) => s.isSidebarOpen)
   const toggleSidebar = useAppStore((s) => s.toggleSidebar)
 
+  // 快捷命令按钮：折叠态下同时展开 sidebar
+  const handleShortcutsClick = () => {
+    setActiveFilter('shortcuts')
+    if (!isSidebarOpen) toggleSidebar()
+  }
+
   return (
     <div id="activity-bar" className="w-[48px] flex flex-col items-center py-2 shrink-0 select-none z-20">
-      {/* 侧边栏折叠按钮 */}
+      {/* 显示/隐藏资产树按钮 */}
       <div className="w-full mb-2 flex justify-center">
         <TooltipButton
           icon={Folder}
           isActive={isSidebarOpen}
           onClick={toggleSidebar}
-          tooltipText="显示/隐藏侧边栏"
+          tooltipText={isSidebarOpen ? '隐藏资产树' : '显示资产树'}
         />
       </div>
 
@@ -79,7 +85,7 @@ export default function ActivityBar() {
         <TooltipButton
           icon={Zap}
           isActive={activeFilter === 'shortcuts'}
-          onClick={() => setActiveFilter('shortcuts')}
+          onClick={handleShortcutsClick}
           tooltipText="显示快捷命令"
         />
       </div>

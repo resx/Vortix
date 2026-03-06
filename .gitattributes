@@ -1,0 +1,12 @@
+# 自动检测所有文本文件并进行规范化
+* text=auto
+
+# 强制指定某些文件永远使用 LF (如 Shell 脚本)
+*.sh text eol=lf
+
+# 强制指定某些文件永远使用 CRLF (如 Windows 批处理文件)
+*.bat text eol=crlf
+
+# 声明二进制文件（图片等），Git 不会触碰它们的换行符
+*.png binary
+*.jpg binary

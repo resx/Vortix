@@ -23,6 +23,7 @@ import { TooltipProvider } from './components/ui/tooltip'
 
 export default function App() {
   const isAssetHidden = useAppStore((s) => s.isAssetHidden)
+  const isSidebarOpen = useAppStore((s) => s.isSidebarOpen)
   const tabs = useAppStore((s) => s.tabs)
   const activeTabId = useAppStore((s) => s.activeTabId)
   const sftpOpen = useAppStore((s) => s.sftpOpen)
@@ -121,7 +122,7 @@ export default function App() {
           <Sidebar />
 
           {/* 主内容区 - 独立白色卡片 */}
-          <div id="main-content" className={`flex-1 flex flex-col bg-bg-card rounded-xl shadow-sm relative min-w-0 ml-3 overflow-clip border ${isAssetView ? 'dark:border-transparent border-border' : 'border-border'}`} onContextMenu={(e) => e.preventDefault()}>
+          <div id="main-content" className={`flex-1 flex flex-col bg-bg-card rounded-xl shadow-sm relative min-w-0 overflow-clip border ${isSidebarOpen ? 'ml-3' : ''} ${isAssetView ? 'dark:border-transparent border-border' : 'border-border'}`} onContextMenu={(e) => e.preventDefault()}>
             <TabBar />
 
             <div className="flex-1 flex overflow-hidden">

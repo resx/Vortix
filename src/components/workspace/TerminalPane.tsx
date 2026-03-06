@@ -201,6 +201,8 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
             connectedAt: sourceTab.connectedAt,
           } : extractedMeta
           wsStore.insertPaneAt(tabId, paneId, sourceId, dropZone, meta)
+          // 同步源标签页信息（若仅剩一个带 meta 的 pane）
+          useAppStore.getState().syncTabWithRemainingPanes(sourceTabId)
         }
         setTimeout(() => unmarkTransferring(sourceId), 100)
       } else {
@@ -213,7 +215,9 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
     // 情况 2：标签页拖入分屏
     const dragTabId = e.dataTransfer.getData('text/tab-id')
     if (dragTabId && dragTabId !== tabId) {
+      // 禁止拖动当前激活标签页到终端分屏
       const appStore = useAppStore.getState()
+      if (dragTabId === appStore.activeTabId) { setDropZone(null); return }
       const sourceTab = appStore.tabs.find(t => t.id === dragTabId)
       const wsStore = useWorkspaceStore.getState()
       const sourceWs = wsStore.workspaces[dragTabId]

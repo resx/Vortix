@@ -11,9 +11,6 @@ interface AppState {
   isSidebarOpen: boolean
   toggleSidebar: () => void
 
-  hideEmptyFolders: boolean
-  toggleHideEmptyFolders: () => void
-
   assets: TreeItem[]
   shortcuts: TreeItem[]
   tableData: AssetRow[]
@@ -68,9 +65,12 @@ interface AppState {
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
   setListViewMode: (mode: ListViewMode) => void
+  reorderTab: (fromId: string, toId: string) => void
   updateTabStatus: (id: string, status: AppTab['status']) => void
   /** 从分屏面板创建独立标签页（保留会话，不重新连接） */
   createTabFromPane: (sourceTabId: string, paneId: string) => string | null
+  /** 提取 pane 后，同步源标签页信息（若仅剩一个带 meta 的 pane，更新标签页标题和连接信息） */
+  syncTabWithRemainingPanes: (tabId: string) => void
   updateTabStatus: (id: string, status: AppTab['status']) => void
 
   // 连接 CRUD
@@ -181,9 +181,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   isSidebarOpen: true,
   toggleSidebar: () => set((s) => ({ isSidebarOpen: !s.isSidebarOpen })),
-
-  hideEmptyFolders: false,
-  toggleHideEmptyFolders: () => set((s) => ({ hideEmptyFolders: !s.hideEmptyFolders })),
 
   assets: [],
   shortcuts: [],
@@ -325,6 +322,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setListViewMode: (mode) => set({ listViewMode: mode }),
 
+  reorderTab: (fromId, toId) => set((s) => {
+    if (fromId === toId) return {}
+    const tabs = [...s.tabs]
+    const fromIdx = tabs.findIndex(t => t.id === fromId)
+    const toIdx = tabs.findIndex(t => t.id === toId)
+    if (fromIdx < 0 || toIdx < 0) return {}
+    const [moved] = tabs.splice(fromIdx, 1)
+    tabs.splice(toIdx, 0, moved)
+    return { tabs }
+  }),
+
   updateTabStatus: (id, status) => set((s) => ({
     tabs: s.tabs.map(t => t.id === id ? { ...t, status, connectedAt: status === 'connected' ? new Date().toISOString() : t.connectedAt } : t),
   })),
@@ -363,7 +371,30 @@ export const useAppStore = create<AppState>((set, get) => ({
       activeTabId: newTabId,
     }))
 
+    // 同步源标签页信息
+    get().syncTabWithRemainingPanes(sourceTabId)
+
     return newTabId
+  },
+
+  syncTabWithRemainingPanes: (tabId) => {
+    const wsStore = useWorkspaceStore.getState()
+    const ws = wsStore.workspaces[tabId]
+    if (!ws) return
+    const leafIds = wsStore.getAllPaneIds(tabId)
+    if (leafIds.length !== 1) return
+    const meta = wsStore.getPaneMeta(tabId, leafIds[0])
+    if (!meta?.label) return
+    set((s) => ({
+      tabs: s.tabs.map(t => t.id === tabId ? {
+        ...t,
+        label: meta.label,
+        connectionId: meta.connectionId ?? t.connectionId,
+        assetRow: meta.assetRow ?? t.assetRow,
+        quickConnect: meta.quickConnect ?? t.quickConnect,
+        connectedAt: meta.connectedAt ?? t.connectedAt,
+      } : t),
+    }))
   },
 
   // 连接 CRUD

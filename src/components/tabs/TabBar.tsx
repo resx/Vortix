@@ -2,7 +2,7 @@ import { ChevronDown, Home, Search, Terminal, X } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
 import { useWorkspaceStore, collectLeafIds } from '../../stores/useWorkspaceStore'
 import { markTransferring, unmarkTransferring } from '../../stores/terminalSessionRegistry'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 export default function TabBar() {
   const tabs = useAppStore((s) => s.tabs)
@@ -10,10 +10,14 @@ export default function TabBar() {
   const setActiveTab = useAppStore((s) => s.setActiveTab)
   const closeTab = useAppStore((s) => s.closeTab)
   const createTabFromPane = useAppStore((s) => s.createTabFromPane)
+  const reorderTab = useAppStore((s) => s.reorderTab)
 
   const [showMenu, setShowMenu] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [dropHighlight, setDropHighlight] = useState(false)
+  // 拖拽排序：记录插入指示位置
+  const [dragIndicator, setDragIndicator] = useState<{ tabId: string; side: 'left' | 'right' } | null>(null)
+  const dragSourceRef = useRef<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -27,7 +31,8 @@ export default function TabBar() {
   }, [])
 
   const activeTab = tabs.find(t => t.id === activeTabId)
-  const dbTabs = tabs.filter(t => t.type === 'asset')
+  // 下拉菜单只跟踪数据库表（排除首页和 SSH 终端资产）
+  const dbTabs = tabs.filter(t => t.type !== 'list' && t.type !== 'asset')
 
   // 搜索过滤
   const filteredDbTabs = dbTabs.filter(t =>
@@ -150,11 +155,40 @@ export default function TabBar() {
             }`}
             draggable
             onDragStart={(e) => {
+              dragSourceRef.current = tab.id
               e.dataTransfer.setData('text/tab-id', tab.id)
               e.dataTransfer.effectAllowed = 'move'
             }}
+            onDragEnd={() => { dragSourceRef.current = null; setDragIndicator(null) }}
+            onDragOver={(e) => {
+              // 仅处理标签页排序拖拽
+              if (!e.dataTransfer.types.includes('text/tab-id')) return
+              e.preventDefault()
+              e.stopPropagation()
+              e.dataTransfer.dropEffect = 'move'
+              if (dragSourceRef.current === tab.id) { setDragIndicator(null); return }
+              const rect = e.currentTarget.getBoundingClientRect()
+              const side = (e.clientX - rect.left) < rect.width / 2 ? 'left' : 'right'
+              setDragIndicator({ tabId: tab.id, side })
+            }}
+            onDragLeave={() => {
+              if (dragIndicator?.tabId === tab.id) setDragIndicator(null)
+            }}
+            onDrop={(e) => {
+              const fromId = e.dataTransfer.getData('text/tab-id')
+              if (fromId && fromId !== tab.id) {
+                e.preventDefault()
+                e.stopPropagation()
+                reorderTab(fromId, tab.id)
+              }
+              setDragIndicator(null)
+            }}
             onClick={() => setActiveTab(tab.id)}
           >
+            {/* 左侧插入指示器 */}
+            {dragIndicator?.tabId === tab.id && dragIndicator.side === 'left' && (
+              <div className="absolute left-0 top-[6px] bottom-[6px] w-[2px] bg-primary rounded-full" />
+            )}
             <Terminal className="w-3 h-3" />
             <span className="max-w-[80px] truncate">{tab.label}</span>
             <button
@@ -172,6 +206,10 @@ export default function TabBar() {
             )}
             {tab.status === 'connected' && (
               <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-text-1" />
+            )}
+            {/* 右侧插入指示器 */}
+            {dragIndicator?.tabId === tab.id && dragIndicator.side === 'right' && (
+              <div className="absolute right-0 top-[6px] bottom-[6px] w-[2px] bg-primary rounded-full" />
             )}
           </div>
         ))}

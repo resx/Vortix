@@ -106,6 +106,9 @@ export interface SettingsState {
   redisMaxLoadCount: number
   redisGroupSeparator: string
   redisShowValue: boolean
+
+  // ── 侧边栏 ──
+  hideEmptyFolders: boolean
 }
 
 const DEFAULTS: SettingsState = {
@@ -212,6 +215,9 @@ const DEFAULTS: SettingsState = {
   redisMaxLoadCount: 10000,
   redisGroupSeparator: ':',
   redisShowValue: false,
+
+  // ── 侧边栏 ──
+  hideEmptyFolders: false,
 }
 
 interface SettingsStore extends SettingsState {
