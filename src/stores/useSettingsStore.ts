@@ -54,6 +54,10 @@ export interface SettingsState {
     info: string
     debug: string
     ipMac: string
+    path?: string
+    url?: string
+    timestamp?: string
+    env?: string
   }
   activeProfileId: string
 
@@ -156,11 +160,15 @@ const DEFAULTS: SettingsState = {
     info: '#4080FF',
     debug: '#86909C',
     ipMac: '#9A7ECC',
+    path: '#D2B48C',
+    url: '#00B4D8',
+    timestamp: '#8B8682',
+    env: '#61AFEF',
   },
   activeProfileId: '__default__',
 
   // ── SSH 设置 ──
-  termHighlightEnhance: false,
+  termHighlightEnhance: true,
   sshSftpPathSync: true,
   termSelectAutoCopy: false,
   termCommandHint: true,

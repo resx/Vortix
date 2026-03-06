@@ -131,6 +131,7 @@ export default function TerminalSimulation({ asset, onExit, setConnected }: Prop
         const selection = window.getSelection()?.toString()
         showContextMenu(e.clientX, e.clientY, 'terminal', {
           tabId: asset.id,
+          paneId: '',
           hasSelection: !!selection,
         })
       }}

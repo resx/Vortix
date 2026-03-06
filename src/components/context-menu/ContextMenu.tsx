@@ -9,6 +9,7 @@ import {
   Clock, Save, TerminalSquare, AppWindow,
 } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
+import { useWorkspaceStore, collectLeafIds } from '../../stores/useWorkspaceStore'
 import type { LucideIcon } from 'lucide-react'
 import type { TableContextData, TerminalContextData } from '../../types'
 
@@ -342,6 +343,24 @@ export default function ContextMenu() {
   else if (contextMenu.type === 'terminal') {
     const data = contextMenu.data as TerminalContextData | null
     const noSelection = !data?.hasSelection
+    const termTabId = data?.tabId
+    const termPaneId = data?.paneId
+    const { splitPane, closePane, workspaces } = useWorkspaceStore.getState()
+    const ws = termTabId ? workspaces[termTabId] : null
+    const paneCount = ws ? collectLeafIds(ws.rootNode).length : 1
+
+    const handleSplit = (dir: 'vertical' | 'horizontal') => {
+      if (termTabId && termPaneId) {
+        splitPane(termTabId, termPaneId, dir)
+      }
+      hideContextMenu()
+    }
+    const handleClosePane = () => {
+      if (termTabId && termPaneId) {
+        closePane(termTabId, termPaneId)
+      }
+      hideContextMenu()
+    }
 
     content = (
       <>
@@ -363,8 +382,9 @@ export default function ContextMenu() {
         <MenuItem icon={SquareX} label="断开连接" shortcut="Ctrl+W" />
         <MenuItem icon={FileEdit} label="唤起输入框输入" shortcut="Ctrl+I" />
         <MenuDivider />
-        <MenuItem icon={SplitSquareVertical} label="垂直分屏" shortcut="Ctrl+Shift+=" />
-        <MenuItem icon={SplitSquareHorizontal} label="水平分屏" shortcut="Ctrl+Shift+-" />
+        <MenuItem icon={SplitSquareVertical} label="垂直分屏" shortcut="Ctrl+Shift+=" onClick={() => handleSplit('vertical')} />
+        <MenuItem icon={SplitSquareHorizontal} label="水平分屏" shortcut="Ctrl+Shift+-" onClick={() => handleSplit('horizontal')} />
+        <MenuItem icon={SquareX} label="关闭面板" disabled={paneCount <= 1} onClick={handleClosePane} />
         <MenuDivider />
         <MenuItem icon={ChevronDown} label="更多" hasSubmenu>
           <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">更多</div>

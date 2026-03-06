@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { TreeItem, ActiveFilter, ContextMenuState, AppTab, ListViewMode, AssetRow } from '../types'
 import * as api from '../api/client'
 import type { Folder, Connection } from '../api/types'
+import { useWorkspaceStore } from './useWorkspaceStore'
 
 interface AppState {
   activeFilter: ActiveFilter
@@ -17,6 +18,11 @@ interface AppState {
   shortcuts: TreeItem[]
   tableData: AssetRow[]
   toggleFolder: (target: 'assets' | 'shortcuts', id: string) => void
+  expandAllFolders: (target: 'assets' | 'shortcuts') => void
+  collapseAllFolders: (target: 'assets' | 'shortcuts') => void
+
+  selectedSidebarItemId: string | null
+  setSelectedSidebarItemId: (id: string | null) => void
 
   // 数据加载
   isDataLoading: boolean
@@ -62,6 +68,9 @@ interface AppState {
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
   setListViewMode: (mode: ListViewMode) => void
+  updateTabStatus: (id: string, status: AppTab['status']) => void
+  /** 从分屏面板创建独立标签页（保留会话，不重新连接） */
+  createTabFromPane: (sourceTabId: string, paneId: string) => string | null
   updateTabStatus: (id: string, status: AppTab['status']) => void
 
   // 连接 CRUD
@@ -184,6 +193,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       [target]: toggleInTree(state[target], id),
     })),
 
+  expandAllFolders: (target) =>
+    set((state) => ({
+      [target]: state[target].map(item =>
+        item.type === 'folder' ? { ...item, isOpen: true } : item
+      ),
+    })),
+
+  collapseAllFolders: (target) =>
+    set((state) => ({
+      [target]: state[target].map(item =>
+        item.type === 'folder' ? { ...item, isOpen: false } : item
+      ),
+    })),
+
+  selectedSidebarItemId: null,
+  setSelectedSidebarItemId: (id) => set({ selectedSidebarItemId: id }),
+
   // 数据加载
   isDataLoading: false,
   dataError: null,
@@ -288,6 +314,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   closeTab: (id) => set((s) => {
     if (id === 'list') return {}
+    // 联动清理分屏工作区
+    useWorkspaceStore.getState().removeWorkspace(id)
     const newTabs = s.tabs.filter(t => t.id !== id)
     const newActiveId = s.activeTabId === id ? 'list' : s.activeTabId
     return { tabs: newTabs, activeTabId: newActiveId }
@@ -300,6 +328,43 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateTabStatus: (id, status) => set((s) => ({
     tabs: s.tabs.map(t => t.id === id ? { ...t, status, connectedAt: status === 'connected' ? new Date().toISOString() : t.connectedAt } : t),
   })),
+
+  createTabFromPane: (sourceTabId, paneId) => {
+    const state = get()
+    const sourceTab = state.tabs.find(t => t.id === sourceTabId)
+    if (!sourceTab) return null
+
+    // 先读取 pane 自身的元数据（跨标签页转移时保留的原始信息）
+    const wsStore = useWorkspaceStore.getState()
+    const paneMeta = wsStore.getPaneMeta(sourceTabId, paneId)
+
+    // 从源工作区提取 pane
+    const extracted = wsStore.extractPane(sourceTabId, paneId)
+    if (!extracted) return null
+
+    // 创建新标签页：优先使用 pane 自身 meta，回退到源标签页信息
+    const newTabId = `asset-pane-${Date.now()}`
+    const newTab: AppTab = {
+      id: newTabId,
+      type: 'asset',
+      label: paneMeta?.label || sourceTab.label,
+      assetRow: paneMeta?.assetRow || sourceTab.assetRow,
+      status: sourceTab.status,
+      quickConnect: paneMeta?.quickConnect || sourceTab.quickConnect,
+      connectionId: paneMeta?.connectionId || sourceTab.connectionId,
+      connectedAt: paneMeta?.connectedAt || sourceTab.connectedAt,
+    }
+
+    // 为新标签页创建工作区，复用原 paneId（保留会话）
+    wsStore.initWorkspaceWithPaneId(newTabId, paneId)
+
+    set((s) => ({
+      tabs: [...s.tabs, newTab],
+      activeTabId: newTabId,
+    }))
+
+    return newTabId
+  },
 
   // 连接 CRUD
   moveConnectionToFolder: async (connectionId, folderId) => {

@@ -224,12 +224,11 @@ html.reduce-motion *::after {
   border-radius: inherit;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.4) 0%,
-    rgba(255, 255, 255, 0.1) 40%,
+    rgba(255, 255, 255, 0.12) 0%,
+    rgba(255, 255, 255, 0.04) 40%,
     transparent 60%
   );
   pointer-events: none;
-  z-index: 1;
 }
 
 /* ── Apple Liquid Glass 液态玻璃（浅色背景 — 右键菜单用） ── */
@@ -254,12 +253,11 @@ html.reduce-motion *::after {
   border-radius: inherit;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.5) 0%,
-    rgba(255, 255, 255, 0.15) 35%,
+    rgba(255, 255, 255, 0.15) 0%,
+    rgba(255, 255, 255, 0.05) 35%,
     transparent 60%
   );
   pointer-events: none;
-  z-index: 1;
 }
 
 /* ── Glass 暗色覆盖 ── */
@@ -283,25 +281,40 @@ html.reduce-motion *::after {
 
 /* ── 终端容器样式 ── */
 .terminal-container {
-  border-radius: 0 0 0.75rem 0.75rem;
+  border-radius: 0;
   overflow: hidden;
 }
 
-/* ── 终端 xterm 滚动条美化 ── */
+/* ── Resizer 拖拽时防止终端劫持鼠标 ── */
+body.is-resizing .terminal-container,
+body.is-resizing .xterm {
+  pointer-events: none !important;
+}
+body.is-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* ── 拖拽中面板半透明 ── */
+.dragging {
+  opacity: 0.5;
+}
+
+/* ── 终端 xterm 滚动条美化（统一 Mac 风格） ── */
 .terminal-container .xterm-viewport::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
 }
 .terminal-container .xterm-viewport::-webkit-scrollbar-track {
   background: transparent;
 }
 .terminal-container .xterm-viewport::-webkit-scrollbar-thumb {
-  background-color: rgba(128, 128, 128, 0.3);
-  border-radius: 4px;
-  border: 2px solid transparent;
+  background-color: rgba(0, 0, 0, 0.15);
+  border-radius: 10px;
+  border: 1px solid transparent;
   background-clip: content-box;
 }
 .terminal-container .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(128, 128, 128, 0.5);
+  background-color: rgba(0, 0, 0, 0.3);
 }
 .dark .terminal-container .xterm-viewport::-webkit-scrollbar-thumb {
   background-color: rgba(255, 255, 255, 0.15);

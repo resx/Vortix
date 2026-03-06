@@ -1,5 +1,7 @@
 import { ChevronDown, Home, Search, Terminal, X } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
+import { useWorkspaceStore, collectLeafIds } from '../../stores/useWorkspaceStore'
+import { markTransferring, unmarkTransferring } from '../../stores/terminalSessionRegistry'
 import { useState, useRef, useEffect } from 'react'
 
 export default function TabBar() {
@@ -7,9 +9,11 @@ export default function TabBar() {
   const activeTabId = useAppStore((s) => s.activeTabId)
   const setActiveTab = useAppStore((s) => s.setActiveTab)
   const closeTab = useAppStore((s) => s.closeTab)
+  const createTabFromPane = useAppStore((s) => s.createTabFromPane)
 
   const [showMenu, setShowMenu] = useState(false)
   const [searchText, setSearchText] = useState('')
+  const [dropHighlight, setDropHighlight] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -114,14 +118,41 @@ export default function TabBar() {
         )}
       </div>
 
-      {/* 右侧标签指示区 - 显示当前活跃的资产标签状态 */}
-      <div className="flex-1 flex items-center h-full border-b border-border">
+      {/* 右侧标签指示区 - 显示当前活跃的资产标签状态，支持拖拽 */}
+      <div
+        className={`flex-1 flex items-center h-full border-b transition-colors ${dropHighlight ? 'border-primary bg-primary/5' : 'border-border'}`}
+        onDragOver={(e) => {
+          // 接受来自分屏面板的拖拽
+          if (e.dataTransfer.types.includes('text/pane-id')) {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'move'
+            setDropHighlight(true)
+          }
+        }}
+        onDragLeave={() => setDropHighlight(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDropHighlight(false)
+          const sourcePaneId = e.dataTransfer.getData('text/pane-id')
+          const sourceTabId = e.dataTransfer.getData('text/source-tab-id')
+          if (sourcePaneId && sourceTabId) {
+            markTransferring(sourcePaneId)
+            createTabFromPane(sourceTabId, sourcePaneId)
+            setTimeout(() => unmarkTransferring(sourcePaneId), 100)
+          }
+        }}
+      >
         {tabs.filter(t => t.type === 'asset').map((tab) => (
           <div
             key={tab.id}
             className={`relative flex items-center gap-1.5 px-3 h-full text-[12px] cursor-pointer transition-colors ${
               activeTabId === tab.id ? 'font-medium text-text-1' : 'text-text-3 hover:text-text-2'
             }`}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('text/tab-id', tab.id)
+              e.dataTransfer.effectAllowed = 'move'
+            }}
             onClick={() => setActiveTab(tab.id)}
           >
             <Terminal className="w-3 h-3" />

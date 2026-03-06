@@ -64,6 +64,12 @@ export function useKeywordHighlight({ termRef, profileId }: UseKeywordHighlightO
       const text = line.translateToString()
       if (!text.trim()) return
 
+      // 当后端拦截器启用时，跳过已包含 24-bit ANSI 前景色的行
+      // translateToString() 会剥离 ANSI，但如果 termHighlightEnhance 开启
+      // 说明后端已在处理，前端 decoration 不再需要
+      const settings = useSettingsStore.getState()
+      if (settings.termHighlightEnhance) return
+
       const decs: IDecoration[] = []
       const cursorAbsY = buffer.baseY + buffer.cursorY
 

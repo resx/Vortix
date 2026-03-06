@@ -22,6 +22,10 @@ export interface TerminalProfile {
     info: string
     debug: string
     ipMac: string
+    path?: string
+    url?: string
+    timestamp?: string
+    env?: string
   }
 }
 

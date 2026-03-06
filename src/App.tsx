@@ -3,7 +3,7 @@ import Header from './components/layout/Header'
 import ActivityBar from './components/layout/ActivityBar'
 import Sidebar from './components/layout/Sidebar'
 import TabBar from './components/tabs/TabBar'
-import SshTerminalWrapper from './components/terminal/SshTerminalWrapper'
+import WorkspaceLayout from './components/workspace/WorkspaceLayout'
 import ServerMonitor from './components/tabs/ServerMonitor'
 import SftpPanel from './components/panels/SftpPanel'
 import ServerInfoPanel from './components/panels/ServerInfoPanel'
@@ -145,7 +145,7 @@ export default function App() {
                     className="flex-1 flex flex-col min-w-0"
                     style={{ display: activeTabId === tab.id ? 'flex' : 'none' }}
                   >
-                    <SshTerminalWrapper tab={tab} />
+                    <WorkspaceLayout tab={tab} />
                   </div>
                 ))}
               </div>

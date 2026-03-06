@@ -101,10 +101,11 @@ export default function TerminalPanel() {
         {activeTab ? (
           <SshTerminal
             key={activeTab.id}
+            paneId={`legacy-${activeTab.id}`}
             connection={activeTab.connection}
             onStatusChange={(status) => updateTabStatus(activeTab.id, status)}
             onContextMenu={(x, y, hasSelection) => {
-              showContextMenu(x, y, 'terminal', { tabId: activeTab.id, hasSelection })
+              showContextMenu(x, y, 'terminal', { tabId: activeTab.id, paneId: '', hasSelection })
             }}
           />
         ) : (

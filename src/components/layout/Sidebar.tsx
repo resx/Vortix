@@ -157,11 +157,15 @@ export default function Sidebar() {
   const assets = useAppStore((s) => s.assets)
   const shortcuts = useAppStore((s) => s.shortcuts)
   const toggleFolder = useAppStore((s) => s.toggleFolder)
+  const expandAllFolders = useAppStore((s) => s.expandAllFolders)
+  const collapseAllFolders = useAppStore((s) => s.collapseAllFolders)
   const showContextMenu = useAppStore((s) => s.showContextMenu)
   const openAssetTab = useAppStore((s) => s.openAssetTab)
   const currentFolder = useAppStore((s) => s.currentFolder)
   const setCurrentFolder = useAppStore((s) => s.setCurrentFolder)
   const moveConnectionToFolder = useAppStore((s) => s.moveConnectionToFolder)
+  const selectedItemId = useAppStore((s) => s.selectedSidebarItemId)
+  const setSelectedItemId = useAppStore((s) => s.setSelectedSidebarItemId)
 
   const isShortcuts = activeFilter === 'shortcuts'
   const isAll = activeFilter === 'all'
@@ -169,6 +173,9 @@ export default function Sidebar() {
   const data = isShortcuts ? shortcuts : assets
   const target = isShortcuts ? 'shortcuts' as const : 'assets' as const
   const disableHideEmptyFolders = isAll || isShortcuts
+
+  // 判断是否所有文件夹都已展开
+  const allExpanded = data.filter(i => i.type === 'folder').every(i => i.isOpen)
 
   const handleContextMenu = (e: React.MouseEvent, type: 'sidebar-blank-shortcut' | 'sidebar-shortcut' | 'sidebar-blank-asset' | 'sidebar-asset', item?: typeof data[number]) => {
     e.preventDefault()
@@ -189,7 +196,7 @@ export default function Sidebar() {
           <div className="flex items-center gap-0.5 text-text-1">
             <SidebarHeaderButton icon={Search} tooltipText="搜索" />
             <SidebarHeaderButton icon={Crosshair} tooltipText="定位到选中项" />
-            <SidebarHeaderButton icon={CopyPlus} tooltipText="点击全部展开" />
+            <SidebarHeaderButton icon={CopyPlus} tooltipText={allExpanded ? '折叠所有' : '展开所有'} onClick={() => allExpanded ? collapseAllFolders(target) : expandAllFolders(target)} />
             <SidebarHeaderButton
               icon={FolderEyeIcon}
               tooltipText="点击隐藏空文件夹"
@@ -213,77 +220,118 @@ export default function Sidebar() {
         >
           {data.map(item => (
             <div key={item.id} className="flex flex-col">
-              <div
-                className={`flex items-center px-1 py-1.5 rounded-md hover:bg-bg-hover cursor-pointer transition-colors
-                  ${currentFolder === item.id ? 'bg-primary/10 text-primary' : ''}`}
-                onClick={() => {
-                  if (item.type === 'folder') {
-                    // 点击已选中的文件夹 → 回到根目录，否则进入该文件夹
-                    setCurrentFolder(currentFolder === item.id ? null : item.id)
-                    // 同时展开/折叠
-                    toggleFolder(target, item.id)
-                  }
-                }}
-                onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', item)}
-                onDragOver={(e) => {
-                  if (item.type === 'folder') {
-                    e.preventDefault()
-                    e.currentTarget.classList.add('ring-2', 'ring-primary/50')
-                  }
-                }}
-                onDragLeave={(e) => {
-                  e.currentTarget.classList.remove('ring-2', 'ring-primary/50')
-                }}
-                onDrop={(e) => {
-                  e.preventDefault()
-                  e.currentTarget.classList.remove('ring-2', 'ring-primary/50')
-                  const connectionId = e.dataTransfer.getData('text/connection-id')
-                  if (connectionId && item.type === 'folder') {
-                    moveConnectionToFolder(connectionId, item.id)
-                  }
-                }}
-              >
-                <span className="w-4 flex justify-center text-text-3">
-                  {item.isOpen
-                    ? <ChevronDown className="w-3.5 h-3.5" />
-                    : <ChevronRight className="w-3.5 h-3.5" />}
-                </span>
-                <span className="w-5 flex justify-center mr-1">
-                  <Folder className="w-3.5 h-3.5 text-icon-folder fill-icon-folder" />
-                </span>
-                <span className="text-[12px] text-text-2 truncate flex-1">{item.name}</span>
-              </div>
+              {item.type === 'folder' ? (
+                <>
+                  {/* 文件夹项 */}
+                  <div
+                    className={`flex items-center px-1 py-1.5 rounded-md hover:bg-bg-hover cursor-pointer transition-colors
+                      ${selectedItemId === item.id ? 'bg-primary/10 text-primary' : ''}`}
+                    onClick={() => {
+                      setSelectedItemId(item.id)
+                      setCurrentFolder(currentFolder === item.id ? null : item.id)
+                    }}
+                    onDoubleClick={() => {
+                      toggleFolder(target, item.id)
+                    }}
+                    onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', item)}
+                    onDragOver={(e) => {
+                      e.preventDefault()
+                      e.currentTarget.classList.add('ring-2', 'ring-primary/50')
+                    }}
+                    onDragLeave={(e) => {
+                      e.currentTarget.classList.remove('ring-2', 'ring-primary/50')
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      e.currentTarget.classList.remove('ring-2', 'ring-primary/50')
+                      const connectionId = e.dataTransfer.getData('text/connection-id')
+                      if (connectionId) {
+                        moveConnectionToFolder(connectionId, item.id)
+                      }
+                    }}
+                  >
+                    <span
+                      className="w-4 flex justify-center text-text-3 cursor-pointer hover:text-text-1"
+                      onClick={(e) => { e.stopPropagation(); toggleFolder(target, item.id) }}
+                    >
+                      {item.isOpen
+                        ? <ChevronDown className="w-3.5 h-3.5" />
+                        : <ChevronRight className="w-3.5 h-3.5" />}
+                    </span>
+                    <span className="w-5 flex justify-center mr-1">
+                      <Folder className="w-3.5 h-3.5 text-icon-folder fill-icon-folder" />
+                    </span>
+                    <span className="text-[12px] text-text-2 truncate flex-1">{item.name}</span>
+                  </div>
 
-              {item.isOpen && item.children?.map(child => (
+                  {item.isOpen && item.children?.map(child => (
+                    <div
+                      key={child.id}
+                      className={`flex items-center px-1 py-1.5 pl-[28px] rounded-md hover:bg-bg-hover cursor-pointer transition-colors
+                        ${selectedItemId === child.id ? 'bg-primary/10 text-primary' : ''}`}
+                      draggable
+                      onDragStart={(e) => { e.dataTransfer.setData('text/connection-id', child.id); e.dataTransfer.effectAllowed = 'move' }}
+                      onClick={() => setSelectedItemId(child.id)}
+                      onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', child)}
+                      onDoubleClick={() => {
+                        if (child.type === 'connection') {
+                          openAssetTab({
+                            id: child.id,
+                            name: child.name,
+                            type: 'asset',
+                            protocol: child.protocol,
+                            latency: '-',
+                            host: '-',
+                            user: '-',
+                            created: '-',
+                            expire: '-',
+                            remark: '-',
+                          })
+                        }
+                      }}
+                    >
+                      <span className="w-5 flex justify-center mr-1">
+                        <div className="bg-border/50 p-0.5 rounded text-text-3">
+                          <ArrowUpRight className="w-3 h-3" />
+                        </div>
+                      </span>
+                      <span className="text-[12px] text-text-2 truncate flex-1">{child.name}</span>
+                    </div>
+                  ))}
+                </>
+              ) : (
+                /* 顶层连接项（无文件夹的 SSH 资产） */
                 <div
-                  key={child.id}
-                  className="flex items-center px-1 py-1.5 pl-[28px] rounded-md hover:bg-bg-hover cursor-pointer"
-                  onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', child)}
+                  className={`flex items-center px-1 py-1.5 rounded-md hover:bg-bg-hover cursor-pointer transition-colors
+                    ${selectedItemId === item.id ? 'bg-primary/10 text-primary' : ''}`}
+                  draggable
+                  onDragStart={(e) => { e.dataTransfer.setData('text/connection-id', item.id); e.dataTransfer.effectAllowed = 'move' }}
+                  onClick={() => setSelectedItemId(item.id)}
+                  onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', item)}
                   onDoubleClick={() => {
-                    if (child.type === 'connection') {
-                      openAssetTab({
-                        id: child.id,
-                        name: child.name,
-                        type: 'asset',
-                        protocol: child.protocol,
-                        latency: '-',
-                        host: '-',
-                        user: '-',
-                        created: '-',
-                        expire: '-',
-                        remark: '-',
-                      })
-                    }
+                    openAssetTab({
+                      id: item.id,
+                      name: item.name,
+                      type: 'asset',
+                      protocol: item.protocol,
+                      latency: '-',
+                      host: '-',
+                      user: '-',
+                      created: '-',
+                      expire: '-',
+                      remark: '-',
+                    })
                   }}
                 >
+                  <span className="w-4 flex justify-center" />
                   <span className="w-5 flex justify-center mr-1">
                     <div className="bg-border/50 p-0.5 rounded text-text-3">
-                      <ArrowUpRight className="w-3 h-3" />
+                      <Terminal className="w-3 h-3" />
                     </div>
                   </span>
-                  <span className="text-[12px] text-text-2 truncate flex-1">{child.name}</span>
+                  <span className="text-[12px] text-text-2 truncate flex-1">{item.name}</span>
                 </div>
-              ))}
+              )}
             </div>
           ))}
         </div>

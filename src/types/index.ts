@@ -57,6 +57,7 @@ export interface TableContextData {
 
 export interface TerminalContextData {
   tabId: string
+  paneId: string
   hasSelection: boolean
 }
 

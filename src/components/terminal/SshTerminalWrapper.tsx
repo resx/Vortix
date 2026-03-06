@@ -74,7 +74,7 @@ export default function SshTerminalWrapper({ tab }: Props) {
   }, [tab.id, updateTabStatus])
 
   const handleContextMenu = useCallback((x: number, y: number, hasSelection: boolean) => {
-    showContextMenu(x, y, 'terminal', { tabId: tab.id, hasSelection })
+    showContextMenu(x, y, 'terminal', { tabId: tab.id, paneId: '', hasSelection })
   }, [tab.id, showContextMenu])
 
   if (error) {
@@ -90,6 +90,7 @@ export default function SshTerminalWrapper({ tab }: Props) {
 
   return (
     <SshTerminal
+      paneId={`wrapper-${tab.id}`}
       connection={connection}
       onStatusChange={handleStatusChange}
       onContextMenu={handleContextMenu}
