@@ -34,7 +34,7 @@ export interface Connection {
   id: string
   folder_id: string | null
   name: string
-  protocol: 'ssh' | 'sftp' | 'rdp' | 'docker' | 'database'
+  protocol: 'ssh' | 'sftp' | 'rdp' | 'docker' | 'database' | 'local'
   host: string
   port: number
   username: string
@@ -130,4 +130,11 @@ export interface CommandHistory {
   connection_id: string
   command: string
   executed_at: string
+}
+
+// 测试连接结果
+export interface TestResult {
+  success: boolean
+  message?: string
+  error?: string
 }

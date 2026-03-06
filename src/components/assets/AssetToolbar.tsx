@@ -40,11 +40,13 @@ function DropdownMenuItem({
   label,
   hasSubmenu,
   submenuKey,
+  onClick,
 }: {
   icon: LucideIcon
   label: string
   hasSubmenu?: boolean
   submenuKey?: string
+  onClick?: () => void
 }) {
   const activeNewSubmenu = useAppStore((s) => s.activeNewSubmenu)
   const setActiveNewSubmenu = useAppStore((s) => s.setActiveNewSubmenu)
@@ -54,6 +56,7 @@ function DropdownMenuItem({
       className="relative flex items-center justify-between px-3 h-[34px] mx-1.5 my-[2px] rounded-lg text-[13px] text-text-1 hover:bg-primary hover:text-white cursor-pointer group select-none"
       onMouseEnter={() => hasSubmenu && setActiveNewSubmenu(submenuKey ?? null)}
       onMouseLeave={() => hasSubmenu && setActiveNewSubmenu(null)}
+      onClick={() => { if (!hasSubmenu && onClick) onClick() }}
     >
       <div className="flex items-center gap-2.5">
         <Icon className="w-3.5 h-3.5 text-text-2 group-hover:text-white transition-colors" />
@@ -113,6 +116,7 @@ export default function AssetToolbar() {
   const setShowDirModal = useAppStore((s) => s.setShowDirModal)
   const newMenuOpen = useAppStore((s) => s.newMenuOpen)
   const setNewMenuOpen = useAppStore((s) => s.setNewMenuOpen)
+  const openLocalTermConfig = useAppStore((s) => s.openLocalTermConfig)
 
   const newMenuRef = useRef<HTMLDivElement>(null)
 
@@ -153,7 +157,7 @@ export default function AssetToolbar() {
           {newMenuOpen && (
             <div className="absolute top-full right-0 mt-2 bg-bg-card/75 backdrop-blur-2xl border border-bg-card/60 rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.1)] py-1.5 min-w-[140px] z-[101]">
               <DropdownMenuItem icon={FolderPlus} label="目录" />
-              <DropdownMenuItem icon={Terminal} label="本地终端" />
+              <DropdownMenuItem icon={Terminal} label="本地终端" onClick={() => { setNewMenuOpen(false); openLocalTermConfig('create') }} />
               <DropdownMenuItem icon={Package} label="Docker" />
               <DropdownMenuItem icon={Monitor} label="远程连接" hasSubmenu submenuKey="remote" />
               <DropdownMenuItem icon={Database} label="数据库" hasSubmenu submenuKey="db" />

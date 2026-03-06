@@ -121,7 +121,7 @@ const DEFAULTS: SettingsState = {
   editorLineEnding: 'lf',
   enableAnimation: true,
   showRealtimeInfo: true,
-  tabCloseButtonLeft: false,
+  tabCloseButtonLeft: true,
   fontLigatures: false,
   tabCloseConfirm: true,
   tabFlashNotify: true,
@@ -299,11 +299,22 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
 
   resetToDefaults: async () => {
+    // 终端外观设置由 Profile 系统管理，重置时保留
+    const TERM_APPEARANCE_KEYS: (keyof SettingsState)[] = [
+      'termThemeLight', 'termThemeDark', 'termCursorStyle', 'termCursorBlink',
+      'termFontFamily', 'termFontSize', 'termLineHeight', 'termLetterSpacing',
+      'termScrollback', 'keywordHighlights', 'activeProfileId',
+    ]
+    const preserved: Partial<SettingsState> = {}
+    const current = get()
+    for (const k of TERM_APPEARANCE_KEYS) {
+      (preserved as Record<string, unknown>)[k] = current[k]
+    }
     try {
       await api.resetSettings()
     } catch {
       // 忽略 API 错误
     }
-    set({ ...DEFAULTS, _dirty: false })
+    set({ ...DEFAULTS, ...preserved, _dirty: false })
   },
 }))

@@ -3,6 +3,7 @@ export interface TreeItem {
   name: string
   type: 'folder' | 'connection'
   protocol?: 'ssh' | 'sftp' | 'rdp' | 'docker' | 'database'
+  colorTag?: string | null
   isOpen?: boolean
   children?: TreeItem[]
 }
@@ -12,6 +13,7 @@ export interface AssetRow {
   name: string
   type: 'folder' | 'asset'
   protocol?: string
+  colorTag?: string | null
   latency: string
   host: string
   user: string

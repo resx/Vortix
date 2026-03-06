@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { Folder, Terminal, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
+import { getColorTagTextClass } from '../../lib/color-tag'
 import type { AssetRow } from '../../types'
 
 type SortKey = 'name' | 'latency' | 'host' | 'user' | 'created' | 'expire' | 'remark'
@@ -186,7 +187,7 @@ export default function AssetTable() {
                 ) : (
                   <Terminal className="w-3.5 h-3.5 text-icon-terminal" />
                 )}
-                {maskText(row.name, isAnonymized)}
+                <span className={getColorTagTextClass(row.colorTag)}>{maskText(row.name, isAnonymized)}</span>
               </td>
               <td className="px-4 py-3 text-[13px] text-text-2">
                 {row.type === 'folder' ? '-' : (showPing ? (pings[row.id] || row.latency) : '-')}

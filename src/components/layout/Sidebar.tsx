@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { getColorTagTextClass } from '../../lib/color-tag'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import {
   DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -58,6 +59,7 @@ function SidebarHeaderButton({
 /* 新建资产下拉菜单 */
 function NewAssetDropdown() {
   const openSshConfig = useAppStore((s) => s.openSshConfig)
+  const openLocalTermConfig = useAppStore((s) => s.openLocalTermConfig)
   const setShowDirModal = useAppStore((s) => s.setShowDirModal)
 
   return (
@@ -74,7 +76,7 @@ function NewAssetDropdown() {
             <span>目录</span>
           </div>
         </DropdownMenuItem>
-        <DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => openLocalTermConfig('create')}>
           <div className="flex items-center gap-2.5">
             <Terminal className="w-3.5 h-3.5 text-text-2" />
             <span>本地终端</span>
@@ -328,7 +330,7 @@ export default function Sidebar() {
                           <Terminal className="w-3 h-3" />
                         </div>
                       </span>
-                      <span className="text-[12px] text-text-2 truncate flex-1">{child.name}</span>
+                      <span className={`text-[12px] truncate flex-1 ${getColorTagTextClass(child.colorTag) || 'text-text-2'}`}>{child.name}</span>
                     </div>
                   ))}
                 </>
@@ -362,7 +364,7 @@ export default function Sidebar() {
                       <Terminal className="w-3 h-3" />
                     </div>
                   </span>
-                  <span className="text-[12px] text-text-2 truncate flex-1">{item.name}</span>
+                  <span className={`text-[12px] truncate flex-1 ${getColorTagTextClass(item.colorTag) || 'text-text-2'}`}>{item.name}</span>
                 </div>
               )}
             </div>

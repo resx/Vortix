@@ -1,6 +1,9 @@
 /* ── 连接路由 ── */
 
 import { Router } from 'express'
+import { Client as SshClient } from 'ssh2'
+import { spawn } from 'child_process'
+import { existsSync, statSync } from 'fs'
 import * as connectionRepo from '../repositories/connection.repository.js'
 import { encrypt, decrypt } from '../services/crypto.service.js'
 
@@ -53,8 +56,9 @@ router.get('/connections/:id/credential', (req, res) => {
 // 创建连接
 router.post('/connections', (req, res) => {
   const { name, host, username, password, private_key, proxy_password, ...rest } = req.body
-  if (!name || !host || !username) {
-    res.status(400).json({ success: false, error: '名称、主机和用户名不能为空' })
+  const isLocal = rest.protocol === 'local'
+  if (!name || (!isLocal && (!host || !username))) {
+    res.status(400).json({ success: false, error: isLocal ? '名称不能为空' : '名称、主机和用户名不能为空' })
     return
   }
 
@@ -97,6 +101,104 @@ router.delete('/connections/:id', (req, res) => {
     return
   }
   res.json({ success: true })
+})
+
+// ── 测试连接 ──
+
+// SSH 测试连接
+router.post('/connections/test-ssh', (req, res) => {
+  const { host, port, username, password, privateKey } = req.body
+  if (!host || !username) {
+    res.status(400).json({ success: false, error: '主机和用户名不能为空' })
+    return
+  }
+
+  const client = new SshClient()
+  const timeout = setTimeout(() => {
+    client.end()
+    res.json({ success: false, error: '连接超时（10s）' })
+  }, 10000)
+
+  const connConfig: Record<string, unknown> = {
+    host,
+    port: port || 22,
+    username,
+    readyTimeout: 8000,
+  }
+  if (privateKey) connConfig.privateKey = privateKey
+  else if (password) connConfig.password = password
+
+  client
+    .on('ready', () => {
+      clearTimeout(timeout)
+      client.end()
+      res.json({ success: true, message: '连接成功' })
+    })
+    .on('error', (err: Error) => {
+      clearTimeout(timeout)
+      res.json({ success: false, error: err.message })
+    })
+    .connect(connConfig as Parameters<SshClient['connect']>[0])
+})
+
+// 本地终端测试
+router.post('/connections/test-local', (req, res) => {
+  const { shell, workingDir } = req.body as { shell?: string; workingDir?: string }
+  if (!shell) {
+    res.status(400).json({ success: false, error: 'Shell 类型不能为空' })
+    return
+  }
+
+  // 验证工作目录
+  if (workingDir) {
+    try {
+      if (!existsSync(workingDir) || !statSync(workingDir).isDirectory()) {
+        res.json({ success: false, error: `工作路径不存在或不是目录: ${workingDir}` })
+        return
+      }
+    } catch {
+      res.json({ success: false, error: `无法访问工作路径: ${workingDir}` })
+      return
+    }
+  }
+
+  // Shell 命令映射
+  const shellCommands: Record<string, { cmd: string; args: string[] }> = {
+    cmd: { cmd: 'cmd.exe', args: ['/C', 'exit', '0'] },
+    bash: { cmd: 'bash', args: ['-c', 'exit 0'] },
+    powershell: { cmd: 'powershell', args: ['-NoProfile', '-Command', 'exit 0'] },
+    powershell7: { cmd: 'pwsh', args: ['-NoProfile', '-Command', 'exit 0'] },
+    wsl: { cmd: 'wsl', args: ['--', 'echo', 'ok'] },
+    zsh: { cmd: 'zsh', args: ['-c', 'exit 0'] },
+    fish: { cmd: 'fish', args: ['-c', 'exit 0'] },
+  }
+
+  const entry = shellCommands[shell]
+  if (!entry) {
+    res.json({ success: false, error: `不支持的 Shell 类型: ${shell}` })
+    return
+  }
+
+  const timeout = setTimeout(() => {
+    child.kill()
+    res.json({ success: false, error: '终端启动超时（10s）' })
+  }, 10000)
+
+  const child = spawn(entry.cmd, entry.args, { timeout: 10000 })
+
+  child.on('close', (code) => {
+    clearTimeout(timeout)
+    if (code === 0 || (shell === 'wsl' && code !== null)) {
+      res.json({ success: true, message: '终端可用' })
+    } else {
+      res.json({ success: false, error: `Shell 退出码: ${code}` })
+    }
+  })
+
+  child.on('error', (err: Error) => {
+    clearTimeout(timeout)
+    res.json({ success: false, error: `无法启动 ${shell}: ${err.message}` })
+  })
 })
 
 export default router

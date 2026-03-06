@@ -10,17 +10,30 @@ import { getSession, setSession } from '../../stores/terminalSessionRegistry'
 import type { TerminalSession } from '../../stores/terminalSessionRegistry'
 import '@xterm/xterm/css/xterm.css'
 
+/** SSH 连接参数 */
+interface SshConnection {
+  host: string
+  port: number
+  username: string
+  password?: string
+  privateKey?: string
+}
+
+/** 本地终端参数 */
+interface LocalConnection {
+  type: 'local'
+  shell: string
+  workingDir?: string
+  initialCommand?: string
+}
+
+export type TerminalConnection = SshConnection | LocalConnection
+
 interface SshTerminalProps {
   /** 面板 ID，用于注册表持久化 */
   paneId: string
   wsUrl?: string
-  connection: {
-    host: string
-    port: number
-    username: string
-    password?: string
-    privateKey?: string
-  } | null
+  connection: TerminalConnection | null
   profileId?: string | null
   onStatusChange?: (status: 'connecting' | 'connected' | 'closed' | 'error') => void
   onContextMenu?: (x: number, y: number, hasSelection: boolean) => void
@@ -35,6 +48,13 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
   // 用 ref 保持回调最新引用，避免闭包陈旧
   const onStatusChangeRef = useRef(onStatusChange)
   onStatusChangeRef.current = onStatusChange
+
+  /** 安全 fit：仅在容器有有效尺寸时才调用 fitAddon.fit() */
+  const safeFit = useCallback((fitAddon: FitAddon) => {
+    const container = wrapperRef.current
+    if (!container || container.clientWidth <= 0 || container.clientHeight <= 0) return
+    try { fitAddon.fit() } catch { /* 静默 */ }
+  }, [])
 
   /** 发送高亮配置到后端 */
   const sendHighlightConfig = useCallback((ws: WebSocket) => {
@@ -56,6 +76,7 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
   const connectWs = useCallback((session: TerminalSession, conn: NonNullable<SshTerminalProps['connection']>) => {
     const settings = useSettingsStore.getState()
     const { term, fitAddon } = session
+    const isLocal = 'type' in conn && conn.type === 'local'
 
     const ws = new WebSocket(wsUrl)
     session.ws = ws
@@ -65,7 +86,24 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
       session.reconnectCount = 0
       // 先发送高亮配置（后端可在连接前接收并准备好拦截器）
       sendHighlightConfig(ws)
-      ws.send(JSON.stringify({ type: 'connect', data: conn }))
+      // 安全 fit 后再取尺寸
+      safeFit(fitAddon)
+      const dims = fitAddon.proposeDimensions()
+      if (isLocal) {
+        ws.send(JSON.stringify({
+          type: 'connect',
+          data: {
+            type: 'local',
+            shell: conn.shell,
+            workingDir: conn.workingDir,
+            initialCommand: conn.initialCommand,
+            cols: dims?.cols,
+            rows: dims?.rows,
+          },
+        }))
+      } else {
+        ws.send(JSON.stringify({ type: 'connect', data: conn }))
+      }
     }
 
     ws.onmessage = (event) => {
@@ -78,10 +116,16 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
           if (msg.data === 'connected') {
             term.writeln('\x1b[32m[Vortix]\x1b[0m 连接成功！')
             onStatusChangeRef.current?.('connected')
-            const dims = fitAddon.proposeDimensions()
-            if (dims) {
-              ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
-            }
+            // 延迟确保 DOM 完全稳定后同步正确尺寸
+            setTimeout(() => {
+              safeFit(fitAddon)
+              // fit() 触发 term.onResize → 自动同步后端
+              // 额外显式发送，防止尺寸未变时 onResize 不触发
+              const dims = fitAddon.proposeDimensions()
+              if (dims && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
+              }
+            }, 50)
           } else if (msg.data === 'closed') {
             term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接已断开')
             onStatusChangeRef.current?.('closed')
@@ -147,13 +191,21 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
       termRef.current = existing.term
       fitAddonRef.current = existing.fitAddon
       wsRef.current = existing.ws
-      requestAnimationFrame(() => {
-        existing.fitAddon.fit()
-        const dims = existing.fitAddon.proposeDimensions()
-        if (dims && existing.ws?.readyState === WebSocket.OPEN) {
-          existing.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
+
+      // 延迟确保 DOM 完全显示后再刷新尺寸
+      setTimeout(() => {
+        const s = getSession(paneId)
+        if (!s) return
+        // 强制全量重绘终端缓冲区（修复 starship 等复杂 ANSI 渲染）
+        s.term.refresh(0, s.term.rows - 1)
+        safeFit(s.fitAddon)
+        // fit() 会触发 term.onResize → 自动同步后端
+        // 额外显式发送一次，防止尺寸未变时 onResize 不触发
+        const dims = s.fitAddon.proposeDimensions()
+        if (dims && s.ws?.readyState === WebSocket.OPEN) {
+          s.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
         }
-      })
+      }, 100)
     } else {
       // ── 首次创建会话 ──
       const settings = useSettingsStore.getState()
@@ -166,6 +218,7 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
         cursorStyle: resolved.profile.cursorStyle,
         fontSize: resolved.profile.fontSize,
         fontFamily: resolved.fontFamily,
+        fontLigatures: settings.fontLigatures,
         lineHeight: resolved.profile.lineHeight || 1.6,
         letterSpacing: resolved.profile.letterSpacing || 0,
         theme: resolved.theme,
@@ -184,7 +237,7 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
       containerEl.style.height = '100%'
       wrapper.appendChild(containerEl)
       term.open(containerEl)
-      fitAddon.fit()
+      safeFit(fitAddon)
 
       const session: TerminalSession = {
         containerEl, term, fitAddon, searchAddon,
@@ -195,16 +248,41 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
       termRef.current = term
       fitAddonRef.current = fitAddon
 
-      term.writeln('\x1b[36m[Vortix]\x1b[0m 正在连接 ' + connection.host + ':' + connection.port + ' ...')
+      // 核心：监听 xterm 内部 resize 事件，自动同步 cols/rows 到后端
+      term.onResize(({ cols, rows }) => {
+        const s = getSession(paneId)
+        if (s?.ws?.readyState === WebSocket.OPEN) {
+          s.ws.send(JSON.stringify({ type: 'resize', data: { cols, rows } }))
+        }
+      })
+
+      const isLocalConn = 'type' in connection && connection.type === 'local'
+      const connectMsg = isLocalConn
+        ? `正在启动 ${connection.shell} 终端...`
+        : `正在连接 ${(connection as SshConnection).host}:${(connection as SshConnection).port} ...`
+      term.writeln('\x1b[36m[Vortix]\x1b[0m ' + connectMsg)
       onStatusChangeRef.current?.('connecting')
-      connectWs(session, connection)
+
+      // 延迟连接，确保容器布局完全稳定后再取尺寸
+      setTimeout(() => {
+        safeFit(fitAddon)
+        connectWs(session, connection)
+      }, 50)
+
+      // 字体加载完成后重新 fit（Nerd Font 等特殊字体会改变字符宽度）
+      document.fonts.ready.then(() => {
+        safeFit(fitAddon)
+      })
     }
 
     // ── 绑定 Observers ──
     const handleResize = () => {
       const s = getSession(paneId)
       if (!s) return
-      s.fitAddon.fit()
+      // 仅在容器有有效尺寸时才 fit，防止切走时 0 尺寸破坏终端状态
+      const container = wrapperRef.current
+      if (!container || container.clientWidth <= 0 || container.clientHeight <= 0) return
+      safeFit(s.fitAddon)
       const dims = s.fitAddon.proposeDimensions()
       if (dims && s.ws?.readyState === WebSocket.OPEN) {
         s.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
@@ -215,7 +293,17 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
 
     const intersectionObserver = new IntersectionObserver((entries) => {
       for (const entry of entries) {
-        if (entry.isIntersecting) getSession(paneId)?.fitAddon.fit()
+        if (entry.isIntersecting) {
+          const s = getSession(paneId)
+          if (!s) return
+          s.term.refresh(0, s.term.rows - 1)
+          safeFit(s.fitAddon)
+          // fit() 触发 onResize 自动同步，额外显式发送防止尺寸未变
+          const dims = s.fitAddon.proposeDimensions()
+          if (dims && s.ws?.readyState === WebSocket.OPEN) {
+            s.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
+          }
+        }
       }
     })
     intersectionObserver.observe(wrapper)
@@ -253,8 +341,9 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
       s.term.options.scrollback = r.profile.scrollback || 1000
       s.term.options.cursorStyle = r.profile.cursorStyle
       s.term.options.cursorBlink = r.profile.cursorBlink
+      s.term.options.fontLigatures = settings.fontLigatures
       s.containerEl.style.backgroundColor = r.theme.background ?? ''
-      s.fitAddon.fit()
+      safeFit(s.fitAddon)
     }
 
     const unsub1 = useTerminalProfileStore.subscribe(applyProfile)

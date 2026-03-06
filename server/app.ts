@@ -8,6 +8,7 @@ import foldersRoutes from './routes/folders.routes.js'
 import connectionsRoutes from './routes/connections.routes.js'
 import settingsRoutes from './routes/settings.routes.js'
 import historyRoutes from './routes/history.routes.js'
+import fsRoutes from './routes/fs.routes.js'
 
 const app = express()
 
@@ -21,6 +22,7 @@ app.use('/api', foldersRoutes)
 app.use('/api', connectionsRoutes)
 app.use('/api', settingsRoutes)
 app.use('/api', historyRoutes)
+app.use('/api', fsRoutes)
 
 // 统一错误处理
 app.use(errorHandler)

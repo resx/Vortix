@@ -11,6 +11,7 @@ import type {
   ConnectionCredential,
   Settings,
   CommandHistory,
+  TestResult,
 } from './types'
 
 // CEF 预留：运行时可通过 window.__VORTIX_CONFIG__ 覆盖
@@ -126,4 +127,39 @@ export async function clearHistory(connectionId: string): Promise<void> {
 
 export async function healthCheck(): Promise<{ status: string }> {
   return request<{ status: string }>('/health')
+}
+
+/* ── 文件系统 ── */
+
+export async function listDirs(path?: string): Promise<{ path: string; dirs: string[] }> {
+  const query = path ? `?path=${encodeURIComponent(path)}` : ''
+  return request<{ path: string; dirs: string[] }>(`/fs/list-dirs${query}`)
+}
+
+export async function pickDir(initialDir?: string): Promise<string | null> {
+  const result = await request<{ path: string | null }>('/fs/pick-dir', {
+    method: 'POST',
+    body: JSON.stringify({ initialDir }),
+  })
+  return result.path
+}
+
+/* ── 测试连接 ── */
+
+export async function testSshConnection(data: { host: string; port: number; username: string; password?: string; privateKey?: string }): Promise<TestResult> {
+  const res = await fetch(`${BASE_URL}/connections/test-ssh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return res.json() as Promise<TestResult>
+}
+
+export async function testLocalTerminal(data: { shell: string; workingDir?: string }): Promise<TestResult> {
+  const res = await fetch(`${BASE_URL}/connections/test-local`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  })
+  return res.json() as Promise<TestResult>
 }

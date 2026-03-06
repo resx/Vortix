@@ -104,6 +104,13 @@ interface AppState {
   sshConfigInitialId: string | null
   openSshConfig: (mode: 'create' | 'edit', id?: string) => void
   closeSshConfig: () => void
+
+  // 本地终端配置编辑器
+  localTermConfigOpen: boolean
+  localTermConfigMode: 'create' | 'edit'
+  localTermConfigInitialId: string | null
+  openLocalTermConfig: (mode: 'create' | 'edit', id?: string) => void
+  closeLocalTermConfig: () => void
 }
 
 const toggleInTree = (items: TreeItem[], id: string): TreeItem[] =>
@@ -125,6 +132,7 @@ function buildTree(folders: Folder[], connections: Connection[]): TreeItem[] {
         name: c.name,
         type: 'connection' as const,
         protocol: c.protocol,
+        colorTag: c.color_tag,
       })),
   }))
 
@@ -136,6 +144,7 @@ function buildTree(folders: Folder[], connections: Connection[]): TreeItem[] {
       name: c.name,
       type: 'connection' as const,
       protocol: c.protocol,
+      colorTag: c.color_tag,
     }))
 
   return [...tree, ...orphanConnections]
@@ -162,6 +171,7 @@ function buildTableData(folders: Folder[], connections: Connection[]): AssetRow[
     name: c.name,
     type: 'asset',
     protocol: c.protocol,
+    colorTag: c.color_tag,
     latency: '-',
     host: c.host,
     user: c.username,
@@ -460,4 +470,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   sshConfigInitialId: null,
   openSshConfig: (mode, id) => set({ sshConfigOpen: true, sshConfigMode: mode, sshConfigInitialId: id ?? null }),
   closeSshConfig: () => set({ sshConfigOpen: false, sshConfigInitialId: null }),
+
+  // 本地终端配置编辑器
+  localTermConfigOpen: false,
+  localTermConfigMode: 'create',
+  localTermConfigInitialId: null,
+  openLocalTermConfig: (mode, id) => set({ localTermConfigOpen: true, localTermConfigMode: mode, localTermConfigInitialId: id ?? null }),
+  closeLocalTermConfig: () => set({ localTermConfigOpen: false, localTermConfigInitialId: null }),
 }))

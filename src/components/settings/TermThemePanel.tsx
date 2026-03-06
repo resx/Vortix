@@ -1,14 +1,12 @@
 import { useState, useRef } from 'react'
 import { motion, useDragControls } from 'framer-motion'
 import { X, Plus, Copy, Trash2, ChevronDown } from 'lucide-react'
-import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 import { getThemeById } from '../terminal/themes/index'
 import { DEFAULT_PROFILE_ID } from '../../types/terminal-profile'
 import TermThemePreview from './TermThemePreview'
 import TermThemeGrid from './TermThemeGrid'
 import KeywordHighlightPanel from './KeywordHighlightPanel'
-import { SFontSelect } from './SettingControls'
 
 interface TermThemePanelProps {
   isOpen: boolean
@@ -36,56 +34,6 @@ function ModeTab({
     >
       {mode === 'light' ? '☀ Light' : '● Dark'}
     </button>
-  )
-}
-
-/** 光标样式选择 */
-function CursorStylePicker({
-  value,
-  onChange,
-}: {
-  value: 'block' | 'underline' | 'bar'
-  onChange: (v: 'block' | 'underline' | 'bar') => void
-}) {
-  const options: { value: 'block' | 'underline' | 'bar'; label: string }[] = [
-    { value: 'block', label: 'Block' },
-    { value: 'underline', label: 'Underline' },
-    { value: 'bar', label: 'Bar' },
-  ]
-  return (
-    <div className="flex items-center gap-1">
-      {options.map(opt => (
-        <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-            value === opt.value
-              ? 'bg-primary/10 text-primary'
-              : 'text-text-2 hover:bg-border/60'
-          }`}
-        >
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-/** 数字微调输入 */
-function NumberInput({ value, onChange, width = 'w-[60px]' }: {
-  value: number; onChange: (v: number) => void; width?: string
-}) {
-  return (
-    <input
-      type="text"
-      value={String(value)}
-      onChange={(e) => {
-        const num = parseFloat(e.target.value)
-        if (!isNaN(num)) onChange(num)
-        else if (e.target.value === '') onChange(0)
-      }}
-      className={`${width} h-[26px] border border-border bg-bg-card rounded px-2 text-right text-[12px] text-text-1 outline-none`}
-    />
   )
 }
 
@@ -264,56 +212,6 @@ export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps)
           {/* 关键词高亮配色 */}
           <div className="mt-5">
             <KeywordHighlightPanel profileId={selectedProfileId} />
-          </div>
-
-          {/* 终端外观 */}
-          <div className="mt-5">
-            <div className="text-[13px] font-medium text-text-1 mb-3">终端外观</div>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-3">
-              {/* 左列 */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-text-1 font-medium">终端字体</span>
-                  <SFontSelect k="termFontFamily" label="" />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-text-1 font-medium">终端字号</span>
-                  <NumberInput value={profile.fontSize} onChange={(v) => handleUpdateField('fontSize', v)} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-text-1 font-medium">终端行高</span>
-                  <NumberInput value={profile.lineHeight} onChange={(v) => handleUpdateField('lineHeight', v)} />
-                </div>
-              </div>
-              {/* 右列 */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-text-1 font-medium">终端间距</span>
-                  <NumberInput value={profile.letterSpacing} onChange={(v) => handleUpdateField('letterSpacing', v)} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[12px] text-text-1 font-medium">缓存行数</span>
-                  <NumberInput value={profile.scrollback} onChange={(v) => handleUpdateField('scrollback', v)} />
-                </div>
-              </div>
-            </div>
-
-            {/* 光标设置 */}
-            <div className="flex items-center gap-6 mt-4">
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] text-text-2">光标样式</span>
-                <CursorStylePicker value={profile.cursorStyle} onChange={(v) => handleUpdateField('cursorStyle', v)} />
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] text-text-2">光标闪烁</span>
-                <button
-                  onClick={() => handleUpdateField('cursorBlink', !profile.cursorBlink)}
-                  className={`w-[36px] h-[20px] rounded-full transition-colors relative ${profile.cursorBlink ? 'bg-primary' : 'bg-border'}`}
-                >
-                  <div className={`absolute top-[2px] w-[16px] h-[16px] rounded-full bg-white shadow-sm transition-transform ${profile.cursorBlink ? 'left-[18px]' : 'left-[2px]'}`} />
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </motion.div>

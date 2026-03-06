@@ -203,11 +203,17 @@ function useSystemFonts() {
 
 /* ── 字体选择器（Portal + 毛玻璃面板 + 有序多选 + 置顶 + 序号） ── */
 
-export function SFontSelect({ k, label, desc }: {
-  k: keyof SettingsState; label: string; desc?: string
+export function SFontSelect({ k, label, desc, value: externalValue, onChangeFonts }: {
+  k?: keyof SettingsState; label: string; desc?: string
+  value?: string[]; onChangeFonts?: (fonts: string[]) => void
 }) {
-  const selectedFonts = useSettingsStore((s) => s[k]) as string[]
-  const update = useSettingsStore((s) => s.updateSetting)
+  const storeValue = useSettingsStore((s) => k ? s[k] : null) as string[] | null
+  const storeUpdate = useSettingsStore((s) => s.updateSetting)
+  const selectedFonts = externalValue ?? storeValue ?? []
+  const updateFonts = (next: string[]) => {
+    if (onChangeFonts) onChangeFonts(next)
+    else if (k) storeUpdate(k, next as never)
+  }
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -249,7 +255,7 @@ export function SFontSelect({ k, label, desc }: {
     }
     // 至少保留一个字体
     if (current.length === 0) return
-    update(k, current as never)
+    updateFonts(current)
   }
 
   const handleToggleAll = () => {
@@ -260,7 +266,7 @@ export function SFontSelect({ k, label, desc }: {
       const next = current.filter(v => !removeSet.has(v))
       // 至少保留一个
       if (next.length === 0) return
-      update(k, next as never)
+      updateFonts(next)
     } else {
       // 全选：将过滤列表中未选的追加到末尾
       const currentSet = new Set(current)
@@ -269,7 +275,7 @@ export function SFontSelect({ k, label, desc }: {
           current.push(f.value)
         }
       }
-      update(k, current as never)
+      updateFonts(current)
     }
   }
 

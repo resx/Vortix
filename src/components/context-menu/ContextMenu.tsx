@@ -159,7 +159,7 @@ const newConnectionItems: { icon: LucideIcon; label: string }[] = [
   { icon: Database, label: '达梦' },
 ]
 
-function NewConnectionSubmenu({ onSelectSsh }: { onSelectSsh: () => void }) {
+function NewConnectionSubmenu({ onSelectSsh, onSelectLocalTerm }: { onSelectSsh: () => void; onSelectLocalTerm: () => void }) {
   return (
     <>
       {newConnectionItems.map((item) => (
@@ -167,7 +167,7 @@ function NewConnectionSubmenu({ onSelectSsh }: { onSelectSsh: () => void }) {
           key={item.label}
           icon={item.icon}
           label={item.label}
-          onClick={item.label === 'SSH' ? onSelectSsh : undefined}
+          onClick={item.label === 'SSH' ? onSelectSsh : item.label === '本地终端' ? onSelectLocalTerm : undefined}
         />
       ))}
     </>
@@ -180,6 +180,7 @@ export default function ContextMenu() {
   const hideContextMenu = useAppStore((s) => s.hideContextMenu)
   const setShowDirModal = useAppStore((s) => s.setShowDirModal)
   const openSshConfig = useAppStore((s) => s.openSshConfig)
+  const openLocalTermConfig = useAppStore((s) => s.openLocalTermConfig)
   const openAssetTab = useAppStore((s) => s.openAssetTab)
   const fetchAssets = useAppStore((s) => s.fetchAssets)
   const deleteFolderAction = useAppStore((s) => s.deleteFolderAction)
@@ -275,7 +276,7 @@ export default function ContextMenu() {
         <MenuItem icon={FolderPlus} label="新建目录" onClick={() => { hideContextMenu(); setShowDirModal(true) }} />
         <MenuItem icon={LinkIcon} label="新建连接" hasSubmenu>
           <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">新建连接</div>
-          <NewConnectionSubmenu onSelectSsh={() => { hideContextMenu(); openSshConfig('create') }} />
+          <NewConnectionSubmenu onSelectSsh={() => { hideContextMenu(); openSshConfig('create') }} onSelectLocalTerm={() => { hideContextMenu(); openLocalTermConfig('create') }} />
         </MenuItem>
         {isItem && <MenuItem icon={LinkIcon} label="批量打开" />}
         <MenuDivider />
@@ -322,9 +323,9 @@ export default function ContextMenu() {
         <MenuItem icon={FolderPlus} label="新建目录" onClick={() => { hideContextMenu(); setShowDirModal(true) }} />
         <MenuItem icon={LinkIcon} label="新建连接" hasSubmenu>
           <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">新建连接</div>
-          <NewConnectionSubmenu onSelectSsh={() => { hideContextMenu(); openSshConfig('create') }} />
+          <NewConnectionSubmenu onSelectSsh={() => { hideContextMenu(); openSshConfig('create') }} onSelectLocalTerm={() => { hideContextMenu(); openLocalTermConfig('create') }} />
         </MenuItem>
-        <MenuItem icon={Edit2} label="编辑" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? () => { hideContextMenu(); openSshConfig('edit', rowData.id) } : undefined} />
+        <MenuItem icon={Edit2} label="编辑" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? () => { hideContextMenu(); if (rowData.protocol === 'local') { openLocalTermConfig('edit', rowData.id) } else { openSshConfig('edit', rowData.id) } } : undefined} />
         <MenuItem icon={CopyPlus} label="批量编辑" disabled={isBlank || isFolder} />
         <MenuItem icon={FileX} label="删除" shortcut="Backspace" disabled={isBlank} onClick={rowData && !isBlank ? () => handleDelete(rowData.id, rowData.type === 'folder' ? 'folder' : 'asset') : undefined} />
         <MenuItem icon={Edit2} label="重命名" shortcut="F2" disabled={isBlank} onClick={rowData && !isBlank ? () => handleRename(rowData.id, rowData.type === 'folder' ? 'folder' : 'asset', rowData.name) : undefined} />

@@ -4,6 +4,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, X, GripVertical } from 'lucide-react'
 import SshTerminal from '../terminal/SshTerminal'
+import type { TerminalConnection } from '../terminal/SshTerminal'
 import { useWorkspaceStore, collectLeafIds, findNode } from '../../stores/useWorkspaceStore'
 import { useAppStore } from '../../stores/useAppStore'
 import { destroySession, isTransferring, markTransferring, unmarkTransferring } from '../../stores/terminalSessionRegistry'
@@ -103,9 +104,7 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
   const closeTab = useAppStore(s => s.closeTab)
 
   const [dropZone, setDropZone] = useState<DropZone | null>(null)
-  const [connection, setConnection] = useState<{
-    host: string; port: number; username: string; password?: string; privateKey?: string
-  } | null>(null)
+  const [connection, setConnection] = useState<TerminalConnection | null>(null)
   const [error, setError] = useState<string | null>(null)
   const loadedRef = useRef(false)
 
@@ -117,8 +116,22 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
       if (tab.quickConnect) {
         setConnection(tab.quickConnect)
       } else if (tab.connectionId) {
-        const cred = await api.getConnectionCredential(tab.connectionId)
-        setConnection({ host: cred.host, port: cred.port, username: cred.username, password: cred.password, privateKey: cred.private_key })
+        // 先获取连接信息判断协议类型
+        const conn = await api.getConnection(tab.connectionId)
+        if (conn.protocol === 'local') {
+          // 本地终端：从 advanced JSON 提取配置
+          const adv = conn.advanced as Record<string, unknown>
+          setConnection({
+            type: 'local',
+            shell: (adv.shell as string) || 'powershell',
+            workingDir: (adv.workingDir as string) || undefined,
+            initialCommand: (adv.initialCommand as string) || undefined,
+          })
+        } else {
+          // SSH：获取解密凭据
+          const cred = await api.getConnectionCredential(tab.connectionId)
+          setConnection({ host: cred.host, port: cred.port, username: cred.username, password: cred.password, privateKey: cred.private_key })
+        }
       } else if (tab.assetRow) {
         setConnection({ host: tab.assetRow.host, port: 22, username: tab.assetRow.user })
       }

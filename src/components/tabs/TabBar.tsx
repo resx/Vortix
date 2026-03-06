@@ -1,7 +1,9 @@
 import { ChevronDown, Home, Search, Terminal, X } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
+import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useWorkspaceStore, collectLeafIds } from '../../stores/useWorkspaceStore'
 import { markTransferring, unmarkTransferring } from '../../stores/terminalSessionRegistry'
+import { getColorTagDotClass } from '../../lib/color-tag'
 import { useState, useRef, useEffect, useCallback } from 'react'
 
 export default function TabBar() {
@@ -11,9 +13,12 @@ export default function TabBar() {
   const closeTab = useAppStore((s) => s.closeTab)
   const createTabFromPane = useAppStore((s) => s.createTabFromPane)
   const reorderTab = useAppStore((s) => s.reorderTab)
+  const closeLeft = !useSettingsStore((s) => s.tabCloseButtonLeft)
 
   const [showMenu, setShowMenu] = useState(false)
   const [searchText, setSearchText] = useState('')
+  // 预留：当前选中的数据库 ID（数据库功能未实现，始终为 null）
+  const [selectedDbId, setSelectedDbId] = useState<string | null>(null)
   const [dropHighlight, setDropHighlight] = useState(false)
   // 拖拽排序：记录插入指示位置
   const [dragIndicator, setDragIndicator] = useState<{ tabId: string; side: 'left' | 'right' } | null>(null)
@@ -34,6 +39,18 @@ export default function TabBar() {
   // 下拉菜单只跟踪数据库表（排除首页和 SSH 终端资产）
   const dbTabs = tabs.filter(t => t.type !== 'list' && t.type !== 'asset')
 
+  // 当前选中的数据库标签
+  const selectedDb = selectedDbId ? dbTabs.find(t => t.id === selectedDbId) ?? null : null
+
+  // 点击文字区导航
+  const handleNavigate = () => {
+    if (selectedDb) {
+      setActiveTab(selectedDb.id)
+    } else {
+      setActiveTab('list')
+    }
+  }
+
   // 搜索过滤
   const filteredDbTabs = dbTabs.filter(t =>
     !searchText || t.label.toLowerCase().includes(searchText.toLowerCase())
@@ -44,13 +61,22 @@ export default function TabBar() {
     <div id="tab-bar" className="h-[38px] bg-bg-subtle rounded-t-xl flex items-center shrink-0">
       {/* 左上角下拉触发按钮 */}
       <div ref={menuRef} className="relative h-full">
-        <button
-          className="h-full px-3 flex items-center gap-1.5 text-[12px] font-medium text-text-1 hover:bg-border/40 rounded-tl-xl transition-colors"
-          onClick={() => setShowMenu(!showMenu)}
-        >
-          <ChevronDown className={`w-3.5 h-3.5 text-text-3 transition-transform ${showMenu ? 'rotate-180' : ''}`} />
-          <span className="max-w-[120px] truncate">{activeTab?.type === 'list' ? '首页' : activeTab?.label ?? '首页'}</span>
-        </button>
+        <div className="h-full flex items-center rounded-tl-xl overflow-hidden">
+          {/* 文字区 - 点击导航到当前工作区 */}
+          <button
+            className="h-full px-3 flex items-center text-[12px] font-medium text-text-1 hover:bg-border/40 transition-colors"
+            onClick={handleNavigate}
+          >
+            <span className="max-w-[120px] truncate">{selectedDb ? selectedDb.label : '列表'}</span>
+          </button>
+          {/* 箭头 - 切换下拉菜单 */}
+          <button
+            className="h-full px-1.5 flex items-center hover:bg-border/40 transition-colors"
+            onClick={() => setShowMenu(!showMenu)}
+          >
+            <ChevronDown className={`w-3.5 h-3.5 text-text-3 transition-transform ${showMenu ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
 
         {/* 下拉菜单 - 毛玻璃 */}
         {showMenu && (
@@ -87,7 +113,7 @@ export default function TabBar() {
                   className={`flex items-center gap-2 px-3 py-1.5 mx-1.5 rounded-lg text-[12px] cursor-pointer transition-colors ${
                     activeTabId === 'list' ? 'bg-primary text-white' : 'text-text-1 hover:bg-bg-hover'
                   }`}
-                  onClick={() => { setActiveTab('list'); setShowMenu(false); setSearchText('') }}
+                  onClick={() => { setSelectedDbId(null); setActiveTab('list'); setShowMenu(false); setSearchText('') }}
                 >
                   <Home className={`w-3.5 h-3.5 ${activeTabId === 'list' ? 'text-white' : 'text-text-2'}`} />
                   <span>首页</span>
@@ -101,9 +127,12 @@ export default function TabBar() {
                   className={`flex items-center gap-2 px-3 py-1.5 mx-1.5 rounded-lg text-[12px] cursor-pointer transition-colors group ${
                     activeTabId === tab.id ? 'bg-primary text-white' : 'text-text-1 hover:bg-bg-hover'
                   }`}
-                  onClick={() => { setActiveTab(tab.id); setShowMenu(false); setSearchText('') }}
+                  onClick={() => { setSelectedDbId(tab.id); setActiveTab(tab.id); setShowMenu(false); setSearchText('') }}
                 >
                   <Terminal className={`w-3.5 h-3.5 shrink-0 ${activeTabId === tab.id ? 'text-white' : 'text-icon-terminal'}`} />
+                  {getColorTagDotClass(tab.assetRow?.colorTag) && (
+                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${getColorTagDotClass(tab.assetRow?.colorTag)}`} />
+                  )}
                   <span className="flex-1 truncate">{tab.label}</span>
                   <button
                     className={`opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ${activeTabId === tab.id ? 'text-white/70 hover:text-white' : 'text-text-3 hover:text-text-1'}`}
@@ -125,7 +154,7 @@ export default function TabBar() {
 
       {/* 右侧标签指示区 - 显示当前活跃的资产标签状态，支持拖拽 */}
       <div
-        className={`flex-1 flex items-center h-full border-b transition-colors ${dropHighlight ? 'border-primary bg-primary/5' : 'border-border'}`}
+        className={`flex-1 flex items-center h-full transition-colors ${dropHighlight ? 'border-b border-primary bg-primary/5' : ''}`}
         onDragOver={(e) => {
           // 接受来自分屏面板的拖拽
           if (e.dataTransfer.types.includes('text/pane-id')) {
@@ -147,72 +176,106 @@ export default function TabBar() {
           }
         }}
       >
-        {tabs.filter(t => t.type === 'asset').map((tab) => (
-          <div
-            key={tab.id}
-            className={`relative flex items-center gap-1.5 px-3 h-full text-[12px] cursor-pointer transition-colors ${
-              activeTabId === tab.id ? 'font-medium text-text-1' : 'text-text-3 hover:text-text-2'
-            }`}
-            draggable
-            onDragStart={(e) => {
-              dragSourceRef.current = tab.id
-              e.dataTransfer.setData('text/tab-id', tab.id)
-              e.dataTransfer.effectAllowed = 'move'
-            }}
-            onDragEnd={() => { dragSourceRef.current = null; setDragIndicator(null) }}
-            onDragOver={(e) => {
-              // 仅处理标签页排序拖拽
-              if (!e.dataTransfer.types.includes('text/tab-id')) return
-              e.preventDefault()
-              e.stopPropagation()
-              e.dataTransfer.dropEffect = 'move'
-              if (dragSourceRef.current === tab.id) { setDragIndicator(null); return }
-              const rect = e.currentTarget.getBoundingClientRect()
-              const side = (e.clientX - rect.left) < rect.width / 2 ? 'left' : 'right'
-              setDragIndicator({ tabId: tab.id, side })
-            }}
-            onDragLeave={() => {
-              if (dragIndicator?.tabId === tab.id) setDragIndicator(null)
-            }}
-            onDrop={(e) => {
-              const fromId = e.dataTransfer.getData('text/tab-id')
-              if (fromId && fromId !== tab.id) {
-                e.preventDefault()
-                e.stopPropagation()
-                reorderTab(fromId, tab.id)
-              }
-              setDragIndicator(null)
-            }}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {/* 左侧插入指示器 */}
-            {dragIndicator?.tabId === tab.id && dragIndicator.side === 'left' && (
-              <div className="absolute left-0 top-[6px] bottom-[6px] w-[2px] bg-primary rounded-full" />
-            )}
-            <Terminal className="w-3 h-3" />
-            <span className="max-w-[80px] truncate">{tab.label}</span>
-            <button
-              className="ml-0.5 text-text-3 hover:text-text-1"
-              onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
-            >
-              <X className="w-3 h-3" />
-            </button>
+        {(() => {
+          const assetTabs = tabs.filter(t => t.type === 'asset')
+          return assetTabs.map((tab, index) => {
+            const isActive = activeTabId === tab.id
+            const prevIsActive = index > 0 && activeTabId === assetTabs[index - 1].id
 
-            {/* 底部状态指示 */}
-            {tab.status === 'connecting' && (
-              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-border overflow-hidden">
-                <div className="h-full bg-primary animate-[loading_1.5s_ease-out_forwards]" />
+            // 关闭按钮
+            const closeBtn = (
+              <button
+                className="shrink-0 p-0.5 rounded text-text-3/0 group-hover:text-text-3 hover:!text-text-1 hover:!bg-border/40 transition-all"
+                onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )
+
+            return (
+              <div key={tab.id} className="flex items-center h-full">
+                {/* 标签间分隔线：跳过第一个、活跃标签及其左邻 */}
+                {index > 0 && !isActive && !prevIsActive && (
+                  <div className="w-px h-3.5 bg-border/50 shrink-0" />
+                )}
+                <div
+                  className={`group relative flex items-center gap-1.5 h-full text-[12px] cursor-pointer transition-colors ${
+                    closeLeft ? 'pl-1.5 pr-2.5' : 'pl-2.5 pr-1.5'
+                  } ${
+                    isActive
+                      ? 'font-medium text-text-1 bg-bg-card'
+                      : 'text-text-3 hover:text-text-2 hover:bg-border/20'
+                  }`}
+                  draggable
+                  onDragStart={(e) => {
+                    dragSourceRef.current = tab.id
+                    e.dataTransfer.setData('text/tab-id', tab.id)
+                    e.dataTransfer.effectAllowed = 'move'
+                  }}
+                  onDragEnd={() => { dragSourceRef.current = null; setDragIndicator(null) }}
+                  onDragOver={(e) => {
+                    if (!e.dataTransfer.types.includes('text/tab-id')) return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    e.dataTransfer.dropEffect = 'move'
+                    if (dragSourceRef.current === tab.id) { setDragIndicator(null); return }
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const side = (e.clientX - rect.left) < rect.width / 2 ? 'left' : 'right'
+                    setDragIndicator({ tabId: tab.id, side })
+                  }}
+                  onDragLeave={() => {
+                    if (dragIndicator?.tabId === tab.id) setDragIndicator(null)
+                  }}
+                  onDrop={(e) => {
+                    const fromId = e.dataTransfer.getData('text/tab-id')
+                    if (fromId && fromId !== tab.id) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      reorderTab(fromId, tab.id)
+                    }
+                    setDragIndicator(null)
+                  }}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {/* 左侧插入指示器 */}
+                  {dragIndicator?.tabId === tab.id && dragIndicator.side === 'left' && (
+                    <div className="absolute left-0 top-[6px] bottom-[6px] w-[2px] bg-primary rounded-full" />
+                  )}
+
+                  {/* 关闭按钮 - 左侧 */}
+                  {closeLeft && closeBtn}
+
+                  <Terminal className="w-3 h-3 shrink-0" />
+                  {getColorTagDotClass(tab.assetRow?.colorTag) && (
+                    <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${getColorTagDotClass(tab.assetRow?.colorTag)}`} />
+                  )}
+                  <span className="max-w-[80px] truncate">{tab.label}</span>
+
+                  {/* 关闭按钮 - 右侧 */}
+                  {!closeLeft && closeBtn}
+
+                  {/* 底部状态指示 */}
+                  {isActive && (
+                    <div className="absolute bottom-0 left-1 right-1 h-[2px] bg-primary rounded-full" />
+                  )}
+                  {!isActive && tab.status === 'connecting' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-border overflow-hidden">
+                      <div className="h-full bg-primary/50 animate-[loading_1.5s_ease-out_forwards]" />
+                    </div>
+                  )}
+                  {!isActive && tab.status === 'connected' && (
+                    <div className="absolute bottom-0 left-2 right-2 h-[1.5px] bg-text-3/25 rounded-full" />
+                  )}
+
+                  {/* 右侧插入指示器 */}
+                  {dragIndicator?.tabId === tab.id && dragIndicator.side === 'right' && (
+                    <div className="absolute right-0 top-[6px] bottom-[6px] w-[2px] bg-primary rounded-full" />
+                  )}
+                </div>
               </div>
-            )}
-            {tab.status === 'connected' && (
-              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-text-1" />
-            )}
-            {/* 右侧插入指示器 */}
-            {dragIndicator?.tabId === tab.id && dragIndicator.side === 'right' && (
-              <div className="absolute right-0 top-[6px] bottom-[6px] w-[2px] bg-primary rounded-full" />
-            )}
-          </div>
-        ))}
+            )
+          })
+        })()}
       </div>
     </div>
   )

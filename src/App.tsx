@@ -14,6 +14,7 @@ import DirModal from './components/assets/DirModal'
 import ContextMenu from './components/context-menu/ContextMenu'
 import SettingsPanel from './components/settings/SettingsPanel'
 import SshConfigDialog from './components/ssh-config/SshConfigDialog'
+import LocalTerminalConfigDialog from './components/local-terminal/LocalTerminalConfigDialog'
 import { AnimatePresence } from 'framer-motion'
 import { useAppStore } from './stores/useAppStore'
 import { useSettingsStore } from './stores/useSettingsStore'
@@ -30,6 +31,7 @@ export default function App() {
   const serverPanelOpen = useAppStore((s) => s.serverPanelOpen)
   const settingsOpen = useAppStore((s) => s.settingsOpen)
   const sshConfigOpen = useAppStore((s) => s.sshConfigOpen)
+  const localTermConfigOpen = useAppStore((s) => s.localTermConfigOpen)
 
   // 初始化：加载设置和资产数据
   useEffect(() => {
@@ -184,6 +186,7 @@ export default function App() {
       <ContextMenu />
       {settingsOpen && <SettingsPanel />}
       {sshConfigOpen && <SshConfigDialog />}
+      {localTermConfigOpen && <LocalTerminalConfigDialog />}
     </div>
     </TooltipProvider>
   )

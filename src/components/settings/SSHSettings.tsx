@@ -8,6 +8,56 @@ import { getThemeById } from '../terminal/themes/index'
 import { FolderPlus, ChevronRight } from 'lucide-react'
 import type { TermThemePreset } from '../terminal/themes/index'
 
+/** 数字微调输入 */
+function NumberInput({ value, onChange, width = 'w-[60px]' }: {
+  value: number; onChange: (v: number) => void; width?: string
+}) {
+  return (
+    <input
+      type="text"
+      value={String(value)}
+      onChange={(e) => {
+        const num = parseFloat(e.target.value)
+        if (!isNaN(num)) onChange(num)
+        else if (e.target.value === '') onChange(0)
+      }}
+      className={`${width} h-[26px] border border-border bg-bg-card rounded px-2 text-right text-[12px] text-text-1 outline-none`}
+    />
+  )
+}
+
+/** 光标样式选择 */
+function CursorStylePicker({
+  value,
+  onChange,
+}: {
+  value: 'block' | 'underline' | 'bar'
+  onChange: (v: 'block' | 'underline' | 'bar') => void
+}) {
+  const options: { value: 'block' | 'underline' | 'bar'; label: string }[] = [
+    { value: 'block', label: 'Block' },
+    { value: 'underline', label: 'Underline' },
+    { value: 'bar', label: 'Bar' },
+  ]
+  return (
+    <div className="flex items-center gap-1">
+      {options.map(opt => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+            value === opt.value
+              ? 'bg-primary/10 text-primary'
+              : 'text-text-2 hover:bg-border/60'
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 /** 入口按钮中的色块预览 */
 function PreviewSwatches({ preset }: { preset: TermThemePreset }) {
   const t = preset.theme
@@ -35,6 +85,10 @@ export default function SSHSettings() {
   const termLogDir = useSettingsStore((s) => s.termLogDir)
   const update = useSettingsStore((s) => s.updateSetting)
   const sftpDefaultSavePath = useSettingsStore((s) => s.sftpDefaultSavePath)
+
+  const handleUpdateProfile = <K extends string>(key: K, value: unknown) => {
+    profileStore.updateProfile(profileStore.activeProfileId, { [key]: value } as never)
+  }
 
   return (
     <>
@@ -112,6 +166,45 @@ export default function SSHSettings() {
                 className="w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled"
               />
             </div>
+          </SettingRow>
+        </SettingGroup>
+      </div>
+
+      {/* 终端外观 */}
+      <div className="text-[16px] font-medium text-text-1 mb-5">终端外观</div>
+      <div className="grid grid-cols-2 gap-x-10 gap-y-7 mb-10 items-start">
+        <SettingGroup>
+          <SettingRow label="终端字体">
+            <SFontSelect
+              label=""
+              value={profile.fontFamily}
+              onChangeFonts={(fonts) => handleUpdateProfile('fontFamily', fonts)}
+            />
+          </SettingRow>
+          <SettingRow label="终端字号">
+            <NumberInput value={profile.fontSize} onChange={(v) => handleUpdateProfile('fontSize', v)} />
+          </SettingRow>
+          <SettingRow label="终端行高">
+            <NumberInput value={profile.lineHeight} onChange={(v) => handleUpdateProfile('lineHeight', v)} />
+          </SettingRow>
+        </SettingGroup>
+        <SettingGroup>
+          <SettingRow label="终端间距">
+            <NumberInput value={profile.letterSpacing} onChange={(v) => handleUpdateProfile('letterSpacing', v)} />
+          </SettingRow>
+          <SettingRow label="缓存行数">
+            <NumberInput value={profile.scrollback} onChange={(v) => handleUpdateProfile('scrollback', v)} width="w-[80px]" />
+          </SettingRow>
+          <SettingRow label="光标样式">
+            <CursorStylePicker value={profile.cursorStyle} onChange={(v) => handleUpdateProfile('cursorStyle', v)} />
+          </SettingRow>
+          <SettingRow label="光标闪烁">
+            <button
+              onClick={() => handleUpdateProfile('cursorBlink', !profile.cursorBlink)}
+              className={`w-[36px] h-[20px] rounded-full transition-colors relative ${profile.cursorBlink ? 'bg-primary' : 'bg-border'}`}
+            >
+              <div className={`absolute top-[2px] w-[16px] h-[16px] rounded-full bg-white shadow-sm transition-transform ${profile.cursorBlink ? 'left-[18px]' : 'left-[2px]'}`} />
+            </button>
           </SettingRow>
         </SettingGroup>
       </div>

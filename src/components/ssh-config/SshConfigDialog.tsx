@@ -25,6 +25,9 @@ export default function SshConfigDialog() {
   const subModals = useSshConfigStore((s) => s.subModals)
   const saving = useSshConfigStore((s) => s.saving)
   const loading = useSshConfigStore((s) => s.loading)
+  const testing = useSshConfigStore((s) => s.testing)
+  const testResult = useSshConfigStore((s) => s.testResult)
+  const testConnection = useSshConfigStore((s) => s.testConnection)
   const save = useSshConfigStore((s) => s.save)
   const reset = useSshConfigStore((s) => s.reset)
   const loadFromConnection = useSshConfigStore((s) => s.loadFromConnection)
@@ -87,10 +90,17 @@ export default function SshConfigDialog() {
         {/* 外层底部按钮 */}
         <div className="px-6 py-4 flex justify-between items-center shrink-0">
           <button
-            className="text-xs text-primary hover:opacity-80 font-medium transition-colors"
-            disabled={saving || loading}
+            className={`text-xs font-medium transition-colors ${
+              testResult
+                ? testResult.success
+                  ? 'text-green-500'
+                  : 'text-red-500'
+                : 'text-primary hover:opacity-80'
+            }`}
+            onClick={testConnection}
+            disabled={saving || loading || testing}
           >
-            测试连接
+            {testing ? '测试中...' : testResult ? (testResult.success ? `✓ ${testResult.message}` : `✗ ${testResult.message}`) : '测试连接'}
           </button>
           <button
             className={`text-xs font-medium transition-colors ${saving || loading ? 'text-text-disabled cursor-not-allowed' : 'text-primary hover:opacity-80'}`}

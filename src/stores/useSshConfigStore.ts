@@ -105,6 +105,10 @@ interface SshConfigState {
   saving: boolean
   loading: boolean
 
+  // 测试连接
+  testing: boolean
+  testResult: { success: boolean; message: string } | null
+
   // 操作
   setActiveTab: (tab: SshConfigTab) => void
   setField: <K extends keyof SshConfigState>(key: K, value: SshConfigState[K]) => void
@@ -128,6 +132,7 @@ interface SshConfigState {
   // 持久化
   save: () => Promise<void>
   loadFromConnection: (id: string) => Promise<void>
+  testConnection: () => Promise<void>
 }
 
 const defaultAdvanced: AdvancedSettings = {
@@ -195,6 +200,8 @@ const initialState = {
   editingId: null as string | null,
   saving: false,
   loading: false,
+  testing: false,
+  testResult: null as { success: boolean; message: string } | null,
 }
 
 export const useSshConfigStore = create<SshConfigState>((set, get) => ({
@@ -237,7 +244,7 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
     return Object.keys(errors).length === 0
   },
 
-  reset: () => set({ ...initialState, advanced: { ...defaultAdvanced }, subModals: { ...defaultSubModals }, errors: {}, editingId: null, saving: false, loading: false }),
+  reset: () => set({ ...initialState, advanced: { ...defaultAdvanced }, subModals: { ...defaultSubModals }, errors: {}, editingId: null, saving: false, loading: false, testing: false, testResult: null }),
 
   // 隧道
   addTunnel: (tunnel) => set((s) => ({ tunnels: [...s.tunnels, tunnel] })),
@@ -301,6 +308,29 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
       // 静默处理
     } finally {
       set({ saving: false })
+    }
+  },
+
+  testConnection: async () => {
+    const s = get()
+    if (!s.host.trim() || !s.user.trim()) {
+      set({ testResult: { success: false, message: '请填写主机和用户名' } })
+      return
+    }
+    set({ testing: true, testResult: null })
+    try {
+      const result = await api.testSshConnection({
+        host: s.host,
+        port: parseInt(s.port) || 22,
+        username: s.user,
+        password: s.password || undefined,
+        privateKey: undefined,
+      })
+      set({ testResult: { success: result.success, message: result.message || result.error || '' } })
+    } catch (e) {
+      set({ testResult: { success: false, message: (e as Error).message } })
+    } finally {
+      set({ testing: false })
     }
   },
 
