@@ -136,8 +136,8 @@ interface FontItem {
 
 const PRESET_FONTS: FontItem[] = [
   { value: 'system', label: '(内置)系统字体', family: 'system-ui, -apple-system, sans-serif' },
-  { value: 'JetBrainsMono', label: '(内置)JetBrainsMono', family: '"JetBrains Mono", monospace' },
-  { value: 'NotoSansSC', label: '(内置)思源黑体', family: '"Noto Sans SC", "Source Han Sans SC", sans-serif' },
+  { value: 'JetBrainsMono', label: '(内置)JetBrainsMono', family: '"JetBrains Mono Variable", "JetBrains Mono", monospace' },
+  { value: 'NotoSansSC', label: '(内置)思源黑体', family: '"Noto Sans SC Variable", "Noto Sans SC", "Source Han Sans SC", sans-serif' },
   { value: 'serif', label: '(内置)Serif', family: 'serif' },
   { value: 'sans-serif', label: '(内置)Sans-serif', family: 'sans-serif' },
   { value: 'monospace', label: '(内置)Monospace', family: 'monospace' },
@@ -210,7 +210,10 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
   const storeValue = useSettingsStore((s) => k ? s[k] : null) as string[] | null
   const storeUpdate = useSettingsStore((s) => s.updateSetting)
   const selectedFonts = externalValue ?? storeValue ?? []
+  const selectedFontsRef = useRef(selectedFonts)
+  selectedFontsRef.current = selectedFonts
   const updateFonts = (next: string[]) => {
+    selectedFontsRef.current = next
     if (onChangeFonts) onChangeFonts(next)
     else if (k) storeUpdate(k, next as never)
   }
@@ -246,7 +249,7 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
   const isIndeterminate = filteredFonts.some(f => selectedFonts.includes(f.value)) && !isAllSelected
 
   const handleToggleFont = (fontId: string) => {
-    const current = [...selectedFonts]
+    const current = [...selectedFontsRef.current]
     const idx = current.indexOf(fontId)
     if (idx >= 0) {
       current.splice(idx, 1)
@@ -259,7 +262,7 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
   }
 
   const handleToggleAll = () => {
-    const current = [...selectedFonts]
+    const current = [...selectedFontsRef.current]
     if (isAllSelected) {
       // 取消：移除过滤列表中的字体，但保留不在过滤结果中的已选字体
       const removeSet = new Set(filteredFonts.map(f => f.value))
@@ -279,21 +282,50 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
     }
   }
 
-  /* Portal 定位：基于 trigger 按钮的 viewport 坐标 */
+  /* Portal 定位：基于 trigger 按钮的 viewport 坐标，支持滚动跟踪 */
   const [pos, setPos] = useState({ top: 0, left: 0 })
 
+  const calcPosition = () => {
+    if (!triggerRef.current) return null
+    const rect = triggerRef.current.getBoundingClientRect()
+    const panelW = 280, panelH = 370
+    let left = rect.right - panelW
+    if (left < 8) left = 8
+    if (left + panelW > window.innerWidth - 8) left = window.innerWidth - panelW - 8
+
+    const spaceBelow = window.innerHeight - rect.bottom - 8
+    const spaceAbove = rect.top - 8
+    let top: number
+    if (spaceBelow >= panelH) {
+      top = rect.bottom + 4
+    } else if (spaceAbove >= panelH) {
+      top = rect.top - panelH - 4
+    } else {
+      // 上下都不够，选空间大的一侧并钳位到视口内
+      top = spaceBelow >= spaceAbove ? rect.bottom + 4 : rect.top - panelH - 4
+      top = Math.max(8, Math.min(top, window.innerHeight - panelH - 8))
+    }
+    return { top, left }
+  }
+
   useEffect(() => {
-    if (open && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect()
-      const panelW = 280, panelH = 370
-      let top = rect.bottom + 4
-      let left = rect.right - panelW
-      if (left < 8) left = 8
-      if (top + panelH > window.innerHeight - 8) top = rect.top - panelH - 4
-      setPos({ top, left })
+    if (open) {
+      const p = calcPosition()
+      if (p) setPos(p)
       setSearch('')
       setTimeout(() => inputRef.current?.focus(), 0)
     }
+  }, [open])
+
+  /* 滚动跟踪：设置面板内容区滚动时重新定位 */
+  useEffect(() => {
+    if (!open) return
+    const onScroll = () => {
+      const p = calcPosition()
+      if (p) setPos(p)
+    }
+    window.addEventListener('scroll', onScroll, true)
+    return () => window.removeEventListener('scroll', onScroll, true)
   }, [open])
 
   /* 点击外部关闭 */
@@ -328,8 +360,8 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
         <div className={cn(
           'relative flex items-center justify-center w-[15px] h-[15px] rounded-[3px] border-[1.5px] transition-all shrink-0',
           isSelected
-            ? 'bg-primary border-primary group-hover:bg-white group-hover:border-white'
-            : 'bg-transparent border-primary group-hover:border-white',
+            ? 'bg-primary border-primary group-hover:bg-bg-card group-hover:border-bg-card'
+            : 'bg-transparent border-primary group-hover:border-bg-card',
         )}>
           {isSelected && (
             <Check size={11} className="text-white group-hover:text-primary" strokeWidth={3} />
@@ -366,15 +398,10 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
       {open && createPortal(
         <div
           ref={panelRef}
-          className="fixed z-[1100] w-[280px] flex flex-col rounded-xl overflow-hidden"
+          className="fixed z-[1100] w-[280px] flex flex-col rounded-xl overflow-hidden glass-context"
           style={{
             top: pos.top,
             left: pos.left,
-            background: 'rgba(255, 255, 255, 0.70)',
-            backdropFilter: 'blur(20px) saturate(150%)',
-            WebkitBackdropFilter: 'blur(20px) saturate(150%)',
-            border: '1px solid rgba(255, 255, 255, 0.50)',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
           }}
         >
           {/* 头部：搜索 + 全选 */}
@@ -389,11 +416,11 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="搜索..."
-                className="w-full h-7 pl-7 pr-2 text-[11px] bg-black/5 border border-black/5 rounded-md outline-none focus:bg-white/80 focus:border-primary focus:ring-1 focus:ring-primary/40 transition-all placeholder-text-3 text-text-1"
+                className="w-full h-7 pl-7 pr-2 text-[11px] bg-bg-subtle/60 border border-border-subtle rounded-md outline-none focus:bg-bg-card/80 focus:border-primary focus:ring-1 focus:ring-primary/40 transition-all placeholder-text-3 text-text-1"
               />
             </div>
             <label className="flex items-center gap-1 cursor-pointer text-[11px] text-text-2 hover:text-text-1 shrink-0 pr-0.5 select-none">
-              <div className="relative flex items-center justify-center w-3.5 h-3.5 rounded-sm border border-text-3 bg-transparent transition-colors">
+              <div className="relative flex items-center justify-center w-3.5 h-3.5 rounded-sm border border-text-3 dark:border-text-2 bg-transparent transition-colors">
                 {isIndeterminate && !isAllSelected && (
                   <div className="w-2 h-0.5 bg-primary rounded-sm" />
                 )}
@@ -419,7 +446,7 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
               <>
                 {sortedFonts.selected.map(font => renderFontItem(font, true))}
                 {sortedFonts.selected.length > 0 && sortedFonts.unselected.length > 0 && (
-                  <div className="mx-2 my-1 border-t border-black/5" />
+                  <div className="mx-2 my-1 border-t border-border-subtle" />
                 )}
                 {sortedFonts.unselected.map(font => renderFontItem(font, false))}
               </>

@@ -1,7 +1,7 @@
 /** 设置 store 中的字体 key → CSS font-family 映射 */
 export const FONT_MAP: Record<string, string> = {
   system: 'system-ui, -apple-system, sans-serif',
-  JetBrainsMono: "'JetBrains Mono', monospace",
+  JetBrainsMono: "'JetBrains Mono Variable', 'JetBrains Mono', monospace",
   CascadiaCode: "'Cascadia Code', monospace",
   CascadiaMono: "'Cascadia Mono', monospace",
   FiraCode: "'Fira Code', monospace",
@@ -17,7 +17,7 @@ export const FONT_MAP: Record<string, string> = {
   SpaceMono: "'Space Mono', monospace",
   AnonymousPro: "'Anonymous Pro', monospace",
   Cousine: "'Cousine', monospace",
-  NotoSansSC: "'Noto Sans SC', 'Source Han Sans SC', sans-serif",
+  NotoSansSC: "'Noto Sans SC Variable', 'Noto Sans SC', 'Source Han Sans SC', sans-serif",
   monospace: 'monospace',
   serif: 'serif',
   'sans-serif': 'sans-serif',

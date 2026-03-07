@@ -94,6 +94,8 @@ export const useTerminalProfileStore = create<TerminalProfileStore>((set, get) =
       if (data.cursorBlink !== undefined) s.updateSetting('termCursorBlink', data.cursorBlink)
       if (data.scrollback !== undefined) s.updateSetting('termScrollback', data.scrollback)
       if (data.keywordHighlights !== undefined) s.updateSetting('keywordHighlights', data.keywordHighlights)
+      // 触发 terminal profile store 订阅者重新渲染（默认配置从 settings store 派生，需要通知）
+      set({})
       return
     }
     set(s => ({
