@@ -6,6 +6,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 import { getThemeById } from '../terminal/themes/index'
 import { FolderPlus, ChevronRight } from 'lucide-react'
+import * as api from '../../api/client'
 import type { TermThemePreset } from '../terminal/themes/index'
 
 /** 数字微调输入 */
@@ -155,9 +156,18 @@ export default function SSHSettings() {
           <SToggle k="termCtrlVPaste" label="Ctrl+V 粘贴" desc="将拦截 Ctrl+V 作为粘贴快捷键" />
           <SettingRow label="日志存储目录">
             <div className="flex items-center gap-1.5 shrink-0">
-              <div className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const selected = await api.pickDir(termLogDir || undefined)
+                    if (selected) update('termLogDir', selected)
+                  } catch { /* 静默 */ }
+                }}
+                className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+              >
                 <FolderPlus size={13} className="text-text-2" />
-              </div>
+              </button>
               <input
                 type="text"
                 value={termLogDir}
@@ -206,6 +216,7 @@ export default function SSHSettings() {
               <div className={`absolute top-[2px] w-[16px] h-[16px] rounded-full bg-white shadow-sm transition-transform ${profile.cursorBlink ? 'left-[18px]' : 'left-[2px]'}`} />
             </button>
           </SettingRow>
+          <SToggle k="termStripeEnabled" label="护眼条纹背景" desc="交替行背景色，与行高联动" />
         </SettingGroup>
       </div>
 
@@ -243,9 +254,18 @@ export default function SSHSettings() {
         <SettingGroup>
           <SettingRow label="默认保存路径">
             <div className="flex items-center gap-1.5 shrink-0">
-              <div className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const selected = await api.pickDir(sftpDefaultSavePath || undefined)
+                    if (selected) update('sftpDefaultSavePath', selected)
+                  } catch { /* 静默 */ }
+                }}
+                className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+              >
                 <FolderPlus size={13} className="text-text-2" />
-              </div>
+              </button>
               <input
                 type="text"
                 value={sftpDefaultSavePath}

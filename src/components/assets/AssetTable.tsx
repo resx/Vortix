@@ -1,8 +1,18 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Folder, Terminal, ChevronDown, ChevronUp } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
 import { getColorTagTextClass } from '../../lib/color-tag'
 import type { AssetRow } from '../../types'
+
+/** 延迟值颜色：绿色 ≤80ms，黄色 ≤200ms，红色 >200ms / 超时 */
+function latencyColor(val: string): string {
+  if (val === '超时') return 'text-[#F53F3F]'
+  const ms = parseInt(val)
+  if (isNaN(ms)) return 'text-text-2'
+  if (ms <= 80) return 'text-[#00B42A]'
+  if (ms <= 200) return 'text-[#FF7D00]'
+  return 'text-[#F53F3F]'
+}
 
 type SortKey = 'name' | 'latency' | 'host' | 'user' | 'created' | 'expire' | 'remark'
 type SortDir = 'asc' | 'desc' | null
@@ -43,9 +53,22 @@ export default function AssetTable() {
   const openAssetTab = useAppStore((s) => s.openAssetTab)
   const tableData = useAppStore((s) => s.tableData)
   const moveConnectionToFolder = useAppStore((s) => s.moveConnectionToFolder)
+  const selectedRowIds = useAppStore((s) => s.selectedRowIds)
+  const setSelectedRowIds = useAppStore((s) => s.setSelectedRowIds)
+  const toggleRowSelection = useAppStore((s) => s.toggleRowSelection)
+  const clearRowSelection = useAppStore((s) => s.clearRowSelection)
 
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>(null)
+  const lastClickedIndex = useRef<number>(-1)
+  const tableRef = useRef<HTMLDivElement>(null)
+
+  // 橡皮筋框选状态
+  const [lasso, setLasso] = useState<{ startX: number; startY: number; x: number; y: number } | null>(null)
+  const lassoRef = useRef(lasso)
+  lassoRef.current = lasso
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map())
+  const justFinishedLasso = useRef(false)
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -56,6 +79,85 @@ export default function AssetTable() {
       setSortDir('asc')
     }
   }
+
+  // 行点击处理：普通/Ctrl/Shift
+  const handleRowClick = useCallback((e: React.MouseEvent, row: AssetRow, index: number) => {
+    e.stopPropagation()
+    if (e.ctrlKey || e.metaKey) {
+      toggleRowSelection(row.id)
+    } else if (e.shiftKey && lastClickedIndex.current >= 0) {
+      const start = Math.min(lastClickedIndex.current, index)
+      const end = Math.max(lastClickedIndex.current, index)
+      const ids = new Set(selectedRowIds)
+      for (let i = start; i <= end; i++) {
+        if (visibleData[i]) ids.add(visibleData[i].id)
+      }
+      setSelectedRowIds(ids)
+    } else {
+      setSelectedRowIds(new Set([row.id]))
+    }
+    lastClickedIndex.current = index
+  }, [selectedRowIds, setSelectedRowIds, toggleRowSelection])
+
+  // 橡皮筋框选
+  const handleLassoStart = useCallback((e: React.MouseEvent) => {
+    // 仅在空白区域（非行）开始框选
+    if ((e.target as HTMLElement).closest('tr')) return
+    if (e.button !== 0) return
+    const rect = tableRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top + (tableRef.current?.scrollTop ?? 0)
+    setLasso({ startX: x, startY: y, x, y })
+    clearRowSelection()
+  }, [clearRowSelection])
+
+  useEffect(() => {
+    if (!lasso) return
+    const table = tableRef.current
+    if (!table) return
+
+    const handleMove = (e: MouseEvent) => {
+      const rect = table.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top + table.scrollTop
+      setLasso(prev => prev ? { ...prev, x, y } : null)
+
+      // 计算框选矩形与行的交集
+      const cur = lassoRef.current
+      if (!cur) return
+      const minX = Math.min(cur.startX, x)
+      const maxX = Math.max(cur.startX, x)
+      const minY = Math.min(cur.startY, y)
+      const maxY = Math.max(cur.startY, y)
+      const ids = new Set<string>()
+      rowRefs.current.forEach((el, id) => {
+        const rowRect = el.getBoundingClientRect()
+        const rowTop = rowRect.top - rect.top + table.scrollTop
+        const rowBottom = rowTop + rowRect.height
+        const rowLeft = rowRect.left - rect.left
+        const rowRight = rowLeft + rowRect.width
+        if (maxX >= rowLeft && minX <= rowRight && maxY >= rowTop && minY <= rowBottom) {
+          ids.add(id)
+        }
+      })
+      setSelectedRowIds(ids)
+    }
+
+    const handleUp = () => {
+      // 标记刚结束框选，防止后续 click 事件清空选择
+      justFinishedLasso.current = true
+      requestAnimationFrame(() => { justFinishedLasso.current = false })
+      setLasso(null)
+    }
+
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [lasso !== null])
 
   // 当前文件夹信息（用于 .. 行的创建时间）
   const currentFolderRow = currentFolder
@@ -76,11 +178,15 @@ export default function AssetTable() {
   return (
     <div
       id="asset-table"
-      className="flex-1 overflow-auto custom-scrollbar"
+      ref={tableRef}
+      className="flex-1 overflow-auto custom-scrollbar relative"
       onContextMenu={(e) => {
         e.preventDefault()
+        clearRowSelection()
         showContextMenu(e.clientX, e.clientY, 'table-context', { targetContext: 'blank' })
       }}
+      onClick={() => { if (!justFinishedLasso.current) clearRowSelection() }}
+      onMouseDown={handleLassoStart}
     >
       <table className="w-full text-left border-collapse whitespace-nowrap select-none">
         <thead className="sticky top-0 bg-bg-subtle z-10">
@@ -140,7 +246,8 @@ export default function AssetTable() {
           {visibleData.map((row, idx) => (
             <tr
               key={row.id}
-              className={`${(idx + (currentFolder ? 1 : 0)) % 2 === 0 ? 'bg-bg-card' : 'bg-bg-subtle'} cursor-pointer group transition-colors`}
+              ref={(el) => { if (el) rowRefs.current.set(row.id, el); else rowRefs.current.delete(row.id) }}
+              className={`${selectedRowIds.has(row.id) ? 'bg-primary/10' : (idx + (currentFolder ? 1 : 0)) % 2 === 0 ? 'bg-bg-card' : 'bg-bg-subtle'} cursor-pointer group transition-colors hover:bg-primary/5`}
               draggable={row.type === 'asset'}
               onDragStart={(e) => {
                 if (row.type === 'asset') {
@@ -165,6 +272,7 @@ export default function AssetTable() {
                   if (connectionId) moveConnectionToFolder(connectionId, row.id)
                 }
               }}
+              onClick={(e) => handleRowClick(e, row, idx)}
               onDoubleClick={() => {
                 if (row.type === 'folder') {
                   setCurrentFolder(row.id)
@@ -190,7 +298,10 @@ export default function AssetTable() {
                 <span className={getColorTagTextClass(row.colorTag)}>{maskText(row.name, isAnonymized)}</span>
               </td>
               <td className="px-4 py-3 text-[13px] text-text-2">
-                {row.type === 'folder' ? '-' : (showPing ? (pings[row.id] || row.latency) : '-')}
+                {row.type === 'folder' ? '-' : (showPing ? (() => {
+                  const val = pings[row.id] || row.latency
+                  return <span className={latencyColor(val)}>{val}</span>
+                })() : '-')}
               </td>
               <td className="px-4 py-3 text-[13px] text-text-2">{maskText(row.host, isAnonymized)}</td>
               <td className="px-4 py-3 text-[13px] text-text-2">{maskText(row.user, isAnonymized)}</td>
@@ -201,6 +312,19 @@ export default function AssetTable() {
           ))}
         </tbody>
       </table>
+      {/* 橡皮筋框选 overlay */}
+      {lasso && (() => {
+        const x = Math.min(lasso.startX, lasso.x)
+        const y = Math.min(lasso.startY, lasso.y)
+        const w = Math.abs(lasso.x - lasso.startX)
+        const h = Math.abs(lasso.y - lasso.startY)
+        return (
+          <div
+            className="absolute border border-primary/50 bg-primary/10 pointer-events-none z-20 rounded-sm"
+            style={{ left: x, top: y, width: w, height: h }}
+          />
+        )
+      })()}
     </div>
   )
 }

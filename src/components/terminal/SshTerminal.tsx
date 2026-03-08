@@ -1,10 +1,11 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
+import { useMonitorStore } from '../../stores/useMonitorStore'
 import { useKeywordHighlight } from './useKeywordHighlight'
 import { getSession, setSession } from '../../stores/terminalSessionRegistry'
 import type { TerminalSession } from '../../stores/terminalSessionRegistry'
@@ -32,18 +33,23 @@ export type TerminalConnection = SshConnection | LocalConnection
 interface SshTerminalProps {
   /** 面板 ID，用于注册表持久化 */
   paneId: string
+  /** 标签页 ID，用于监控数据关联 */
+  tabId?: string
   wsUrl?: string
   connection: TerminalConnection | null
+  /** 连接 ID，用于后端写入连接日志 */
+  connectionId?: string | null
   profileId?: string | null
   onStatusChange?: (status: 'connecting' | 'connected' | 'closed' | 'error') => void
   onContextMenu?: (x: number, y: number, hasSelection: boolean) => void
 }
 
-export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ssh', connection, profileId, onStatusChange, onContextMenu }: SshTerminalProps) {
+export default function SshTerminal({ paneId, tabId, wsUrl = 'ws://localhost:3001/ws/ssh', connection, connectionId, profileId, onStatusChange, onContextMenu }: SshTerminalProps) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
+  const [cellHeight, setCellHeight] = useState(0)
 
   // 用 ref 保持回调最新引用，避免闭包陈旧
   const onStatusChangeRef = useRef(onStatusChange)
@@ -55,6 +61,16 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
     if (!container || container.clientWidth <= 0 || container.clientHeight <= 0) return
     try { fitAddon.fit() } catch { /* 静默 */ }
   }, [])
+
+  /** 从 xterm 内部获取实际 cell height，用于条纹对齐 */
+  const updateCellHeight = useCallback(() => {
+    const s = getSession(paneId)
+    if (!s) return
+    try {
+      const h = (s.term as any)._core._renderService.dimensions.css.cell.height
+      if (h > 0) setCellHeight(h)
+    } catch { /* 静默 */ }
+  }, [paneId])
 
   /** 发送高亮配置到后端 */
   const sendHighlightConfig = useCallback((ws: WebSocket) => {
@@ -102,7 +118,7 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
           },
         }))
       } else {
-        ws.send(JSON.stringify({ type: 'connect', data: conn }))
+        ws.send(JSON.stringify({ type: 'connect', data: { ...conn, connectionId } }))
       }
     }
 
@@ -116,6 +132,10 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
           if (msg.data === 'connected') {
             term.writeln('\x1b[32m[Vortix]\x1b[0m 连接成功！')
             onStatusChangeRef.current?.('connected')
+            // 非本地终端时启动监控采集
+            if (!isLocal && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'monitor-start' }))
+            }
             // 延迟确保 DOM 完全稳定后同步正确尺寸
             setTimeout(() => {
               safeFit(fitAddon)
@@ -142,6 +162,12 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
         case 'highlight-config-ack':
           // 后端确认高亮配置已应用
           break
+        case 'monitor-data':
+          if (tabId) useMonitorStore.getState().updateSnapshot(tabId, msg.data)
+          break
+        case 'monitor-info':
+          if (tabId) useMonitorStore.getState().updateSysInfo(tabId, msg.data)
+          break
         case 'error':
           term.writeln('\r\n\x1b[31m[Vortix 错误]\x1b[0m ' + msg.data)
           onStatusChangeRef.current?.('error')
@@ -163,6 +189,15 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
         session.reconnectTimer = setTimeout(() => {
           if (session.ws === ws) connectWs(session, conn)
         }, interval)
+      } else {
+        // 自动重连耗尽，提示按任意键手动重连
+        term.writeln('\r\n\x1b[36m[Vortix]\x1b[0m 按任意键重新连接...')
+        const disposable = term.onData(() => {
+          disposable.dispose()
+          session.reconnectCount = 0
+          onStatusChangeRef.current?.('connecting')
+          connectWs(session, conn)
+        })
       }
     }
 
@@ -205,6 +240,7 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
         if (dims && s.ws?.readyState === WebSocket.OPEN) {
           s.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
         }
+        updateCellHeight()
       }, 100)
     } else {
       // ── 首次创建会话 ──
@@ -267,11 +303,13 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
       setTimeout(() => {
         safeFit(fitAddon)
         connectWs(session, connection)
+        updateCellHeight()
       }, 50)
 
       // 字体加载完成后重新 fit（Nerd Font 等特殊字体会改变字符宽度）
       document.fonts.ready.then(() => {
         safeFit(fitAddon)
+        updateCellHeight()
       })
     }
 
@@ -336,7 +374,7 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
       s.term.options.theme = r.theme
       s.term.options.fontFamily = r.fontFamily
       s.term.options.fontSize = r.profile.fontSize
-      s.term.options.lineHeight = r.profile.lineHeight || 1.6
+      s.term.options.lineHeight = r.profile.lineHeight || 1
       s.term.options.letterSpacing = r.profile.letterSpacing || 0
       s.term.options.scrollback = r.profile.scrollback || 1000
       s.term.options.cursorStyle = r.profile.cursorStyle
@@ -344,6 +382,7 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
       s.term.options.fontLigatures = settings.fontLigatures
       s.containerEl.style.backgroundColor = r.theme.background ?? ''
       safeFit(s.fitAddon)
+      setTimeout(updateCellHeight, 50)
     }
 
     const unsub1 = useTerminalProfileStore.subscribe(applyProfile)
@@ -367,13 +406,32 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
     return () => disposable.dispose()
   }, [paneId])
 
-  // Ctrl+V 粘贴拦截
+  // Ctrl+V 粘贴 / Ctrl+Shift+C 复制 / Ctrl+Shift+V 粘贴
   useEffect(() => {
     const s = getSession(paneId)
     if (!s) return
     s.term.attachCustomKeyEventHandler((e) => {
+      // 调试模式下放行 F12（不让 xterm 吞掉）
+      if (e.key === 'F12' && useSettingsStore.getState().debugMode) return false
+      // Ctrl+Shift+C — 复制选中文本
+      if (e.ctrlKey && e.shiftKey && e.key === 'C' && e.type === 'keydown') {
+        const sel = s.term.getSelection()
+        if (sel) navigator.clipboard.writeText(sel).catch(() => {})
+        return false
+      }
+      // Ctrl+Shift+V — 粘贴
+      if (e.ctrlKey && e.shiftKey && e.key === 'V' && e.type === 'keydown') {
+        navigator.clipboard.readText().then((text) => {
+          const cur = getSession(paneId)
+          if (text && cur?.ws?.readyState === WebSocket.OPEN) {
+            cur.ws.send(JSON.stringify({ type: 'input', data: text }))
+          }
+        }).catch(() => {})
+        return false
+      }
+      // Ctrl+V — 粘贴（设置开关）
       const { termCtrlVPaste } = useSettingsStore.getState()
-      if (termCtrlVPaste && e.ctrlKey && e.key === 'v' && e.type === 'keydown') {
+      if (termCtrlVPaste && e.ctrlKey && !e.shiftKey && e.key === 'v' && e.type === 'keydown') {
         navigator.clipboard.readText().then((text) => {
           const cur = getSession(paneId)
           if (text && cur?.ws?.readyState === WebSocket.OPEN) {
@@ -386,8 +444,66 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
     })
   }, [paneId])
 
+  // 终端内快捷键阻止冒泡（防止 Ctrl+Shift+C/V 被全局 DevTools 拦截吞掉）
+  useEffect(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c' || e.key === 'V' || e.key === 'v')) {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+    }
+    wrapper.addEventListener('keydown', handler)
+    return () => wrapper.removeEventListener('keydown', handler)
+  }, [])
+
+  // 鼠标中键操作
+  useEffect(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
+    const handler = (e: MouseEvent) => {
+      if (e.button !== 1) return // 仅中键
+      const action = useSettingsStore.getState().termMiddleClickAction
+      if (action === 'paste') {
+        e.preventDefault()
+        navigator.clipboard.readText().then((text) => {
+          const s = getSession(paneId)
+          if (text && s?.ws?.readyState === WebSocket.OPEN) {
+            s.ws.send(JSON.stringify({ type: 'input', data: text }))
+          }
+        }).catch(() => {})
+      }
+    }
+    wrapper.addEventListener('mousedown', handler)
+    return () => wrapper.removeEventListener('mousedown', handler)
+  }, [paneId])
+
   // 终端关键词高亮
   useKeywordHighlight({ termRef, profileId })
+
+  // 终端内 Ctrl+Scroll 缩放字体（不影响外部 UI 缩放）
+  useEffect(() => {
+    const wrapper = wrapperRef.current
+    if (!wrapper) return
+    const handler = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      e.preventDefault()
+      e.stopPropagation()
+      if (!useSettingsStore.getState().termZoomEnabled) return
+      const s = getSession(paneId)
+      if (!s) return
+      const current = s.term.options.fontSize ?? 14
+      const next = e.deltaY < 0 ? Math.min(40, current + 1) : Math.max(8, current - 1)
+      if (next !== current) {
+        s.term.options.fontSize = next
+        safeFit(s.fitAddon)
+        setTimeout(updateCellHeight, 0)
+      }
+    }
+    wrapper.addEventListener('wheel', handler, { passive: false })
+    return () => wrapper.removeEventListener('wheel', handler)
+  }, [paneId, safeFit, updateCellHeight])
 
   // 监听设置/Profile 变化，实时推送高亮配置到后端
   useEffect(() => {
@@ -410,17 +526,43 @@ export default function SshTerminal({ paneId, wsUrl = 'ws://localhost:3001/ws/ss
   const resolved = useTerminalProfileStore.getState()
     .resolveProfile(profileId ?? settings.activeProfileId, isDark)
   const containerBg = resolved.theme.background ?? (isDark ? '#1E1E1E' : '#FFFFFF')
+  const termStripeEnabled = useSettingsStore((s) => s.termStripeEnabled)
 
   return (
-    <div
-      ref={wrapperRef}
-      className="w-full h-full terminal-container transition-colors duration-300"
-      style={{ backgroundColor: containerBg }}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        const hasSelection = !!termRef.current?.getSelection()
-        onContextMenu?.(e.clientX, e.clientY, hasSelection)
-      }}
-    />
+    <div className="w-full h-full relative">
+      <div
+        ref={wrapperRef}
+        className="w-full h-full terminal-container transition-colors duration-300"
+        style={{ backgroundColor: containerBg }}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          const action = useSettingsStore.getState().termRightClickAction
+          if (action === 'paste') {
+            // 右键粘贴模式
+            navigator.clipboard.readText().then((text) => {
+              const s = getSession(paneId)
+              if (text && s?.ws?.readyState === WebSocket.OPEN) {
+                s.ws.send(JSON.stringify({ type: 'input', data: text }))
+              }
+            }).catch(() => {})
+          } else {
+            // 右键菜单模式（默认）
+            const hasSelection = !!termRef.current?.getSelection()
+            onContextMenu?.(e.clientX, e.clientY, hasSelection)
+          }
+        }}
+      />
+      {termStripeEnabled && cellHeight > 0 && (
+        <div
+          className="absolute inset-0 pointer-events-none z-[1]"
+          style={{
+            backgroundImage: `repeating-linear-gradient(to bottom,
+              transparent 0px, transparent ${cellHeight}px,
+              ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'} ${cellHeight}px,
+              ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'} ${cellHeight * 2}px)`,
+          }}
+        />
+      )}
+    </div>
   )
 }

@@ -85,6 +85,35 @@ export function runMigrations(): void {
     db.exec(`CREATE INDEX IF NOT EXISTS idx_connections_folder ON connections(folder_id)`)
     db.exec(`CREATE INDEX IF NOT EXISTS idx_history_connection ON command_history(connection_id)`)
     db.exec(`CREATE INDEX IF NOT EXISTS idx_logs_connection ON connection_logs(connection_id)`)
+
+    // 快捷命令表
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS shortcuts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        command TEXT NOT NULL,
+        remark TEXT DEFAULT '',
+        sort_order INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `)
+
+    // SSH 密钥库
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ssh_keys (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        key_type TEXT NOT NULL,
+        encrypted_private_key TEXT NOT NULL,
+        public_key TEXT,
+        encrypted_passphrase TEXT,
+        certificate TEXT,
+        remark TEXT DEFAULT '',
+        description TEXT DEFAULT '',
+        created_at TEXT DEFAULT (datetime('now'))
+      )
+    `)
   })()
 
   // 扩展字段迁移（兼容已有数据库）
@@ -109,6 +138,21 @@ export function runMigrations(): void {
       db.exec(`ALTER TABLE connections ADD COLUMN ${col}`)
     } catch {
       // 列已存在，忽略
+    }
+  }
+
+  // ssh_keys 表扩展字段迁移（兼容早期建表）
+  const sshKeyAlterColumns = [
+    `encrypted_passphrase TEXT`,
+    `certificate TEXT`,
+    `remark TEXT DEFAULT ''`,
+    `description TEXT DEFAULT ''`,
+  ]
+  for (const col of sshKeyAlterColumns) {
+    try {
+      db.exec(`ALTER TABLE ssh_keys ADD COLUMN ${col}`)
+    } catch {
+      // 列已存在或表不存在，忽略
     }
   }
 

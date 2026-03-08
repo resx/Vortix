@@ -31,5 +31,6 @@ export function resolveFontChain(keys: string[], fallback = 'monospace'): string
   const chain = keys
     .map(k => FONT_MAP[k] || `"${k}"`)
     .join(', ')
-  return `${chain}, ${fallback}`
+  // 追加 Unicode 覆盖良好的等宽字体，确保 box-drawing 等特殊字符正常渲染
+  return `${chain}, 'Cascadia Code', Consolas, 'DejaVu Sans Mono', ${fallback}`
 }

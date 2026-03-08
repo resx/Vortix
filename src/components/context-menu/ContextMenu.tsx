@@ -6,12 +6,13 @@ import {
   Key, Activity, FilePlus, ExternalLink, Columns, CopyPlus,
   ClipboardType, Search, SquareArrowOutUpRight, Trash2, SquareX,
   FileEdit, SplitSquareVertical, SplitSquareHorizontal,
-  Clock, Save, TerminalSquare, AppWindow,
+  Clock, Save, TerminalSquare, AppWindow, Globe, X,
 } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
 import { useWorkspaceStore, collectLeafIds } from '../../stores/useWorkspaceStore'
+import { getSession } from '../../stores/terminalSessionRegistry'
 import type { LucideIcon } from 'lucide-react'
-import type { TableContextData, TerminalContextData } from '../../types'
+import type { TableContextData, TerminalContextData, TabContextData } from '../../types'
 
 /* ---- MenuItem ---- */
 function MenuItem({
@@ -187,6 +188,20 @@ export default function ContextMenu() {
   const deleteConnectionAction = useAppStore((s) => s.deleteConnectionAction)
   const renameFolderAction = useAppStore((s) => s.renameFolderAction)
   const renameConnectionAction = useAppStore((s) => s.renameConnectionAction)
+  const cloneConnectionAction = useAppStore((s) => s.cloneConnectionAction)
+  const tabs = useAppStore((s) => s.tabs)
+  const tableData = useAppStore((s) => s.tableData)
+  const closeTab = useAppStore((s) => s.closeTab)
+  const closeOtherTabs = useAppStore((s) => s.closeOtherTabs)
+  const closeAllTabs = useAppStore((s) => s.closeAllTabs)
+  const closeLeftTabs = useAppStore((s) => s.closeLeftTabs)
+  const closeRightTabs = useAppStore((s) => s.closeRightTabs)
+  const renameTab = useAppStore((s) => s.renameTab)
+  const duplicateTab = useAppStore((s) => s.duplicateTab)
+  const reconnectTab = useAppStore((s) => s.reconnectTab)
+  const openShortcutDialog = useAppStore((s) => s.openShortcutDialog)
+  const deleteShortcutAction = useAppStore((s) => s.deleteShortcutAction)
+  const executeShortcut = useAppStore((s) => s.executeShortcut)
   const menuRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
 
@@ -249,18 +264,24 @@ export default function ContextMenu() {
 
   // ---- 快捷命令右键菜单 ----
   if (contextMenu.type === 'sidebar-shortcut' || contextMenu.type === 'sidebar-blank-shortcut') {
+    const item = contextMenu.data as import('../../types').TreeItem | null
+    const isItem = contextMenu.type === 'sidebar-shortcut' && item
+    const hasCommand = isItem && !!item!.command
+
     content = (
       <>
         <div className="px-4 py-1 text-[11px] text-text-1 font-medium">操作</div>
+        <MenuItem icon={LinkIcon} label="新建快捷命令" onClick={() => { hideContextMenu(); openShortcutDialog('create') }} />
         <MenuItem icon={FolderPlus} label="新建分组" />
-        <MenuItem icon={LinkIcon} label="新建快捷命令" />
         <MenuDivider />
-        <MenuItem icon={FileX} label="删除" />
-        <MenuItem icon={Edit2} label="重命名" />
-        <MenuItem icon={RefreshCw} label="刷新" />
+        <MenuItem icon={Terminal} label="执行" disabled={!hasCommand} onClick={hasCommand ? () => { hideContextMenu(); executeShortcut(item!.command!, 'execute') } : undefined} />
+        <MenuItem icon={Clipboard} label="粘贴到终端" disabled={!hasCommand} onClick={hasCommand ? () => { hideContextMenu(); executeShortcut(item!.command!, 'paste') } : undefined} />
+        <MenuDivider />
+        <MenuItem icon={Edit2} label="编辑" disabled={!isItem} onClick={isItem ? () => { hideContextMenu(); openShortcutDialog('edit', item!.id) } : undefined} />
+        <MenuItem icon={FileX} label="删除" disabled={!isItem} onClick={isItem ? () => { hideContextMenu(); if (confirm('确定要删除此快捷命令？')) deleteShortcutAction(item!.id) } : undefined} />
         <MenuDivider />
         <MenuItem icon={FileDown} label="导入" />
-        <MenuItem icon={FileUp} label="导出" />
+        <MenuItem icon={FileUp} label="导出" disabled={!isItem} />
         <MenuItem icon={FileUp} label="导出全部" />
       </>
     )
@@ -269,28 +290,88 @@ export default function ContextMenu() {
   else if (contextMenu.type === 'sidebar-asset' || contextMenu.type === 'sidebar-blank-asset') {
     const item = contextMenu.data as import('../../types').TreeItem | null
     const isItem = contextMenu.type === 'sidebar-asset' && item
+    const isConnection = isItem && item!.type === 'connection'
+    const isFolder = isItem && item!.type === 'folder'
+    const isLocal = isConnection && item!.protocol === 'local'
 
-    content = (
-      <>
-        <div className="px-4 py-1 text-[11px] text-text-1 font-medium">操作</div>
-        <MenuItem icon={FolderPlus} label="新建目录" onClick={() => { hideContextMenu(); setShowDirModal(true) }} />
-        <MenuItem icon={LinkIcon} label="新建连接" hasSubmenu>
-          <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">新建连接</div>
-          <NewConnectionSubmenu onSelectSsh={() => { hideContextMenu(); openSshConfig('create') }} onSelectLocalTerm={() => { hideContextMenu(); openLocalTermConfig('create') }} />
-        </MenuItem>
-        {isItem && <MenuItem icon={LinkIcon} label="批量打开" />}
-        <MenuDivider />
-        <MenuItem icon={FileX} label="删除" disabled={!isItem} onClick={isItem ? () => handleDelete(item!.id, item!.type) : undefined} />
-        <MenuItem icon={Edit2} label="重命名" disabled={!isItem} onClick={isItem ? () => handleRename(item!.id, item!.type, item!.name) : undefined} />
-        <MenuItem icon={Copy} label="复制" disabled={!isItem} />
-        <MenuItem icon={Scissors} label="剪切" disabled={!isItem} />
-        <MenuItem icon={Clipboard} label="粘贴" />
-        <MenuItem icon={RefreshCw} label="刷新" onClick={() => { hideContextMenu(); fetchAssets() }} />
-        <MenuDivider />
-        <MenuItem icon={FileDown} label="导入" />
-        <MenuItem icon={FileUp} label="导出" disabled={!isItem} />
-      </>
+    // 查找该连接是否已打开标签页
+    const connTab = isConnection ? tabs.find(t => t.connectionId === item!.id) : null
+    const hasOpenTab = !!connTab
+    // 查找 AssetRow 用于打开标签页
+    const assetRow = isConnection ? tableData.find(r => r.id === item!.id) : null
+
+    // 通用菜单项
+    const newDirItem = <MenuItem icon={FolderPlus} label="新建目录" onClick={() => { hideContextMenu(); setShowDirModal(true) }} />
+    const newConnItem = (
+      <MenuItem icon={LinkIcon} label="新建连接" hasSubmenu>
+        <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">新建连接</div>
+        <NewConnectionSubmenu onSelectSsh={() => { hideContextMenu(); openSshConfig('create') }} onSelectLocalTerm={() => { hideContextMenu(); openLocalTermConfig('create') }} />
+      </MenuItem>
     )
+    const refreshItem = <MenuItem icon={RefreshCw} label="刷新" onClick={() => { hideContextMenu(); fetchAssets() }} />
+
+    if (isLocal) {
+      // ── 本地终端右键菜单 ──
+      content = (
+        <>
+          <div className="px-4 py-1 text-[11px] text-text-1 font-medium">本地终端</div>
+          <MenuItem icon={SquareX} label="关闭" disabled={!hasOpenTab} onClick={hasOpenTab ? () => { hideContextMenu(); closeTab(connTab!.id) } : undefined} />
+          {newDirItem}
+          {newConnItem}
+          <MenuItem icon={FilePlus} label="新标签页打开" onClick={assetRow ? () => { hideContextMenu(); openAssetTab(assetRow) } : undefined} />
+          <MenuDivider />
+          <MenuItem icon={Edit2} label="编辑" onClick={() => { hideContextMenu(); openLocalTermConfig('edit', item!.id) }} />
+          <MenuItem icon={CopyPlus} label="克隆" onClick={() => { hideContextMenu(); cloneConnectionAction(item!.id) }} />
+          <MenuItem icon={FileX} label="删除" onClick={() => handleDelete(item!.id, 'connection')} />
+          <MenuItem icon={Edit2} label="重命名" onClick={() => handleRename(item!.id, 'connection', item!.name)} />
+          {refreshItem}
+        </>
+      )
+    } else if (isConnection) {
+      // ── SSH / 其他远程连接右键菜单 ──
+      content = (
+        <>
+          <div className="px-4 py-1 text-[11px] text-text-1 font-medium">SSH 连接</div>
+          <MenuItem icon={SquareX} label="关闭" disabled={!hasOpenTab} onClick={hasOpenTab ? () => { hideContextMenu(); closeTab(connTab!.id) } : undefined} />
+          {newDirItem}
+          {newConnItem}
+          <MenuItem icon={FilePlus} label="新标签页打开" onClick={assetRow ? () => { hideContextMenu(); openAssetTab(assetRow) } : undefined} />
+          <MenuDivider />
+          <MenuItem icon={Edit2} label="编辑" onClick={() => { hideContextMenu(); openSshConfig('edit', item!.id) }} />
+          <MenuItem icon={FileEdit} label="批量编辑" disabled />
+          <MenuItem icon={CopyPlus} label="克隆" onClick={() => { hideContextMenu(); cloneConnectionAction(item!.id) }} />
+          <MenuItem icon={Copy} label="复制 Host" onClick={() => { hideContextMenu(); const row = tableData.find(r => r.id === item!.id); if (row?.host) navigator.clipboard.writeText(row.host) }} />
+          <MenuItem icon={Globe} label="通过服务器代理 Chrome" disabled />
+          <MenuItem icon={Key} label="上传 SSH 公钥" disabled />
+          <MenuItem icon={FileX} label="删除" onClick={() => handleDelete(item!.id, 'connection')} />
+          <MenuItem icon={Edit2} label="重命名" onClick={() => handleRename(item!.id, 'connection', item!.name)} />
+          {refreshItem}
+          <MenuDivider />
+          <MenuItem icon={FileDown} label="导入" disabled />
+          <MenuItem icon={FileUp} label="导出" disabled />
+        </>
+      )
+    } else {
+      // ── 文件夹 / 空白区域右键菜单 ──
+      content = (
+        <>
+          <div className="px-4 py-1 text-[11px] text-text-1 font-medium">操作</div>
+          {newDirItem}
+          {newConnItem}
+          {isFolder && <MenuItem icon={LinkIcon} label="批量打开" />}
+          <MenuDivider />
+          <MenuItem icon={FileX} label="删除" disabled={!isFolder} onClick={isFolder ? () => handleDelete(item!.id, 'folder') : undefined} />
+          <MenuItem icon={Edit2} label="重命名" disabled={!isFolder} onClick={isFolder ? () => handleRename(item!.id, 'folder', item!.name) : undefined} />
+          <MenuItem icon={Copy} label="复制" disabled={!isItem} />
+          <MenuItem icon={Scissors} label="剪切" disabled={!isItem} />
+          <MenuItem icon={Clipboard} label="粘贴" />
+          {refreshItem}
+          <MenuDivider />
+          <MenuItem icon={FileDown} label="导入" />
+          <MenuItem icon={FileUp} label="导出" disabled={!isItem} />
+        </>
+      )
+    }
   }
   // ---- 表格右键菜单 ----
   else if (contextMenu.type === 'table-context') {
@@ -340,6 +421,46 @@ export default function ContextMenu() {
       </>
     )
   }
+  // ---- 标签页右键菜单 ----
+  else if (contextMenu.type === 'tab-context') {
+    const data = contextMenu.data as TabContextData | null
+    const tabId = data?.tabId ?? ''
+    const tab = tabs.find(t => t.id === tabId)
+    const assetTabs = tabs.filter(t => t.type === 'asset')
+    const tabIdx = assetTabs.findIndex(t => t.id === tabId)
+    const hasLeft = tabIdx > 0
+    const hasRight = tabIdx >= 0 && tabIdx < assetTabs.length - 1
+    const hasOthers = assetTabs.length > 1
+    const assetRow = tab?.assetRow
+    const connectionId = tab?.connectionId
+
+    const handleRenameTab = () => {
+      hideContextMenu()
+      if (!tab) return
+      const newName = prompt('请输入新的标签名称', tab.label)
+      if (newName && newName !== tab.label) renameTab(tabId, newName)
+    }
+
+    content = (
+      <>
+        <div className="px-4 py-1 text-[11px] text-text-1 font-medium">标签页</div>
+        <MenuItem icon={X} label="关闭" shortcut="Ctrl+W" onClick={() => { hideContextMenu(); closeTab(tabId) }} />
+        <MenuItem icon={Copy} label="复制名称" onClick={() => { hideContextMenu(); if (tab) navigator.clipboard.writeText(tab.label) }} />
+        <MenuItem icon={Copy} label="复制 Host" disabled={!assetRow?.host || assetRow.host === '-'} onClick={assetRow?.host && assetRow.host !== '-' ? () => { hideContextMenu(); navigator.clipboard.writeText(assetRow.host) } : undefined} />
+        <MenuItem icon={Edit2} label="编辑连接" disabled={!connectionId} onClick={connectionId ? () => { hideContextMenu(); openSshConfig('edit', connectionId) } : undefined} />
+        <MenuItem icon={RefreshCw} label="重新连接" onClick={() => { hideContextMenu(); reconnectTab(tabId) }} />
+        <MenuDivider />
+        <MenuItem icon={SquareX} label="关闭其他" shortcut="Alt+O" disabled={!hasOthers} onClick={hasOthers ? () => { hideContextMenu(); closeOtherTabs(tabId) } : undefined} />
+        <MenuItem icon={SquareX} label="关闭所有" shortcut="Alt+C" onClick={() => { hideContextMenu(); closeAllTabs() }} />
+        <MenuItem icon={SquareX} label="关闭左边" shortcut="Alt+L" disabled={!hasLeft} onClick={hasLeft ? () => { hideContextMenu(); closeLeftTabs(tabId) } : undefined} />
+        <MenuItem icon={SquareX} label="关闭右边" shortcut="Alt+R" disabled={!hasRight} onClick={hasRight ? () => { hideContextMenu(); closeRightTabs(tabId) } : undefined} />
+        <MenuDivider />
+        <MenuItem icon={Edit2} label="重命名" onClick={handleRenameTab} />
+        <MenuItem icon={ExternalLink} label="新窗口打开" disabled={!assetRow} />
+        <MenuItem icon={FilePlus} label="新标签页打开" disabled={!connectionId} onClick={connectionId ? () => { hideContextMenu(); duplicateTab(tabId) } : undefined} />
+      </>
+    )
+  }
   // ---- 终端右键菜单 ----
   else if (contextMenu.type === 'terminal') {
     const data = contextMenu.data as TerminalContextData | null
@@ -363,17 +484,50 @@ export default function ContextMenu() {
       hideContextMenu()
     }
 
+    const handleTermCopy = () => {
+      hideContextMenu()
+      if (!termPaneId) return
+      const session = getSession(termPaneId)
+      const sel = session?.term.getSelection()
+      if (sel) navigator.clipboard.writeText(sel).catch(() => {})
+    }
+
+    const handleTermPaste = () => {
+      hideContextMenu()
+      if (!termPaneId) return
+      navigator.clipboard.readText().then((text) => {
+        const session = getSession(termPaneId)
+        if (text && session?.ws?.readyState === WebSocket.OPEN) {
+          session.ws.send(JSON.stringify({ type: 'input', data: text }))
+        }
+      }).catch(() => {})
+    }
+
+    const selectionText = termPaneId ? (getSession(termPaneId)?.term.getSelection() ?? '') : ''
+
+    const handleSearch = (engine: 'google' | 'bing' | 'baidu') => {
+      hideContextMenu()
+      if (!selectionText) return
+      const q = encodeURIComponent(selectionText)
+      const urls = {
+        google: `https://www.google.com/search?q=${q}`,
+        bing: `https://www.bing.com/search?q=${q}`,
+        baidu: `https://www.baidu.com/s?wd=${q}`,
+      }
+      window.open(urls[engine], '_blank')
+    }
+
     content = (
       <>
         <div className="px-4 py-1 text-[11px] text-text-1 font-medium">操作</div>
-        <MenuItem icon={Copy} label="复制" shortcut="Ctrl+Shift+C" disabled={noSelection} />
-        <MenuItem icon={Clipboard} label="粘贴" shortcut="Ctrl+Shift+V" />
+        <MenuItem icon={Copy} label="复制" shortcut="Ctrl+Shift+C" disabled={noSelection} onClick={handleTermCopy} />
+        <MenuItem icon={Clipboard} label="粘贴" shortcut="Ctrl+Shift+V" onClick={handleTermPaste} />
         <MenuItem icon={ClipboardType} label="粘贴选中文本" disabled={noSelection} />
-        <MenuItem icon={Search} label="搜索" hasSubmenu>
+        <MenuItem icon={Search} label="搜索" hasSubmenu disabled={noSelection}>
           <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">搜索引擎</div>
-          <MenuItem icon={Search} label="Google" />
-          <MenuItem icon={Search} label="Bing" />
-          <MenuItem icon={Search} label="百度" />
+          <MenuItem icon={Search} label="Google" onClick={() => handleSearch('google')} />
+          <MenuItem icon={Search} label="Bing" onClick={() => handleSearch('bing')} />
+          <MenuItem icon={Search} label="百度" onClick={() => handleSearch('baidu')} />
         </MenuItem>
         <MenuItem icon={AppWindow} label="通过服务器代理 Chrome" />
         <MenuDivider />
@@ -401,7 +555,7 @@ export default function ContextMenu() {
 
   if (!content) return null
 
-  const menuWidth = contextMenu.type === 'terminal' ? 'min-w-[260px]' : 'min-w-[210px]'
+  const menuWidth = contextMenu.type === 'terminal' || contextMenu.type === 'tab-context' ? 'min-w-[260px]' : 'min-w-[210px]'
 
   return (
     <div

@@ -1,124 +1,156 @@
-import { create } from 'zustand'
-import * as api from '../api/client'
-import { getThemeById } from '../components/terminal/themes/index'
+import { create } from "zustand";
+import * as api from "../api/client";
+import { getThemeById } from "../components/terminal/themes/index";
+import { loadLocale } from "../i18n";
 
 export interface SettingsState {
   // ── 基础设置 ──
-  language: string
-  theme: 'auto' | 'light' | 'dark'
-  uiFontFamily: string[]
-  uiZoom: number
-  middleClickCloseTab: boolean
-  editorLineEnding: string
-  enableAnimation: boolean
-  showRealtimeInfo: boolean
-  tabCloseButtonLeft: boolean
-  fontLigatures: boolean
-  tabCloseConfirm: boolean
-  tabFlashNotify: boolean
-  tabMultiLine: boolean
-  updateChannel: string
-  editorFontFamily: string[]
-  editorFontSize: number
-  editorWordWrap: boolean
-  editorTabMode: string
-  lockOnStart: boolean
-  lockPassword: string
-  idleLockMinutes: number
-  restoreSession: boolean
-  showMemberBadge: boolean
+  language: string;
+  theme: "auto" | "light" | "dark";
+  uiFontFamily: string[];
+  uiZoom: number;
+  middleClickCloseTab: boolean;
+  editorLineEnding: string;
+  enableAnimation: boolean;
+  showRealtimeInfo: boolean;
+  tabCloseButtonLeft: boolean;
+  fontLigatures: boolean;
+  tabCloseConfirm: boolean;
+  tabFlashNotify: boolean;
+  tabMultiLine: boolean;
+  updateChannel: string;
+  editorFontFamily: string[];
+  editorFontSize: number;
+  editorWordWrap: boolean;
+  editorTabMode: string;
+  lockOnStart: boolean;
+  lockPassword: string;
+  idleLockMinutes: number;
+  restoreSession: boolean;
 
   // ── 连接 ──
-  connectionTimeout: number
-  heartbeatInterval: number
-  defaultEncoding: string
-  defaultPort: number
-  autoReconnect: boolean
-  reconnectCount: number
-  reconnectInterval: number
+  connectionTimeout: number;
+  heartbeatInterval: number;
+  defaultEncoding: string;
+  defaultPort: number;
+  autoReconnect: boolean;
+  reconnectCount: number;
+  reconnectInterval: number;
 
   // ── 终端 ──
-  termThemeLight: string
-  termThemeDark: string
-  termCursorStyle: 'block' | 'underline' | 'bar'
-  termCursorBlink: boolean
-  termFontFamily: string[]
-  termFontSize: number
-  termLineHeight: number
-  termLetterSpacing: number
-  termZoomEnabled: boolean
+  termThemeLight: string;
+  termThemeDark: string;
+  termCursorStyle: "block" | "underline" | "bar";
+  termCursorBlink: boolean;
+  termFontFamily: string[];
+  termFontSize: number;
+  termLineHeight: number;
+  termLetterSpacing: number;
+  termZoomEnabled: boolean;
+  termStripeEnabled: boolean;
   keywordHighlights: {
-    error: string
-    warning: string
-    ok: string
-    info: string
-    debug: string
-    ipMac: string
-    path?: string
-    url?: string
-    timestamp?: string
-    env?: string
-  }
-  activeProfileId: string
+    error: string;
+    warning: string;
+    ok: string;
+    info: string;
+    debug: string;
+    ipMac: string;
+    path?: string;
+    url?: string;
+    timestamp?: string;
+    env?: string;
+  };
+  activeProfileId: string;
 
   // ── SSH 设置 ──
-  termHighlightEnhance: boolean
-  sshSftpPathSync: boolean
-  termSelectAutoCopy: boolean
-  termCommandHint: boolean
-  sshHistoryEnabled: boolean
-  sshHistoryStorage: string
-  sshHistoryLoadCount: number
-  termHighPerformance: boolean
-  termMiddleClickAction: string
-  termRightClickAction: string
-  termSound: boolean
-  termCtrlVPaste: boolean
-  termScrollback: number
-  termLogDir: string
+  termHighlightEnhance: boolean;
+  sshSftpPathSync: boolean;
+  termSelectAutoCopy: boolean;
+  termCommandHint: boolean;
+  sshHistoryEnabled: boolean;
+  sshHistoryStorage: string;
+  sshHistoryLoadCount: number;
+  termHighPerformance: boolean;
+  termMiddleClickAction: string;
+  termRightClickAction: string;
+  termSound: boolean;
+  termCtrlVPaste: boolean;
+  termScrollback: number;
+  termLogDir: string;
 
   // ── SFTP 设置 ──
-  sftpDefaultEditor: string
-  sftpParentDirClick: boolean
-  sftpFileListLayout: string
-  sftpRemoteColumns: string[]
-  sftpListTimeout: number
-  sftpDefaultSavePath: string
-  sftpDoubleClickAction: string
-  sftpShowHidden: boolean
-  sftpLocalColumns: string[]
+  sftpDefaultEditor: string;
+  sftpParentDirClick: boolean;
+  sftpFileListLayout: string;
+  sftpRemoteColumns: string[];
+  sftpListTimeout: number;
+  sftpDefaultSavePath: string;
+  sftpDoubleClickAction: string;
+  sftpShowHidden: boolean;
+  sftpLocalColumns: string[];
 
   // ── 数据库 ──
-  dbTableFont: string[]
-  dbAutoExpand: boolean
-  dbShowPrimaryKey: boolean
-  dbCalcTotalRows: boolean
-  dbCompositeHeader: boolean
-  dbLoadAllFields: boolean
-  dbTextAlign: string
-  dbRowsPerPage: number
-  dbDangerSqlConfirm: boolean
-  dbSqlStopOnError: boolean
-  dbScrollMode: string
-  dbCursorScrollSpeed: number
+  dbTableFont: string[];
+  dbAutoExpand: boolean;
+  dbShowPrimaryKey: boolean;
+  dbCalcTotalRows: boolean;
+  dbCompositeHeader: boolean;
+  dbLoadAllFields: boolean;
+  dbTextAlign: string;
+  dbRowsPerPage: number;
+  dbDangerSqlConfirm: boolean;
+  dbSqlStopOnError: boolean;
+  dbScrollMode: string;
+  dbCursorScrollSpeed: number;
 
   // ── Redis ──
-  redisMaxLoadCount: number
-  redisGroupSeparator: string
-  redisShowValue: boolean
+  redisMaxLoadCount: number;
+  redisGroupSeparator: string;
+  redisShowValue: boolean;
 
   // ── 侧边栏 ──
-  hideEmptyFolders: boolean
+  hideEmptyFolders: boolean;
+
+  // ── 云同步 ──
+  syncRepoSource: 'local' | 'git' | 'webdav' | 's3';
+  syncAutoSync: boolean;
+  syncEncryptionKey: string;
+  syncTlsVerify: boolean;
+  // 本地文件
+  syncLocalPath: string;
+  // Git
+  syncGitUrl: string;
+  syncGitBranch: string;
+  syncGitPath: string;
+  syncGitUsername: string;
+  syncGitPassword: string;
+  syncGitSshKey: string;
+  // WebDAV
+  syncWebdavEndpoint: string;
+  syncWebdavPath: string;
+  syncWebdavUsername: string;
+  syncWebdavPassword: string;
+  // S3
+  syncS3Style: string;
+  syncS3Endpoint: string;
+  syncS3Path: string;
+  syncS3Region: string;
+  syncS3Bucket: string;
+  syncS3AccessKey: string;
+  syncS3SecretKey: string;
+
+  // ── 调试 ──
+  debugMode: boolean;
 }
 
 const DEFAULTS: SettingsState = {
   // ── 基础设置 ──
-  language: 'zh-CN',
-  theme: 'auto',
-  uiFontFamily: ['system'],
+  language: "zh-CN",
+  theme: "auto",
+  uiFontFamily: ["system"],
   uiZoom: 100,
   middleClickCloseTab: false,
-  editorLineEnding: 'lf',
+  editorLineEnding: "lf",
   enableAnimation: true,
   showRealtimeInfo: true,
   tabCloseButtonLeft: true,
@@ -126,49 +158,49 @@ const DEFAULTS: SettingsState = {
   tabCloseConfirm: true,
   tabFlashNotify: true,
   tabMultiLine: false,
-  updateChannel: 'stable',
-  editorFontFamily: ['JetBrainsMono'],
+  updateChannel: "stable",
+  editorFontFamily: ["JetBrainsMono"],
   editorFontSize: 14,
   editorWordWrap: true,
-  editorTabMode: 'four-spaces',
+  editorTabMode: "four-spaces",
   lockOnStart: false,
-  lockPassword: '',
+  lockPassword: "",
   idleLockMinutes: 0,
   restoreSession: false,
-  showMemberBadge: true,
 
   // ── 连接 ──
   connectionTimeout: 30,
   heartbeatInterval: 60,
-  defaultEncoding: 'utf-8',
+  defaultEncoding: "utf-8",
   defaultPort: 22,
   autoReconnect: true,
   reconnectCount: 3,
   reconnectInterval: 5,
 
   // ── 终端 ──
-  termThemeLight: 'default-light',
-  termThemeDark: 'default-dark',
-  termCursorStyle: 'bar',
+  termThemeLight: "default-light",
+  termThemeDark: "default-dark",
+  termCursorStyle: "bar",
   termCursorBlink: true,
-  termFontFamily: ['JetBrainsMono'],
+  termFontFamily: ["JetBrainsMono"],
   termFontSize: 14,
-  termLineHeight: 1.6,
+  termLineHeight: 1,
   termLetterSpacing: 0,
   termZoomEnabled: true,
+  termStripeEnabled: false,
   keywordHighlights: {
-    error: '#F53F3F',
-    warning: '#E6A23C',
-    ok: '#00B42A',
-    info: '#4080FF',
-    debug: '#86909C',
-    ipMac: '#9A7ECC',
-    path: '#D2B48C',
-    url: '#00B4D8',
-    timestamp: '#8B8682',
-    env: '#61AFEF',
+    error: "#F53F3F",
+    warning: "#E6A23C",
+    ok: "#00B42A",
+    info: "#4080FF",
+    debug: "#86909C",
+    ipMac: "#9A7ECC",
+    path: "#D2B48C",
+    url: "#00B4D8",
+    timestamp: "#8B8682",
+    env: "#61AFEF",
   },
-  activeProfileId: '__default__',
+  activeProfileId: "__default__",
 
   // ── SSH 设置 ──
   termHighlightEnhance: true,
@@ -176,57 +208,91 @@ const DEFAULTS: SettingsState = {
   termSelectAutoCopy: false,
   termCommandHint: true,
   sshHistoryEnabled: true,
-  sshHistoryStorage: 'local',
+  sshHistoryStorage: "local",
   sshHistoryLoadCount: 100,
   termHighPerformance: false,
-  termMiddleClickAction: 'none',
-  termRightClickAction: 'menu',
+  termMiddleClickAction: "none",
+  termRightClickAction: "menu",
   termSound: false,
   termCtrlVPaste: true,
   termScrollback: 1000,
-  termLogDir: '',
+  termLogDir: "",
 
   // ── SFTP 设置 ──
-  sftpDefaultEditor: 'builtin',
+  sftpDefaultEditor: "builtin",
   sftpParentDirClick: false,
-  sftpFileListLayout: 'horizontal',
-  sftpRemoteColumns: ['name', 'mtime', 'type', 'size'],
+  sftpFileListLayout: "horizontal",
+  sftpRemoteColumns: ["name", "mtime", "type", "size"],
   sftpListTimeout: 60,
-  sftpDefaultSavePath: '',
-  sftpDoubleClickAction: 'auto',
+  sftpDefaultSavePath: "",
+  sftpDoubleClickAction: "auto",
   sftpShowHidden: false,
-  sftpLocalColumns: ['name', 'mtime', 'type', 'size'],
+  sftpLocalColumns: ["name", "mtime", "type", "size"],
 
   // ── 数据库 ──
-  dbTableFont: ['JetBrainsMono'],
+  dbTableFont: ["JetBrainsMono"],
   dbAutoExpand: true,
   dbShowPrimaryKey: true,
   dbCalcTotalRows: false,
   dbCompositeHeader: false,
   dbLoadAllFields: false,
-  dbTextAlign: 'auto',
+  dbTextAlign: "auto",
   dbRowsPerPage: 500,
   dbDangerSqlConfirm: true,
   dbSqlStopOnError: false,
-  dbScrollMode: 'natural',
+  dbScrollMode: "natural",
   dbCursorScrollSpeed: 1,
 
   // ── Redis ──
   redisMaxLoadCount: 10000,
-  redisGroupSeparator: ':',
+  redisGroupSeparator: ":",
   redisShowValue: false,
 
   // ── 侧边栏 ──
   hideEmptyFolders: false,
-}
+
+  // ── 云同步 ──
+  syncRepoSource: "local",
+  syncAutoSync: false,
+  syncEncryptionKey: "",
+  syncTlsVerify: true,
+  // 本地文件
+  syncLocalPath: "",
+  // Git
+  syncGitUrl: "",
+  syncGitBranch: "master",
+  syncGitPath: "",
+  syncGitUsername: "",
+  syncGitPassword: "",
+  syncGitSshKey: "",
+  // WebDAV
+  syncWebdavEndpoint: "",
+  syncWebdavPath: "vortix",
+  syncWebdavUsername: "",
+  syncWebdavPassword: "",
+  // S3
+  syncS3Style: "virtual-hosted",
+  syncS3Endpoint: "https://s3.amazonaws.com",
+  syncS3Path: "vortix",
+  syncS3Region: "ap-east-1",
+  syncS3Bucket: "",
+  syncS3AccessKey: "",
+  syncS3SecretKey: "",
+
+  // ── 调试 ──
+  debugMode: false,
+};
 
 interface SettingsStore extends SettingsState {
-  _dirty: boolean
-  _loaded: boolean
-  updateSetting: <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => void
-  loadSettings: () => Promise<void>
-  applySettings: () => Promise<void>
-  resetToDefaults: () => Promise<void>
+  _dirty: boolean;
+  _loaded: boolean;
+  updateSetting: <K extends keyof SettingsState>(
+    key: K,
+    value: SettingsState[K],
+  ) => void;
+  loadSettings: () => Promise<void>;
+  applySettings: () => Promise<void>;
+  resetToDefaults: () => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
@@ -234,87 +300,105 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   _dirty: false,
   _loaded: false,
 
-  updateSetting: (key, value) => set({ [key]: value, _dirty: true }),
+  updateSetting: (key, value) => {
+    set({ [key]: value, _dirty: true });
+    if (key === "language") loadLocale(value as string);
+  },
 
   loadSettings: async () => {
     try {
-      const remote = await api.getSettings()
+      const remote = await api.getSettings();
       // 合并远程设置到 store（仅覆盖已有键）
-      const merged: Partial<SettingsState> = {}
+      const merged: Partial<SettingsState> = {};
       for (const [k, v] of Object.entries(remote)) {
         if (k in DEFAULTS) {
-          (merged as Record<string, unknown>)[k] = v
+          (merged as Record<string, unknown>)[k] = v;
         }
       }
 
       // 向后兼容：旧字体字段 string → string[]
-      const FONT_KEYS = ['uiFontFamily', 'editorFontFamily', 'termFontFamily', 'dbTableFont'] as const
+      const FONT_KEYS = [
+        "uiFontFamily",
+        "editorFontFamily",
+        "termFontFamily",
+        "dbTableFont",
+      ] as const;
       for (const fk of FONT_KEYS) {
-        if (typeof merged[fk] === 'string') {
-          ;(merged as Record<string, unknown>)[fk] = [merged[fk]]
+        if (typeof merged[fk] === "string") {
+          (merged as Record<string, unknown>)[fk] = [merged[fk]];
         }
       }
 
       // 向后兼容：旧 termTheme 字段迁移到 termThemeLight / termThemeDark
-      const legacy = (remote as Record<string, unknown>).termTheme
-      if (typeof legacy === 'string' && !('termThemeLight' in remote)) {
-        if (legacy === 'auto') {
-          merged.termThemeLight = 'default-light'
-          merged.termThemeDark = 'default-dark'
+      const legacy = (remote as Record<string, unknown>).termTheme;
+      if (typeof legacy === "string" && !("termThemeLight" in remote)) {
+        if (legacy === "auto") {
+          merged.termThemeLight = "default-light";
+          merged.termThemeDark = "default-dark";
         } else {
           // 根据主题 mode 分配到对应字段
-          const preset = getThemeById(legacy)
+          const preset = getThemeById(legacy);
           if (preset) {
-            if (preset.mode === 'dark') {
-              merged.termThemeDark = legacy
-              merged.termThemeLight = DEFAULTS.termThemeLight
+            if (preset.mode === "dark") {
+              merged.termThemeDark = legacy;
+              merged.termThemeLight = DEFAULTS.termThemeLight;
             } else {
-              merged.termThemeLight = legacy
-              merged.termThemeDark = DEFAULTS.termThemeDark
+              merged.termThemeLight = legacy;
+              merged.termThemeDark = DEFAULTS.termThemeDark;
             }
           }
         }
       }
 
-      set({ ...merged, _loaded: true, _dirty: false })
+      set({ ...merged, _loaded: true, _dirty: false });
     } catch {
       // API 不可用时使用默认值
-      set({ _loaded: true })
+      set({ _loaded: true });
     }
   },
 
   applySettings: async () => {
-    const state = get()
+    const state = get();
+    // 防止 HMR 重建 store 后未加载就保存，覆盖后端数据
+    if (!state._loaded) return;
     // 收集所有 SettingsState 字段
-    const settings: Record<string, unknown> = {}
+    const settings: Record<string, unknown> = {};
     for (const k of Object.keys(DEFAULTS)) {
-      settings[k] = state[k as keyof SettingsState]
+      settings[k] = state[k as keyof SettingsState];
     }
     try {
-      await api.saveSettings(settings)
-      set({ _dirty: false })
+      await api.saveSettings(settings);
+      set({ _dirty: false });
     } catch (e) {
-      console.error('[Vortix] 保存设置失败', e)
+      console.error("[Vortix] 保存设置失败", e);
     }
   },
 
   resetToDefaults: async () => {
     // 终端外观设置由 Profile 系统管理，重置时保留
     const TERM_APPEARANCE_KEYS: (keyof SettingsState)[] = [
-      'termThemeLight', 'termThemeDark', 'termCursorStyle', 'termCursorBlink',
-      'termFontFamily', 'termFontSize', 'termLineHeight', 'termLetterSpacing',
-      'termScrollback', 'keywordHighlights', 'activeProfileId',
-    ]
-    const preserved: Partial<SettingsState> = {}
-    const current = get()
+      "termThemeLight",
+      "termThemeDark",
+      "termCursorStyle",
+      "termCursorBlink",
+      "termFontFamily",
+      "termFontSize",
+      "termLineHeight",
+      "termLetterSpacing",
+      "termScrollback",
+      "keywordHighlights",
+      "activeProfileId",
+    ];
+    const preserved: Partial<SettingsState> = {};
+    const current = get();
     for (const k of TERM_APPEARANCE_KEYS) {
-      (preserved as Record<string, unknown>)[k] = current[k]
+      (preserved as Record<string, unknown>)[k] = current[k];
     }
     try {
-      await api.resetSettings()
+      await api.resetSettings();
     } catch {
       // 忽略 API 错误
     }
-    set({ ...DEFAULTS, ...preserved, _dirty: false })
+    set({ ...DEFAULTS, ...preserved, _dirty: false });
   },
-}))
+}));

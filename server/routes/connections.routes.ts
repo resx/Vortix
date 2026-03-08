@@ -4,6 +4,7 @@ import { Router } from 'express'
 import { Client as SshClient } from 'ssh2'
 import { spawn } from 'child_process'
 import { existsSync, statSync } from 'fs'
+import { Socket } from 'net'
 import * as connectionRepo from '../repositories/connection.repository.js'
 import { encrypt, decrypt } from '../services/crypto.service.js'
 
@@ -14,6 +15,24 @@ router.get('/connections', (req, res) => {
   const folderId = req.query.folder_id as string | undefined
   const connections = connectionRepo.findAll(folderId)
   res.json({ success: true, data: connections })
+})
+
+// 获取所有已配置私钥的连接（返回 id、名称、解密后的私钥）
+router.get('/connections/keys', (_req, res) => {
+  try {
+    const allRaw = connectionRepo.findAllRaw()
+    const keys = allRaw
+      .filter(r => !!r.encrypted_private_key)
+      .map(r => {
+        let privateKey = ''
+        try { privateKey = decrypt(r.encrypted_private_key!) } catch { /* */ }
+        return { id: r.id, name: r.name, host: r.host, privateKey }
+      })
+      .filter(k => !!k.privateKey)
+    res.json({ success: true, data: keys })
+  } catch (e) {
+    res.json({ success: false, error: (e as Error).message })
+  }
 })
 
 // 获取单个连接
@@ -104,6 +123,52 @@ router.delete('/connections/:id', (req, res) => {
 })
 
 // ── 测试连接 ──
+
+// 批量 TCP Ping
+router.post('/connections/ping', async (req, res) => {
+  const { ids } = req.body as { ids: string[] }
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.json({ success: true, data: {} })
+    return
+  }
+
+  const results: Record<string, number | null> = {}
+
+  await Promise.all(ids.map(async (id) => {
+    const raw = connectionRepo.findRawById(id)
+    if (!raw || raw.protocol === 'local' || !raw.host) {
+      results[id] = null
+      return
+    }
+
+    const start = Date.now()
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const socket = new Socket()
+        const timer = setTimeout(() => {
+          socket.destroy()
+          reject(new Error('timeout'))
+        }, 5000)
+
+        socket.connect(raw.port || 22, raw.host, () => {
+          clearTimeout(timer)
+          socket.destroy()
+          resolve()
+        })
+        socket.on('error', (err) => {
+          clearTimeout(timer)
+          socket.destroy()
+          reject(err)
+        })
+      })
+      results[id] = Date.now() - start
+    } catch {
+      results[id] = null
+    }
+  }))
+
+  res.json({ success: true, data: results })
+})
 
 // SSH 测试连接
 router.post('/connections/test-ssh', (req, res) => {

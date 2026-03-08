@@ -6,6 +6,8 @@ interface WindowControl {
   maximize: () => void
   close: () => void
   togglePin: () => void
+  newWindow?: () => void
+  cloneWindow?: (serializedState: string) => void
 }
 
 const noop = () => {}
@@ -29,4 +31,24 @@ export function closeWindow(): void {
 
 export function togglePinWindow(): void {
   getWindowControl().togglePin()
+}
+
+/** 打开新窗口 */
+export function openNewWindow(): void {
+  const ctrl = getWindowControl()
+  if (ctrl.newWindow) {
+    ctrl.newWindow()
+  } else {
+    window.open(window.location.origin, '_blank')
+  }
+}
+
+/** 复制当前窗口（携带状态） */
+export function cloneCurrentWindow(serializedState: string): void {
+  const ctrl = getWindowControl()
+  if (ctrl.cloneWindow) {
+    ctrl.cloneWindow(serializedState)
+  } else {
+    window.open(`${window.location.origin}?restore=${encodeURIComponent(serializedState)}`, '_blank')
+  }
 }

@@ -167,6 +167,8 @@ export default function Sidebar() {
   const moveConnectionToFolder = useAppStore((s) => s.moveConnectionToFolder)
   const selectedItemId = useAppStore((s) => s.selectedSidebarItemId)
   const setSelectedItemId = useAppStore((s) => s.setSelectedSidebarItemId)
+  const openShortcutDialog = useAppStore((s) => s.openShortcutDialog)
+  const executeShortcut = useAppStore((s) => s.executeShortcut)
   const hideEmptyFolders = useSettingsStore((s) => s.hideEmptyFolders)
   const updateSetting = useSettingsStore((s) => s.updateSetting)
 
@@ -240,7 +242,7 @@ export default function Sidebar() {
               className={hideEmptyFolders && !disableHideEmptyFolders ? 'bg-border text-text-1' : ''}
             />
             {isShortcuts ? (
-              <SidebarHeaderButton icon={LinkIcon} tooltipText="创建快捷命令" />
+              <SidebarHeaderButton icon={LinkIcon} tooltipText="创建快捷命令" onClick={() => openShortcutDialog('create')} />
             ) : (
               <NewAssetDropdown />
             )}
@@ -252,6 +254,21 @@ export default function Sidebar() {
           id="sidebar-tree"
           className="flex-1 overflow-y-auto py-1.5 px-1 custom-scrollbar relative"
           onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-blank-shortcut' : 'sidebar-blank-asset')}
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.currentTarget.classList.add('ring-2', 'ring-primary/30', 'ring-inset')
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              e.currentTarget.classList.remove('ring-2', 'ring-primary/30', 'ring-inset')
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            e.currentTarget.classList.remove('ring-2', 'ring-primary/30', 'ring-inset')
+            const connectionId = e.dataTransfer.getData('text/connection-id')
+            if (connectionId) moveConnectionToFolder(connectionId, null)
+          }}
         >
           {filteredData.map(item => (
             <div key={item.id} className="flex flex-col">
@@ -263,7 +280,9 @@ export default function Sidebar() {
                       ${selectedItemId === item.id ? 'bg-primary/10 text-primary' : ''}`}
                     onClick={() => {
                       setSelectedItemId(item.id)
-                      setCurrentFolder(currentFolder === item.id ? null : item.id)
+                      if (currentFolder !== item.id) {
+                        setCurrentFolder(item.id)
+                      }
                     }}
                     onDoubleClick={() => {
                       toggleFolder(target, item.id)
@@ -309,7 +328,9 @@ export default function Sidebar() {
                       onClick={() => setSelectedItemId(child.id)}
                       onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', child)}
                       onDoubleClick={() => {
-                        if (child.type === 'connection') {
+                        if (isShortcuts && child.command) {
+                          executeShortcut(child.command, 'execute')
+                        } else if (child.type === 'connection') {
                           openAssetTab({
                             id: child.id,
                             name: child.name,
@@ -344,18 +365,22 @@ export default function Sidebar() {
                   onClick={() => setSelectedItemId(item.id)}
                   onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', item)}
                   onDoubleClick={() => {
-                    openAssetTab({
-                      id: item.id,
-                      name: item.name,
-                      type: 'asset',
-                      protocol: item.protocol,
-                      latency: '-',
-                      host: '-',
-                      user: '-',
-                      created: '-',
-                      expire: '-',
-                      remark: '-',
-                    })
+                    if (isShortcuts && item.command) {
+                      executeShortcut(item.command, 'execute')
+                    } else {
+                      openAssetTab({
+                        id: item.id,
+                        name: item.name,
+                        type: 'asset',
+                        protocol: item.protocol,
+                        latency: '-',
+                        host: '-',
+                        user: '-',
+                        created: '-',
+                        expire: '-',
+                        remark: '-',
+                      })
+                    }
                   }}
                 >
                   <span className="w-4 flex justify-center" />

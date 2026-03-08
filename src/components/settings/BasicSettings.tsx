@@ -12,7 +12,7 @@ function LockPasswordRow() {
   const update = useSettingsStore((s) => s.updateSetting)
   const Icon = visible ? EyeOff : Eye
   return (
-    <SettingRow label="锁屏密码" desc="(登录账号后，可启用锁屏)">
+    <SettingRow label="锁屏密码">
       <div className="flex items-center gap-1.5 shrink-0">
         <button
           type="button"
@@ -129,7 +129,7 @@ export default function BasicSettings() {
             ]}
             width="w-[120px]"
           />
-          <SToggle k="lockOnStart" label="启动锁屏" desc="启动时询问密码，登录账号后启用" />
+          <SToggle k="lockOnStart" label="启动锁屏" desc="启动时询问密码" />
           <SNumberDropdown
             k="idleLockMinutes" label="自动锁屏时间"
             options={[
@@ -141,7 +141,7 @@ export default function BasicSettings() {
           />
           <LockPasswordRow />
           <SToggle k="restoreSession" label="会话标签记忆" desc="(启用后，启动会自动还原上次打开的标签)" />
-          <SToggle k="showMemberBadge" label="显示会员标志" desc="(关闭后，付费用户将不会在顶部显示会员图标)" />
+          <SToggle k="debugMode" label="调试模式" desc="开启后允许 F12 打开开发者工具" />
         </SettingGroup>
       </div>
     </>

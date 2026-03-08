@@ -13,6 +13,7 @@ export default function TabBar() {
   const closeTab = useAppStore((s) => s.closeTab)
   const createTabFromPane = useAppStore((s) => s.createTabFromPane)
   const reorderTab = useAppStore((s) => s.reorderTab)
+  const showContextMenu = useAppStore((s) => s.showContextMenu)
   const closeLeft = !useSettingsStore((s) => s.tabCloseButtonLeft)
 
   const [showMenu, setShowMenu] = useState(false)
@@ -236,6 +237,11 @@ export default function TabBar() {
                     setDragIndicator(null)
                   }}
                   onClick={() => setActiveTab(tab.id)}
+                  onContextMenu={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    showContextMenu(e.clientX, e.clientY, 'tab-context', { tabId: tab.id, tabIndex: index })
+                  }}
                 >
                   {/* 左侧插入指示器 */}
                   {dragIndicator?.tabId === tab.id && dragIndicator.side === 'left' && (

@@ -176,6 +176,31 @@ html.reduce-motion *::after {
   background-color: rgba(255, 255, 255, 0.3);
 }
 
+/* 命令输入框滚动条 */
+.cmd-textarea-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.cmd-textarea-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 4px 0;
+}
+.cmd-textarea-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+}
+.cmd-textarea-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0, 0, 0, 0.25);
+}
+.dark .cmd-textarea-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+.dark .cmd-textarea-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+.cmd-textarea-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 @keyframes loading {
   0% { width: 0%; }
   100% { width: 100%; }

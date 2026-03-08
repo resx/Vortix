@@ -1,26 +1,20 @@
 import { TerminalSquare, FolderOpen } from 'lucide-react'
-import { useState, useEffect } from 'react'
 import { useAppStore } from '../../stores/useAppStore'
+import { useMonitorStore } from '../../stores/useMonitorStore'
 
 interface Props {
   connected: boolean
+  tabId: string
 }
 
-interface MonitorData {
-  cpuCores: number
-  netUp: number
-  netDown: number
-  cpuUsage: number
-  memUsed: number
-  diskUsed: number
-}
-
-function fmtNet(kb: number): string {
+function fmtNet(kb: number | null | undefined): string {
+  if (kb == null) return '0K'
   if (kb >= 1024) return (kb / 1024).toFixed(1) + 'M'
   return kb.toFixed(0) + 'K'
 }
 
-function fmtDisk(gb: number): string {
+function fmtDisk(gb: number | null | undefined): string {
+  if (gb == null) return '0G'
   if (gb >= 1024) return (gb / 1024).toFixed(1) + 'T'
   return gb.toFixed(1) + 'G'
 }
@@ -95,38 +89,23 @@ function VBar({ label, display, percent, tint }: {
   )
 }
 
-export default function ServerMonitor({ connected }: Props) {
+export default function ServerMonitor({ connected, tabId }: Props) {
   const toggleServerPanel = useAppStore((s) => s.toggleServerPanel)
   const toggleSftp = useAppStore((s) => s.toggleSftp)
-  const [data, setData] = useState<MonitorData | null>(null)
+  const snapshot = useMonitorStore((s) => s.snapshots[tabId])
 
-  useEffect(() => {
-    if (!connected) { setData(null); return }
-
-    const genData = (): MonitorData => ({
-      cpuCores: 4,
-      netUp: Math.random() * 800 + 10,
-      netDown: Math.random() * 2000 + 50,
-      cpuUsage: Math.floor(Math.random() * 60 + 5),
-      memUsed: +(Math.random() * 4 + 2).toFixed(1),
-      diskUsed: +(Math.random() * 30 + 40).toFixed(1),
-    })
-
-    setData(genData())
-    const timer = setInterval(() => setData(genData()), 3000)
-    return () => clearInterval(timer)
-  }, [connected])
-
-  if (!connected || !data) {
+  if (!connected || !snapshot) {
     return (
       <div id="server-monitor" className="w-[48px] shrink-0 flex flex-col items-center justify-center">
-        <span className="text-[9px] text-text-disabled">未连接</span>
+        <span className="text-[9px] text-text-disabled">{connected ? '采集中...' : '未连接'}</span>
       </div>
     )
   }
 
-  const memPercent = Math.floor((data.memUsed / 8) * 100)
-  const diskPercent = Math.floor((data.diskUsed / 100) * 100)
+  const memPercent = snapshot.memTotal > 0 ? Math.floor((snapshot.memUsed / snapshot.memTotal) * 100) : 0
+  const diskTotal = snapshot.disks.reduce((a, d) => a + d.total, 0)
+  const diskUsed = snapshot.disks.reduce((a, d) => a + d.used, 0)
+  const diskPercent = diskTotal > 0 ? Math.floor((diskUsed / diskTotal) * 100) : 0
 
   return (
     <div id="server-monitor" className="w-[48px] shrink-0 flex flex-col items-center py-2 gap-2 overflow-y-auto custom-scrollbar">
@@ -148,16 +127,16 @@ export default function ServerMonitor({ connected }: Props) {
       <div className="w-6 h-px bg-border" />
 
       {/* Liquid Glass 徽章 */}
-      <HBadge label="CPU" value={`${data.cpuCores}`} tint="#4080FF" />
-      <HBadge label="上行" value={fmtNet(data.netUp)} tint="#E6A23C" />
-      <HBadge label="下行" value={fmtNet(data.netDown)} tint="#67C23A" />
+      <HBadge label="CPU" value={`${snapshot.cpuCores}`} tint="#4080FF" />
+      <HBadge label="上行" value={fmtNet(snapshot.netUp)} tint="#E6A23C" />
+      <HBadge label="下行" value={fmtNet(snapshot.netDown)} tint="#67C23A" />
 
       <div className="w-6 h-px bg-border" />
 
       {/* Liquid Glass 进度条 */}
-      <VBar label="CPU" display={`${data.cpuUsage}%`} percent={data.cpuUsage} tint="#67C23A" />
-      <VBar label="内存" display={fmtDisk(data.memUsed)} percent={memPercent} tint="#4080FF" />
-      <VBar label="磁盘" display={fmtDisk(data.diskUsed)} percent={diskPercent} tint="#13C2C2" />
+      <VBar label="CPU" display={`${Math.floor(snapshot.cpuUsage)}%`} percent={snapshot.cpuUsage} tint="#67C23A" />
+      <VBar label="内存" display={fmtDisk(snapshot.memUsed / 1024)} percent={memPercent} tint="#4080FF" />
+      <VBar label="磁盘" display={fmtDisk(diskUsed)} percent={diskPercent} tint="#13C2C2" />
     </div>
   )
 }

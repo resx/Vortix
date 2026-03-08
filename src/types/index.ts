@@ -2,10 +2,12 @@ export interface TreeItem {
   id: string
   name: string
   type: 'folder' | 'connection'
-  protocol?: 'ssh' | 'sftp' | 'rdp' | 'docker' | 'database'
+  protocol?: 'ssh' | 'sftp' | 'rdp' | 'docker' | 'database' | 'local'
   colorTag?: string | null
   isOpen?: boolean
   children?: TreeItem[]
+  command?: string
+  remark?: string
 }
 
 export interface AssetRow {
@@ -38,6 +40,8 @@ export interface AppTab {
   connectedAt?: string
   /** 错误信息 */
   errorMessage?: string
+  /** 重连 key，递增触发组件重新挂载 */
+  reconnectKey?: number
 }
 
 export type ListViewMode = 'list' | 'card' | 'thumbnail'
@@ -51,6 +55,7 @@ export type ContextMenuType =
   | 'sidebar-asset'
   | 'table-context'
   | 'terminal'
+  | 'tab-context'
 
 export interface TableContextData {
   targetContext: 'blank' | 'folder' | 'asset'
@@ -63,10 +68,15 @@ export interface TerminalContextData {
   hasSelection: boolean
 }
 
+export interface TabContextData {
+  tabId: string
+  tabIndex: number
+}
+
 export interface ContextMenuState {
   visible: boolean
   x: number
   y: number
   type: ContextMenuType | null
-  data: TreeItem | TableContextData | TerminalContextData | null
+  data: TreeItem | TableContextData | TerminalContextData | TabContextData | null
 }

@@ -1,13 +1,17 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  Sun, Moon, Monitor, User, Crown, MoreVertical,
+  Sun, Moon, Monitor, MoreVertical,
   Pin, Minus, Square, X, ChevronRight,
   History, Languages, CircleHelp, Settings,
   RotateCw, LogOut, ExternalLink, Copy, Search,
-  CloudFog, Check, FileUp, FolderArchive,
+  CloudFog, Check, FileUp, FolderArchive, Terminal,
+  AlertCircle, MessageCircle, ScrollText, Trash2, Info,
+  CloudCog, KeyRound,
 } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useT, useLocale } from '../../i18n'
+import { openNewWindow, cloneCurrentWindow, closeWindow } from '../../lib/window'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import {
   DropdownMenu,
@@ -21,7 +25,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
 } from '../ui/dropdown-menu'
-import { RECENT_PROJECTS, MOCK_HISTORY_CMDS } from '../../data/mock'
+import * as api from '../../api/client'
+import { getSession } from '../../stores/terminalSessionRegistry'
+import { useWorkspaceStore } from '../../stores/useWorkspaceStore'
+import KeyPickerModal from '../settings/KeyPickerModal'
 
 /* ── 自定义 SVG 图标 ── */
 
@@ -214,7 +221,27 @@ function BroadcastPopover({ assetName }: { assetName: string }) {
   )
 }
 
-function HistoryPopover() {
+function HistoryPopover({ connectionId }: { connectionId?: string }) {
+  const [cmds, setCmds] = useState<{ command: string; executed_at: string }[]>([])
+  const [filter, setFilter] = useState('')
+  const executeShortcut = useAppStore((s) => s.executeShortcut)
+
+  useEffect(() => {
+    if (!connectionId) return
+    api.getHistory(connectionId, 50).then(data => {
+      setCmds(data.map(h => ({ command: h.command, executed_at: h.executed_at })))
+    }).catch(() => {})
+  }, [connectionId])
+
+  const filtered = filter
+    ? cmds.filter(c => c.command.toLowerCase().includes(filter.toLowerCase()))
+    : cmds
+
+  const handleClear = () => {
+    if (!connectionId) return
+    api.clearHistory(connectionId).then(() => setCmds([])).catch(() => {})
+  }
+
   return (
     <div className="absolute right-0 top-full mt-[12px] w-[340px] bg-bg-card/95 backdrop-blur-2xl shadow-[0_12px_40px_rgba(0,0,0,0.15)] dark:shadow-[0_12px_40px_rgba(0,0,0,0.4)] rounded-xl border border-border z-[250] flex flex-col overflow-hidden animate-[fade-in_0.2s_ease-out]">
       <div className="flex items-center justify-between px-3 py-3 border-b border-border bg-bg-card/50">
@@ -222,24 +249,46 @@ function HistoryPopover() {
           历史命令
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-3" />
-            <input type="text" placeholder="历史命令过滤" className="w-[160px] h-[26px] pl-7 pr-2 bg-bg-subtle border border-border rounded text-[12px] text-text-1 outline-none focus:border-primary transition-colors" />
+            <input
+              type="text"
+              placeholder="历史命令过滤"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="w-[160px] h-[26px] pl-7 pr-2 bg-bg-subtle border border-border rounded text-[12px] text-text-1 outline-none focus:border-primary transition-colors"
+            />
           </div>
         </div>
-        <button className="text-[#F53F3F] hover:bg-[#FDECE8] dark:hover:bg-[#3D2020] px-2 py-1.5 rounded text-[12px] flex items-center gap-1 transition-colors">
+        <button
+          onClick={handleClear}
+          className="text-[#F53F3F] hover:bg-[#FDECE8] dark:hover:bg-[#3D2020] px-2 py-1.5 rounded text-[12px] flex items-center gap-1 transition-colors"
+        >
           <X size={14} />清除
         </button>
       </div>
       <div className="max-h-[400px] overflow-y-auto p-1 custom-scrollbar bg-bg-card/50">
-        {MOCK_HISTORY_CMDS.map((cmd, i) => (
-          <div key={i} className="flex flex-col group hover:bg-bg-subtle rounded-lg p-2.5 transition-colors cursor-pointer border border-transparent hover:border-border/50 mx-1 my-0.5">
+        {filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-10 text-text-3">
+            <CloudFog size={36} className="mb-2 opacity-30" strokeWidth={1} />
+            <span className="text-[13px]">暂无历史命令</span>
+          </div>
+        ) : filtered.map((cmd, i) => (
+          <div
+            key={i}
+            className="flex flex-col group hover:bg-bg-subtle rounded-lg p-2.5 transition-colors cursor-pointer border border-transparent hover:border-border/50 mx-1 my-0.5"
+            onClick={() => executeShortcut(cmd.command, 'paste')}
+          >
             <div className="flex items-start justify-between gap-2">
-              <span className="font-mono text-[13px] text-text-1 break-all leading-snug">{cmd.cmd}</span>
+              <span className="font-mono text-[13px] text-text-1 break-all leading-snug">{cmd.command}</span>
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                <button className="p-1 text-text-3 hover:text-primary hover:bg-primary-bg rounded"><Copy size={14} /></button>
-                <button className="p-1 text-text-3 hover:text-[#F53F3F] hover:bg-[#FDECE8] dark:hover:bg-[#3D2020] rounded"><X size={14} /></button>
+                <button
+                  className="p-1 text-text-3 hover:text-primary hover:bg-primary-bg rounded"
+                  onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(cmd.command) }}
+                >
+                  <Copy size={14} />
+                </button>
               </div>
             </div>
-            <span className="text-[11px] text-text-3 mt-1.5 font-mono">{cmd.date}</span>
+            <span className="text-[11px] text-text-3 mt-1.5 font-mono">{cmd.executed_at?.replace('T', ' ').slice(0, 16) ?? ''}</span>
           </div>
         ))}
       </div>
@@ -255,6 +304,19 @@ export default function Header() {
   const setActiveTab = useAppStore((s) => s.setActiveTab)
   const menuVariant = useAppStore((s) => s.menuVariant)
   const toggleSettings = useAppStore((s) => s.toggleSettings)
+  const toggleQuickSearch = useAppStore((s) => s.toggleQuickSearch)
+  const toggleUpdateDialog = useAppStore((s) => s.toggleUpdateDialog)
+  const toggleClearDataDialog = useAppStore((s) => s.toggleClearDataDialog)
+  const toggleReloadDialog = useAppStore((s) => s.toggleReloadDialog)
+  const recentConnections = useAppStore((s) => s.recentConnections)
+  const fetchRecentConnections = useAppStore((s) => s.fetchRecentConnections)
+  const tableData = useAppStore((s) => s.tableData)
+  const openAssetTab = useAppStore((s) => s.openAssetTab)
+  const serializeTabState = useAppStore((s) => s.serializeTabState)
+
+  // i18n
+  const t = useT()
+  const locale = useLocale()
 
   // 主题切换
   const themeMode = useSettingsStore((s) => s.theme)
@@ -272,6 +334,7 @@ export default function Header() {
 
   // 弹出层状态
   const [activePopover, setActivePopover] = useState<'transfer' | 'broadcast' | 'history' | null>(null)
+  const [showKeyPicker, setShowKeyPicker] = useState(false)
   const headerToolsRef = useRef<HTMLDivElement>(null)
 
   // 切换标签页时重置弹出层
@@ -290,9 +353,7 @@ export default function Header() {
     return () => window.removeEventListener('click', handler)
   }, [activePopover])
 
-  const headerIcons = [
-    { Icon: User, label: '用户' },
-  ]
+  const headerIcons: { Icon: typeof Sun; label: string }[] = []
 
   const windowIcons = [
     { Icon: Pin, label: '置顶' },
@@ -325,11 +386,6 @@ export default function Header() {
 
       {/* 右侧操作区 */}
       <div id="header-actions" className="flex items-center gap-4">
-        {/* Pro 徽章 */}
-        <div className="flex items-center gap-1 bg-[#FDF6EC] dark:bg-[#3D3020] text-[#E6A23C] border border-[#F3D19E] dark:border-[#5A4520] px-1.5 py-0.5 rounded text-[11px] font-medium cursor-pointer hover:bg-[#F5E8C8] dark:hover:bg-[#4A3A20] transition-colors">
-          <Crown className="w-3 h-3" />
-          Pro
-        </div>
 
         {/* 功能图标 */}
         <div className="flex items-center gap-3 text-text-2">
@@ -367,7 +423,7 @@ export default function Header() {
                   isActive={activePopover === 'history'}
                   onClick={() => setActivePopover(prev => prev === 'history' ? null : 'history')}
                 />
-                {activePopover === 'history' && <HistoryPopover />}
+                {activePopover === 'history' && <HistoryPopover connectionId={activeTab?.connectionId} />}
               </div>
             </div>
           )}
@@ -380,6 +436,16 @@ export default function Header() {
               </button>
             </TooltipTrigger>
             <TooltipContent>{themeLabel}</TooltipContent>
+          </Tooltip>
+
+          {/* 密钥管理 */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button onClick={() => setShowKeyPicker(true)} className="hover:text-text-1 transition-colors">
+                <KeyRound className="w-[15px] h-[15px]" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>密钥管理</TooltipContent>
           </Tooltip>
 
           {headerIcons.map(({ Icon, label }) => (
@@ -401,101 +467,182 @@ export default function Header() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent variant={menuVariant} align="end" sideOffset={12}>
-              <DropdownMenuItem>
-                <div className="flex items-center gap-2.5">
-                  <ExternalLink className="w-[14px] h-[14px] text-text-2" />
-                  新窗口
-                </div>
-                <DropdownMenuShortcut>Ctrl+Shift+H</DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <div className="flex items-center gap-2.5">
-                  <Copy className="w-[14px] h-[14px] text-text-2" />
-                  复制窗口
-                </div>
-                <DropdownMenuShortcut>Ctrl+Shift+N</DropdownMenuShortcut>
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator />
-
+              {/* 新窗口子菜单 */}
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
-                  <History className="w-[14px] h-[14px] text-text-2" />
-                  最近项目
+                  <ExternalLink className="w-[14px] h-[14px] text-text-2" />
+                  {t('menu.newWindow')}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent sideOffset={4} side="left">
-                    {RECENT_PROJECTS.map((proj, i) => (
-                      <DropdownMenuItem key={i}>
-                        <div className="flex items-center gap-2.5">
-                          <proj.icon className="w-[14px] h-[14px] text-text-2" />
-                          {proj.name}
-                        </div>
-                      </DropdownMenuItem>
-                    ))}
+                    <DropdownMenuItem onSelect={() => openNewWindow()}>
+                      <div className="flex items-center gap-2.5">
+                        <ExternalLink className="w-[14px] h-[14px] text-text-2" />
+                        {t('menu.newWindow')}
+                      </div>
+                      <DropdownMenuShortcut>Ctrl+Shift+H</DropdownMenuShortcut>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => cloneCurrentWindow(serializeTabState())}>
+                      <div className="flex items-center gap-2.5">
+                        <Copy className="w-[14px] h-[14px] text-text-2" />
+                        {t('menu.cloneWindow')}
+                      </div>
+                      <DropdownMenuShortcut>Ctrl+Shift+N</DropdownMenuShortcut>
+                    </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>
 
+              <DropdownMenuSeparator />
+
+              {/* 最近项目 */}
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger onPointerEnter={() => fetchRecentConnections()}>
+                  <History className="w-[14px] h-[14px] text-text-2" />
+                  {t('menu.recentProjects')}
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent sideOffset={4} side="left">
+                    {recentConnections.length === 0 ? (
+                      <DropdownMenuItem disabled>
+                        <span className="text-text-3">{t('menu.recentProjects.empty')}</span>
+                      </DropdownMenuItem>
+                    ) : (
+                      recentConnections.map((rc) => (
+                        <DropdownMenuItem
+                          key={rc.id}
+                          onSelect={() => {
+                            const row = tableData.find(r => r.type === 'asset' && r.id === rc.id)
+                            if (row) openAssetTab(row)
+                          }}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Terminal className="w-[14px] h-[14px] text-text-2" />
+                            <div className="flex flex-col">
+                              <span>{rc.name}</span>
+                              <span className="text-[11px] text-text-3">{rc.host}</span>
+                            </div>
+                          </div>
+                        </DropdownMenuItem>
+                      ))
+                    )}
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+
+              {/* 语言 */}
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <Languages className="w-[14px] h-[14px] text-text-2" />
-                  语言
+                  {t('menu.language')}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent sideOffset={4} side="left">
-                    <DropdownMenuItem className="bg-primary-bg text-primary">
-                      中文(当前)
+                    <DropdownMenuItem
+                      className={locale === 'zh-CN' ? 'bg-primary-bg text-primary' : ''}
+                      onSelect={() => updateSetting('language', 'zh-CN')}
+                    >
+                      中文{locale === 'zh-CN' ? ' ✓' : ''}
                     </DropdownMenuItem>
-                    <DropdownMenuItem>English</DropdownMenuItem>
+                    <DropdownMenuItem
+                      className={locale === 'en' ? 'bg-primary-bg text-primary' : ''}
+                      onSelect={() => updateSetting('language', 'en')}
+                    >
+                      English{locale === 'en' ? ' ✓' : ''}
+                    </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>
 
+              {/* 帮助 */}
               <DropdownMenuSub>
                 <DropdownMenuSubTrigger>
                   <CircleHelp className="w-[14px] h-[14px] text-text-2" />
-                  帮助
+                  {t('menu.help')}
                 </DropdownMenuSubTrigger>
                 <DropdownMenuPortal>
                   <DropdownMenuSubContent sideOffset={4} side="left">
-                    <DropdownMenuItem>提交问题</DropdownMenuItem>
-                    <DropdownMenuItem>常见问题</DropdownMenuItem>
-                    <DropdownMenuItem>更新日志</DropdownMenuItem>
-                    <DropdownMenuItem>检测更新</DropdownMenuItem>
-                    <DropdownMenuItem>清除无效数据</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => window.open('https://github.com/resx/Vortix/issues/new?template=bug_report.md&labels=bug', '_blank')}>
+                      <div className="flex items-center gap-2.5">
+                        <AlertCircle className="w-[14px] h-[14px] text-text-2" />
+                        {t('menu.help.submitIssue')}
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => window.open('https://github.com/resx/Vortix/discussions', '_blank')}>
+                      <div className="flex items-center gap-2.5">
+                        <MessageCircle className="w-[14px] h-[14px] text-text-2" />
+                        {t('menu.help.faq')}
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => window.open('https://github.com/resx/Vortix/releases', '_blank')}>
+                      <div className="flex items-center gap-2.5">
+                        <ScrollText className="w-[14px] h-[14px] text-text-2" />
+                        {t('menu.help.changelog')}
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => toggleUpdateDialog()}>
+                      <div className="flex items-center gap-2.5">
+                        <RotateCw className="w-[14px] h-[14px] text-text-2" />
+                        {t('menu.help.checkUpdate')}
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => toggleClearDataDialog()}>
+                      <div className="flex items-center gap-2.5">
+                        <Trash2 className="w-[14px] h-[14px] text-text-2" />
+                        {t('menu.help.clearData')}
+                      </div>
+                    </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>关于</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => window.open('https://github.com/resx/Vortix', '_blank')}>
+                      <div className="flex items-center gap-2.5">
+                        <Info className="w-[14px] h-[14px] text-text-2" />
+                        {t('menu.help.about')}
+                      </div>
+                    </DropdownMenuItem>
                   </DropdownMenuSubContent>
                 </DropdownMenuPortal>
               </DropdownMenuSub>
 
               <DropdownMenuSeparator />
 
+              <DropdownMenuItem onSelect={() => {
+                const store = useAppStore.getState()
+                store.setSettingsInitialNav('sync')
+                if (!store.settingsOpen) store.toggleSettings()
+              }}>
+                <div className="flex items-center gap-2.5">
+                  <CloudCog className="w-[14px] h-[14px] text-text-2" />
+                  数据同步
+                </div>
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={toggleSettings}>
                 <div className="flex items-center gap-2.5">
                   <Settings className="w-[14px] h-[14px] text-text-2" />
-                  设置
+                  {t('menu.settings')}
                 </div>
                 <DropdownMenuShortcut>Ctrl+,</DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => toggleQuickSearch()}>
                 <div className="flex items-center gap-2.5">
                   <Search className="w-[14px] h-[14px] text-text-2" />
-                  快速搜索
+                  {t('menu.quickSearch')}
                 </div>
                 <DropdownMenuShortcut>Ctrl+Shift+F</DropdownMenuShortcut>
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => {
+                const { tabs } = useAppStore.getState()
+                const hasConnected = tabs.some(t => t.status === 'connected')
+                hasConnected ? toggleReloadDialog() : location.reload()
+              }}>
                 <div className="flex items-center gap-2.5">
                   <RotateCw className="w-[14px] h-[14px] text-text-2" />
-                  重载页面
+                  {t('menu.reload')}
                 </div>
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => closeWindow()}>
                 <div className="flex items-center gap-2.5">
                   <LogOut className="w-[14px] h-[14px] text-text-2" />
-                  退出
+                  {t('menu.exit')}
                 </div>
                 <DropdownMenuShortcut>Alt+F4</DropdownMenuShortcut>
               </DropdownMenuItem>
@@ -517,6 +664,14 @@ export default function Header() {
           ))}
         </div>
       </div>
+
+      {/* 私钥选择弹窗 */}
+      {showKeyPicker && (
+        <KeyPickerModal
+          onSelect={(key) => { navigator.clipboard.writeText(key) }}
+          onClose={() => setShowKeyPicker(false)}
+        />
+      )}
     </header>
   )
 }

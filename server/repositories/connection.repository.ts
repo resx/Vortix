@@ -64,6 +64,12 @@ export function findRawById(id: string): ConnectionRow | undefined {
   return db.prepare('SELECT * FROM connections WHERE id = ?').get(id) as ConnectionRow | undefined
 }
 
+/** 获取所有原始行（含加密字段，仅同步服务使用） */
+export function findAllRaw(): ConnectionRow[] {
+  const db = getDb()
+  return db.prepare('SELECT * FROM connections ORDER BY sort_order, name').all() as ConnectionRow[]
+}
+
 export function create(dto: CreateConnectionDto, encryptedPassword?: string | null, encryptedPrivateKey?: string | null, encryptedProxyPassword?: string | null): Connection {
   const db = getDb()
   const id = crypto.randomUUID()

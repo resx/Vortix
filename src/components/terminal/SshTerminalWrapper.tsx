@@ -24,50 +24,45 @@ export default function SshTerminalWrapper({ tab }: Props) {
   const showContextMenu = useAppStore((s) => s.showContextMenu)
   const [connection, setConnection] = useState<ConnectionInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
+
+  const loadCredential = useCallback(async () => {
+    setError(null)
+    setConnection(null)
+    try {
+      if (tab.quickConnect) {
+        setConnection({
+          host: tab.quickConnect.host,
+          port: tab.quickConnect.port,
+          username: tab.quickConnect.username,
+          password: tab.quickConnect.password,
+          privateKey: tab.quickConnect.privateKey,
+        })
+      } else if (tab.connectionId) {
+        const cred = await api.getConnectionCredential(tab.connectionId)
+        setConnection({
+          host: cred.host,
+          port: cred.port,
+          username: cred.username,
+          password: cred.password,
+          privateKey: cred.private_key,
+        })
+      } else if (tab.assetRow) {
+        setConnection({
+          host: tab.assetRow.host,
+          port: 22,
+          username: tab.assetRow.user,
+        })
+      }
+    } catch (e) {
+      setError((e as Error).message)
+      updateTabStatus(tab.id, 'error')
+    }
+  }, [tab.id, tab.quickConnect, tab.connectionId, tab.assetRow, updateTabStatus])
 
   useEffect(() => {
-    let cancelled = false
-
-    async function loadCredential() {
-      try {
-        if (tab.quickConnect) {
-          // 快速连接：直接使用 tab 中的凭据
-          setConnection({
-            host: tab.quickConnect.host,
-            port: tab.quickConnect.port,
-            username: tab.quickConnect.username,
-            password: tab.quickConnect.password,
-            privateKey: tab.quickConnect.privateKey,
-          })
-        } else if (tab.connectionId) {
-          // 保存的连接：从 API 获取解密凭据
-          const cred = await api.getConnectionCredential(tab.connectionId)
-          if (cancelled) return
-          setConnection({
-            host: cred.host,
-            port: cred.port,
-            username: cred.username,
-            password: cred.password,
-            privateKey: cred.private_key,
-          })
-        } else if (tab.assetRow) {
-          // 兼容旧的 assetRow 方式（后端不可用时的降级）
-          setConnection({
-            host: tab.assetRow.host,
-            port: 22,
-            username: tab.assetRow.user,
-          })
-        }
-      } catch (e) {
-        if (cancelled) return
-        setError((e as Error).message)
-        updateTabStatus(tab.id, 'error')
-      }
-    }
-
     loadCredential()
-    return () => { cancelled = true }
-  }, [tab.id, tab.quickConnect, tab.connectionId, tab.assetRow, updateTabStatus])
+  }, [loadCredential, retryKey])
 
   const handleStatusChange = useCallback((status: 'connecting' | 'connected' | 'closed' | 'error') => {
     updateTabStatus(tab.id, status)
@@ -82,7 +77,13 @@ export default function SshTerminalWrapper({ tab }: Props) {
       <div className="flex-1 flex items-center justify-center text-text-3">
         <div className="text-center">
           <div className="text-[14px] mb-2">连接失败</div>
-          <div className="text-[12px] text-status-error">{error}</div>
+          <div className="text-[12px] text-status-error mb-4">{error}</div>
+          <button
+            className="px-4 py-1.5 text-[12px] bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+            onClick={() => setRetryKey(k => k + 1)}
+          >
+            点击重试
+          </button>
         </div>
       </div>
     )
@@ -91,7 +92,9 @@ export default function SshTerminalWrapper({ tab }: Props) {
   return (
     <SshTerminal
       paneId={`wrapper-${tab.id}`}
+      tabId={tab.id}
       connection={connection}
+      connectionId={tab.connectionId}
       onStatusChange={handleStatusChange}
       onContextMenu={handleContextMenu}
     />

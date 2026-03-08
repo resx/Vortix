@@ -16,7 +16,7 @@ export default function WorkspaceLayout({ tab }: Props) {
 
   useEffect(() => {
     initWorkspace(tab.id)
-  }, [tab.id, initWorkspace])
+  }, [tab.id, tab.reconnectKey, initWorkspace])
 
   if (!workspace) return null
 

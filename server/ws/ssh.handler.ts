@@ -7,6 +7,9 @@ import type http from 'http'
 import { HighlightInterceptor } from '../highlight-interceptor'
 import type { HighlightConfig } from '../highlight-interceptor'
 import { createLocalPty } from './local.handler'
+import * as logRepo from '../repositories/log.repository.js'
+import * as historyRepo from '../repositories/history.repository.js'
+import * as settingsRepo from '../repositories/settings.repository.js'
 
 export function setupWebSocket(server: http.Server): WebSocketServer {
   const wss = new WebSocketServer({ server, path: '/ws/ssh' })
@@ -17,6 +20,16 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
     let ptyProcess: IPty | null = null
     let highlightInterceptor: HighlightInterceptor | null = null
     let lastActivity = Date.now()
+    let currentConnectionId: string | null = null
+    let cmdBuffer = '' // 命令累积缓冲区
+
+    // 监控相关
+    let monitorTimer: ReturnType<typeof setInterval> | null = null
+    let prevCpuSample: number[] | null = null
+    let prevNetSample: Record<string, [number, number]> | null = null
+    let prevSampleTime = 0
+    let cpuCoreCount = 1
+    let prevPerCoreSamples: number[][] | null = null
 
     // 输出到前端的统一方法
     const sendOutput = (data: string) => {
@@ -54,7 +67,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
     }, 30000)
 
     // 统一消息处理器（只注册一次）
-    ws.on('message', (raw: Buffer) => {
+    ws.on('message', async (raw: Buffer) => {
       let msg: { type: string; data?: unknown }
       try {
         msg = JSON.parse(raw.toString())
@@ -86,14 +99,23 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
           }
 
           // ── SSH 连接分支 ──
-          const { host, port, username, password, privateKey } = data as {
-            host: string; port: number; username: string; password?: string; privateKey?: string
+          const { host, port, username, password, privateKey, connectionId } = data as {
+            host: string; port: number; username: string; password?: string; privateKey?: string; connectionId?: string
           }
 
+          currentConnectionId = connectionId || null
           sshClient = new Client()
+          const connectStartTime = Date.now()
 
           sshClient.on('ready', () => {
             ws.send(JSON.stringify({ type: 'status', data: 'connected' }))
+
+            // 写入连接日志
+            if (currentConnectionId) {
+              try {
+                logRepo.create(currentConnectionId, 'connect', `${host}:${port}`, Date.now() - connectStartTime)
+              } catch { /* 日志写入失败不影响连接 */ }
+            }
 
             sshClient!.shell(
               { term: 'xterm-256color', cols: 120, rows: 30 },
@@ -107,7 +129,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
 
                 // SSH -> 前端（经过高亮拦截器）
                 stream.on('data', (chunk: Buffer) => {
-                  const text = chunk.toString('binary')
+                  const text = chunk.toString('utf-8')
                   if (highlightInterceptor) {
                     highlightInterceptor.processChunk(text)
                   } else {
@@ -116,7 +138,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
                 })
 
                 stream.stderr.on('data', (chunk: Buffer) => {
-                  const text = chunk.toString('binary')
+                  const text = chunk.toString('utf-8')
                   if (highlightInterceptor) {
                     highlightInterceptor.processChunk(text)
                   } else {
@@ -136,12 +158,18 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
           })
 
           sshClient.on('error', (err) => {
+            if (currentConnectionId) {
+              try { logRepo.create(currentConnectionId, 'error', err.message) } catch { /* */ }
+            }
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: 'error', data: err.message }))
             }
           })
 
           sshClient.on('close', () => {
+            if (currentConnectionId) {
+              try { logRepo.create(currentConnectionId, 'disconnect') } catch { /* */ }
+            }
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: 'status', data: 'closed' }))
             }
@@ -159,8 +187,38 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
 
         // 前端输入
         case 'input': {
-          if (ptyProcess) ptyProcess.write(msg.data as string)
-          else if (sshStream) sshStream.write(msg.data as string)
+          const inputData = msg.data as string
+          if (ptyProcess) ptyProcess.write(inputData)
+          else if (sshStream) sshStream.write(inputData)
+
+          // 命令历史记录：累积输入，检测 Enter 后持久化
+          // 过滤 bracketed paste 转义序列
+          const cleanInput = inputData.replace(/\x1b\[200~/g, '').replace(/\x1b\[201~/g, '')
+          for (const ch of cleanInput) {
+            if (ch === '\r' || ch === '\n') {
+              const trimmed = cmdBuffer.trim()
+              if (trimmed && currentConnectionId) {
+                try {
+                  const historyEnabled = settingsRepo.get('sshHistoryEnabled')
+                  if (historyEnabled !== false) {
+                    historyRepo.create(currentConnectionId, trimmed)
+                  }
+                } catch { /* 静默 */ }
+              }
+              cmdBuffer = ''
+            } else if (ch === '\x7f' || ch === '\b') {
+              // 退格：删除缓冲区末尾字符
+              cmdBuffer = cmdBuffer.slice(0, -1)
+            } else if (ch === '\x03') {
+              // Ctrl+C：清空缓冲区
+              cmdBuffer = ''
+            } else if (ch === '\x15') {
+              // Ctrl+U：清空行
+              cmdBuffer = ''
+            } else if (ch >= ' ' || ch === '\t') {
+              cmdBuffer += ch
+            }
+          }
           break
         }
 
@@ -180,10 +238,225 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
 
         // 断开连接
         case 'disconnect': {
+          if (monitorTimer) { clearInterval(monitorTimer); monitorTimer = null }
           if (ptyProcess) { ptyProcess.kill(); ptyProcess = null }
           sshStream = null
           sshClient?.end()
           sshClient = null
+          break
+        }
+
+        // ── 监控采集 ──
+        case 'monitor-start': {
+          if (!sshClient || monitorTimer) break
+
+          // 辅助：通过 SSH exec 执行命令并返回 stdout
+          const sshExec = (cmd: string): Promise<string> => new Promise((resolve, reject) => {
+            if (!sshClient) { reject(new Error('no client')); return }
+            sshClient.exec(cmd, (err, stream) => {
+              if (err) { reject(err); return }
+              let out = ''
+              stream.on('data', (chunk: Buffer) => { out += chunk.toString() })
+              stream.stderr.on('data', () => {})
+              stream.on('close', () => resolve(out))
+            })
+          })
+
+          // 一次性系统信息采集
+          try {
+            const raw = await sshExec('uname -sr; echo "===SEP==="; hostname; echo "===SEP==="; whoami; echo "===SEP==="; cat /proc/uptime; echo "===SEP==="; nproc')
+            const parts = raw.split('===SEP===').map(s => s.trim())
+            const os = parts[0] || 'Linux'
+            const host = parts[1] || 'unknown'
+            const user = parts[2] || 'unknown'
+            const uptimeSec = parseFloat(parts[3]?.split(' ')[0] || '0')
+            cpuCoreCount = parseInt(parts[4] || '1', 10) || 1
+
+            const days = Math.floor(uptimeSec / 86400)
+            const hours = Math.floor((uptimeSec % 86400) / 3600)
+            const mins = Math.floor((uptimeSec % 3600) / 60)
+            const uptime = `${days}d ${hours}h ${mins}m`
+
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'monitor-info', data: { user, host, uptime, os } }))
+            }
+          } catch { /* 系统信息采集失败不影响后续 */ }
+
+          // 定时采集（3s 间隔）
+          const collectMonitor = async () => {
+            if (!sshClient) return
+            try {
+              const cmd = [
+                'cat /proc/stat',
+                'echo "===SEP==="',
+                'cat /proc/meminfo | grep -E "^(MemTotal|MemFree|MemAvailable|Buffers|Cached|SwapTotal|SwapFree):"',
+                'echo "===SEP==="',
+                'df -B1 2>/dev/null | tail -n +2',
+                'echo "===SEP==="',
+                'cat /proc/net/dev | tail -n +3',
+                'echo "===SEP==="',
+                'ps aux --sort=-%cpu 2>/dev/null | head -11',
+              ].join('; ')
+
+              const raw = await sshExec(cmd)
+              const sections = raw.split('===SEP===').map(s => s.trim())
+              const now = Date.now()
+
+              // ── CPU 解析 ──
+              const statLines = (sections[0] || '').split('\n')
+              const cpuLine = statLines[0] || ''
+              const cpuFields = cpuLine.replace(/^cpu\s+/, '').split(/\s+/).map(Number)
+              // user, nice, system, idle, iowait, irq, softirq, steal
+              const totalCpu = cpuFields.reduce((a, b) => a + b, 0)
+              const idle = (cpuFields[3] || 0) + (cpuFields[4] || 0)
+              const system = cpuFields[2] || 0
+              const userCpu = (cpuFields[0] || 0) + (cpuFields[1] || 0)
+              const iowait = cpuFields[4] || 0
+
+              let cpuUsage = 0, cpuKernel = 0, cpuUser = 0, cpuIo = 0
+              if (prevCpuSample) {
+                const prevTotal = prevCpuSample.reduce((a, b) => a + b, 0)
+                const dTotal = totalCpu - prevTotal
+                const dIdle = (cpuFields[3] || 0) - (prevCpuSample[3] || 0) + (cpuFields[4] || 0) - (prevCpuSample[4] || 0)
+                if (dTotal > 0) {
+                  cpuUsage = +((1 - dIdle / dTotal) * 100).toFixed(1)
+                  cpuKernel = +(((system - (prevCpuSample[2] || 0)) / dTotal) * 100).toFixed(1)
+                  cpuUser = +((((cpuFields[0] || 0) - (prevCpuSample[0] || 0) + (cpuFields[1] || 0) - (prevCpuSample[1] || 0)) / dTotal) * 100).toFixed(1)
+                  cpuIo = +((((cpuFields[4] || 0) - (prevCpuSample[4] || 0)) / dTotal) * 100).toFixed(1)
+                }
+              }
+              prevCpuSample = cpuFields
+
+              // 逐核 CPU
+              const cpuPerCore: number[] = []
+              const currentPerCore: number[][] = []
+              for (let i = 1; i < statLines.length; i++) {
+                const line = statLines[i]
+                if (!line.match(/^cpu\d+/)) break
+                const fields = line.replace(/^cpu\d+\s+/, '').split(/\s+/).map(Number)
+                currentPerCore.push(fields)
+                if (prevPerCoreSamples && prevPerCoreSamples[i - 1]) {
+                  const prev = prevPerCoreSamples[i - 1]
+                  const pTotal = prev.reduce((a, b) => a + b, 0)
+                  const cTotal = fields.reduce((a, b) => a + b, 0)
+                  const dt = cTotal - pTotal
+                  const dI = (fields[3] || 0) - (prev[3] || 0) + (fields[4] || 0) - (prev[4] || 0)
+                  cpuPerCore.push(dt > 0 ? +((1 - dI / dt) * 100).toFixed(0) : 0)
+                } else {
+                  cpuPerCore.push(0)
+                }
+              }
+              prevPerCoreSamples = currentPerCore
+
+              // ── 内存解析 ──
+              const memMap: Record<string, number> = {}
+              for (const line of (sections[1] || '').split('\n')) {
+                const m = line.match(/^(\w+):\s+(\d+)/)
+                if (m) memMap[m[1]] = parseInt(m[2], 10) // kB
+              }
+              const memTotal = +(((memMap['MemTotal'] || 0) / 1024).toFixed(1))
+              const memAvailable = memMap['MemAvailable'] ?? (memMap['MemFree'] || 0) + (memMap['Buffers'] || 0) + (memMap['Cached'] || 0)
+              const memUsed = +(((memMap['MemTotal'] || 0) - memAvailable) / 1024).toFixed(1)
+              const swapTotal = +(((memMap['SwapTotal'] || 0) / 1024).toFixed(1))
+              const swapUsed = +((((memMap['SwapTotal'] || 0) - (memMap['SwapFree'] || 0)) / 1024).toFixed(1))
+
+              // ── 磁盘解析 ──
+              const disks: { name: string; used: number; total: number; percent: number; path: string }[] = []
+              for (const line of (sections[2] || '').split('\n')) {
+                if (!line.trim()) continue
+                const cols = line.split(/\s+/)
+                if (cols.length < 6) continue
+                const totalB = parseInt(cols[1], 10) || 0
+                const usedB = parseInt(cols[2], 10) || 0
+                if (totalB === 0) continue
+                disks.push({
+                  name: cols[0],
+                  total: +(totalB / (1024 * 1024 * 1024)).toFixed(2),
+                  used: +(usedB / (1024 * 1024 * 1024)).toFixed(2),
+                  percent: Math.floor((usedB / totalB) * 100),
+                  path: cols[5],
+                })
+              }
+
+              // ── 网络解析 ──
+              let netUp = 0, netDown = 0, netTotalUp = 0, netTotalDown = 0
+              const nics: { name: string; ip: string; rxRate: number; txRate: number; rxTotal: number; txTotal: number }[] = []
+              const currentNetSample: Record<string, [number, number]> = {}
+              const elapsed = prevSampleTime > 0 ? (now - prevSampleTime) / 1000 : 3
+
+              for (const line of (sections[3] || '').split('\n')) {
+                if (!line.trim()) continue
+                const m = line.match(/^\s*(\S+):\s*(\d+)(?:\s+\d+){7}\s+(\d+)/)
+                if (!m) continue
+                const name = m[1]
+                const rx = parseInt(m[2], 10)
+                const tx = parseInt(m[3], 10)
+                currentNetSample[name] = [rx, tx]
+                netTotalUp += tx
+                netTotalDown += rx
+
+                let rxRate = 0, txRate = 0
+                if (prevNetSample && prevNetSample[name]) {
+                  rxRate = +((rx - prevNetSample[name][0]) / elapsed / 1024).toFixed(1)
+                  txRate = +((tx - prevNetSample[name][1]) / elapsed / 1024).toFixed(1)
+                  if (rxRate < 0) rxRate = 0
+                  if (txRate < 0) txRate = 0
+                }
+                netUp += txRate
+                netDown += rxRate
+                if (name !== 'lo') {
+                  nics.push({ name, ip: '-', rxRate, txRate, rxTotal: rx, txTotal: tx })
+                }
+              }
+              prevNetSample = currentNetSample
+              prevSampleTime = now
+
+              // ── 进程解析 ──
+              const processes: { name: string; pid: number; cpu: string; mem: string }[] = []
+              const psLines = (sections[4] || '').split('\n').slice(1) // 跳过表头
+              for (const line of psLines) {
+                if (!line.trim()) continue
+                const cols = line.split(/\s+/)
+                if (cols.length < 11) continue
+                processes.push({
+                  pid: parseInt(cols[1], 10),
+                  cpu: cols[2] + '%',
+                  mem: cols[3] + '%',
+                  name: cols.slice(10).join(' ').split('/').pop()?.split(' ')[0] || cols[10],
+                })
+              }
+
+              const snapshot = {
+                cpuCores: cpuCoreCount,
+                cpuUsage, cpuKernel, cpuUser, cpuIo,
+                cpuPerCore,
+                memUsed, memTotal, swapUsed, swapTotal,
+                netUp: +netUp.toFixed(1),
+                netDown: +netDown.toFixed(1),
+                netTotalUp, netTotalDown,
+                processes: processes.slice(0, 10),
+                nics,
+                disks,
+              }
+
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'monitor-data', data: snapshot }))
+              }
+            } catch { /* 采集失败静默跳过 */ }
+          }
+
+          // 立即采集一次，然后 3s 间隔
+          collectMonitor()
+          monitorTimer = setInterval(collectMonitor, 3000)
+          break
+        }
+
+        case 'monitor-stop': {
+          if (monitorTimer) { clearInterval(monitorTimer); monitorTimer = null }
+          prevCpuSample = null
+          prevNetSample = null
+          prevPerCoreSamples = null
+          prevSampleTime = 0
           break
         }
       }
@@ -191,6 +464,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
 
     ws.on('close', () => {
       clearInterval(heartbeatInterval)
+      if (monitorTimer) { clearInterval(monitorTimer); monitorTimer = null }
       highlightInterceptor?.destroy()
       highlightInterceptor = null
       if (ptyProcess) { ptyProcess.kill(); ptyProcess = null }

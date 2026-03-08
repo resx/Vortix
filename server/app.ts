@@ -9,6 +9,10 @@ import connectionsRoutes from './routes/connections.routes.js'
 import settingsRoutes from './routes/settings.routes.js'
 import historyRoutes from './routes/history.routes.js'
 import fsRoutes from './routes/fs.routes.js'
+import logsRoutes from './routes/logs.routes.js'
+import shortcutsRoutes from './routes/shortcuts.routes.js'
+import syncRoutes from './routes/sync.routes.js'
+import sshKeysRoutes from './routes/sshkeys.routes.js'
 
 const app = express()
 
@@ -23,6 +27,10 @@ app.use('/api', connectionsRoutes)
 app.use('/api', settingsRoutes)
 app.use('/api', historyRoutes)
 app.use('/api', fsRoutes)
+app.use('/api', logsRoutes)
+app.use('/api', shortcutsRoutes)
+app.use('/api', syncRoutes)
+app.use('/api', sshKeysRoutes)
 
 // 统一错误处理
 app.use(errorHandler)

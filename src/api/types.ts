@@ -138,3 +138,131 @@ export interface TestResult {
   message?: string
   error?: string
 }
+
+// 最近连接
+export interface RecentConnection {
+  id: string
+  name: string
+  host: string
+  port: number
+  username: string
+  protocol: string
+  color_tag: string | null
+  folder_name: string | null
+  last_connected_at: string
+}
+
+// 清理结果
+export interface CleanupResult {
+  deleted: number
+}
+
+// 快捷命令
+export interface Shortcut {
+  id: string
+  name: string
+  command: string
+  remark: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateShortcutDto {
+  name: string
+  command: string
+  remark?: string
+  sort_order?: number
+}
+
+export interface UpdateShortcutDto {
+  name?: string
+  command?: string
+  remark?: string
+  sort_order?: number
+}
+
+// ── 云同步 ──
+
+// ── SSH 密钥库 ──
+
+export interface SshKey {
+  id: string
+  name: string
+  key_type: string
+  public_key: string | null
+  has_passphrase: boolean
+  certificate: string | null
+  remark: string
+  description: string
+  created_at: string
+}
+
+export interface CreateSshKeyDto {
+  name: string
+  private_key: string
+  public_key?: string
+  passphrase?: string
+  certificate?: string
+  remark?: string
+}
+
+export interface UpdateSshKeyDto {
+  name?: string
+  public_key?: string | null
+  private_key?: string
+  passphrase?: string | null
+  certificate?: string | null
+  remark?: string
+}
+
+export interface GenerateSshKeyDto {
+  name: string
+  type: string
+  bits?: number
+  passphrase?: string
+  comment?: string
+}
+
+// ── 云同步 ──
+
+/** 同步文件状态信息 */
+export interface SyncFileInfo {
+  exists: boolean
+  lastModified: string | null
+  size: number | null
+}
+
+/** 导入结果统计 */
+export interface ImportResult {
+  folders: number
+  connections: number
+  settings: number
+  shortcuts: number
+  profiles: number
+}
+
+/** 同步请求体（多源通用） */
+export interface SyncRequestBody {
+  repoSource: string
+  encryptionKey?: string
+  syncLocalPath?: string
+  syncGitUrl?: string
+  syncGitBranch?: string
+  syncGitPath?: string
+  syncGitUsername?: string
+  syncGitPassword?: string
+  syncGitSshKey?: string
+  syncWebdavEndpoint?: string
+  syncWebdavPath?: string
+  syncWebdavUsername?: string
+  syncWebdavPassword?: string
+  syncS3Style?: string
+  syncS3Endpoint?: string
+  syncS3Path?: string
+  syncS3Region?: string
+  syncS3Bucket?: string
+  syncS3AccessKey?: string
+  syncS3SecretKey?: string
+  syncTlsVerify?: boolean
+}

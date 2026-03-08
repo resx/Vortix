@@ -117,6 +117,7 @@ export default function AssetToolbar() {
   const newMenuOpen = useAppStore((s) => s.newMenuOpen)
   const setNewMenuOpen = useAppStore((s) => s.setNewMenuOpen)
   const openLocalTermConfig = useAppStore((s) => s.openLocalTermConfig)
+  const selectedRowIds = useAppStore((s) => s.selectedRowIds)
 
   const newMenuRef = useRef<HTMLDivElement>(null)
 
@@ -135,7 +136,7 @@ export default function AssetToolbar() {
       <div className="flex items-center gap-2">
         <AlignJustify className="w-3.5 h-3.5 text-text-3" />
         <span className="text-[13px] font-medium text-text-1">资产列表</span>
-        <span className="text-[12px] text-text-3 ml-4">已选择 0 个连接</span>
+        <span className="text-[12px] text-text-3 ml-4">已选择 {selectedRowIds.size} 个连接</span>
       </div>
 
       <div className="flex items-center gap-1.5">

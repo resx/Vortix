@@ -12,6 +12,15 @@ import type {
   Settings,
   CommandHistory,
   TestResult,
+  RecentConnection,
+  CleanupResult,
+  Shortcut,
+  CreateShortcutDto,
+  UpdateShortcutDto,
+  SshKey,
+  CreateSshKeyDto,
+  UpdateSshKeyDto,
+  GenerateSshKeyDto,
 } from './types'
 
 // CEF 预留：运行时可通过 window.__VORTIX_CONFIG__ 覆盖
@@ -144,7 +153,60 @@ export async function pickDir(initialDir?: string): Promise<string | null> {
   return result.path
 }
 
+export async function pickFile(title?: string, filters?: string): Promise<{ path: string | null; content: string | null }> {
+  return request<{ path: string | null; content: string | null }>('/fs/pick-file', {
+    method: 'POST',
+    body: JSON.stringify({ title, filters }),
+  })
+}
+
+/* ── SSH 密钥库 API ── */
+
+export async function getSshKeys(): Promise<SshKey[]> {
+  return request<SshKey[]>('/ssh-keys')
+}
+
+export async function getSshKeyPrivate(id: string): Promise<{ private_key: string }> {
+  return request<{ private_key: string }>(`/ssh-keys/${id}/private`)
+}
+
+export async function createSshKey(dto: CreateSshKeyDto): Promise<SshKey> {
+  return request<SshKey>('/ssh-keys', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  })
+}
+
+export async function generateSshKey(data: GenerateSshKeyDto): Promise<SshKey & { publicKey: string }> {
+  return request<SshKey & { publicKey: string }>('/ssh-keys/generate', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function updateSshKey(id: string, dto: UpdateSshKeyDto): Promise<SshKey> {
+  return request<SshKey>(`/ssh-keys/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
+  })
+}
+
+export async function deleteSshKey(id: string): Promise<void> {
+  return request<void>(`/ssh-keys/${id}`, { method: 'DELETE' })
+}
+
+export function getSshKeyExportUrl(id: string): string {
+  return `${BASE_URL}/ssh-keys/${id}/export`
+}
+
 /* ── 测试连接 ── */
+
+export async function pingConnections(ids: string[]): Promise<Record<string, number | null>> {
+  return request<Record<string, number | null>>('/connections/ping', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  })
+}
 
 export async function testSshConnection(data: { host: string; port: number; username: string; password?: string; privateKey?: string }): Promise<TestResult> {
   const res = await fetch(`${BASE_URL}/connections/test-ssh`, {
@@ -163,3 +225,74 @@ export async function testLocalTerminal(data: { shell: string; workingDir?: stri
   })
   return res.json() as Promise<TestResult>
 }
+
+/* ── 最近连接 API ── */
+
+export async function getRecentConnections(limit = 15): Promise<RecentConnection[]> {
+  return request<RecentConnection[]>(`/recent-connections?limit=${limit}`)
+}
+
+/* ── 数据清理 API ── */
+
+export async function cleanupData(): Promise<CleanupResult> {
+  return request<CleanupResult>('/maintenance/cleanup', { method: 'POST' })
+}
+
+/* ── 快捷命令 API ── */
+
+export async function getShortcuts(): Promise<Shortcut[]> {
+  return request<Shortcut[]>('/shortcuts')
+}
+
+export async function createShortcut(dto: CreateShortcutDto): Promise<Shortcut> {
+  return request<Shortcut>('/shortcuts', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  })
+}
+
+export async function updateShortcut(id: string, dto: UpdateShortcutDto): Promise<Shortcut> {
+  return request<Shortcut>(`/shortcuts/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
+  })
+}
+
+export async function deleteShortcut(id: string): Promise<void> {
+  return request<void>(`/shortcuts/${id}`, { method: 'DELETE' })
+}
+
+/* ── 云同步 API ── */
+
+export async function syncExport(body: import('./types').SyncRequestBody): Promise<void> {
+  return request<void>('/sync/export', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function syncImport(body: import('./types').SyncRequestBody): Promise<import('./types').ImportResult> {
+  return request<import('./types').ImportResult>('/sync/import', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getSyncStatus(body: import('./types').SyncRequestBody): Promise<import('./types').SyncFileInfo> {
+  return request<import('./types').SyncFileInfo>('/sync/status', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function deleteSyncRemote(body: import('./types').SyncRequestBody): Promise<void> {
+  return request<void>('/sync/remote', {
+    method: 'DELETE',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function purgeAllData(): Promise<void> {
+  return request<void>('/maintenance/purge-all', { method: 'POST' })
+}
+

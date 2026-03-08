@@ -1,11 +1,14 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, useDragControls } from 'framer-motion'
-import { Pin, PinOff, Minus, Square, X } from 'lucide-react'
+import { Pin, PinOff, Minus, Square, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { useAppStore } from '../../stores/useAppStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import * as api from '../../api/client'
+import type { SyncRequestBody } from '../../api/types'
 import BasicSettings from './BasicSettings'
 import SSHSettings from './SSHSettings'
 import DatabaseSettings from './DatabaseSettings'
+import SyncSettings from './SyncSettings'
 
 /* ── 全息指令盒 Logo（与主 Header 一致） ── */
 
@@ -91,35 +94,80 @@ const NAV_DATA = [
   { type: 'item', id: 'basic', label: '基础' },
   { type: 'item', id: 'ssh', label: 'SSH/SFTP' },
   { type: 'item', id: 'database', label: '数据库' },
-  { type: 'solo', id: 'account', label: '账号', mt: true },
+  { type: 'group', label: '数据', mt: true },
+  { type: 'item', id: 'sync', label: '数据同步' },
   { type: 'group', label: '快捷键', mt: true },
   { type: 'item', id: 'kb-basic', label: '基础' },
   { type: 'item', id: 'kb-ssh', label: 'SSH/SFTP' },
   { type: 'item', id: 'kb-database', label: '数据库' },
   { type: 'item', id: 'kb-docker', label: 'Docker' },
-  { type: 'solo', id: 'storage', label: '储存仓库', mt: true },
-  { type: 'solo', id: 'referral', label: '推介有奖', mt: true },
 ] as const
 
 const CONTENT_MAP: Record<string, React.ComponentType> = {
   basic: BasicSettings,
   ssh: SSHSettings,
   database: DatabaseSettings,
+  sync: SyncSettings,
 }
 
 /* ── 主组件 ── */
 
 export default function SettingsPanel() {
   const toggleSettings = useAppStore((s) => s.toggleSettings)
+  const settingsInitialNav = useAppStore((s) => s.settingsInitialNav)
+  const setSettingsInitialNav = useAppStore((s) => s.setSettingsInitialNav)
   const dirty = useSettingsStore((s) => s._dirty)
   const applySettings = useSettingsStore((s) => s.applySettings)
   const resetToDefaults = useSettingsStore((s) => s.resetToDefaults)
 
-  const [activeNav, setActiveNav] = useState('basic')
+  const [activeNav, setActiveNav] = useState(settingsInitialNav || 'basic')
   const [pinned, setPinned] = useState(false)
+  const [syncTesting, setSyncTesting] = useState(false)
+  const [syncTestResult, setSyncTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  /** 构建同步请求体 */
+  const buildSyncBody = useCallback((): SyncRequestBody => {
+    const s = useSettingsStore.getState()
+    return {
+      repoSource: s.syncRepoSource,
+      encryptionKey: s.syncEncryptionKey || undefined,
+      syncLocalPath: s.syncLocalPath,
+      syncTlsVerify: s.syncTlsVerify,
+      syncGitUrl: s.syncGitUrl, syncGitBranch: s.syncGitBranch,
+      syncGitUsername: s.syncGitUsername, syncGitPassword: s.syncGitPassword,
+      syncGitSshKey: s.syncGitSshKey,
+      syncWebdavEndpoint: s.syncWebdavEndpoint, syncWebdavPath: s.syncWebdavPath,
+      syncWebdavUsername: s.syncWebdavUsername, syncWebdavPassword: s.syncWebdavPassword,
+      syncS3Style: s.syncS3Style, syncS3Endpoint: s.syncS3Endpoint,
+      syncS3Path: s.syncS3Path, syncS3Region: s.syncS3Region,
+      syncS3Bucket: s.syncS3Bucket, syncS3AccessKey: s.syncS3AccessKey,
+      syncS3SecretKey: s.syncS3SecretKey,
+    }
+  }, [])
+
+  /** 测试同步：导出一次验证连通性 */
+  const handleTestSync = async () => {
+    setSyncTesting(true); setSyncTestResult(null)
+    try {
+      await api.syncExport(buildSyncBody())
+      setSyncTestResult({ ok: true, msg: '同步成功' })
+    } catch (e) {
+      setSyncTestResult({ ok: false, msg: (e as Error).message })
+    } finally { setSyncTesting(false) }
+    // 3 秒后清除结果
+    setTimeout(() => setSyncTestResult(null), 4000)
+  }
   const [maximized, setMaximized] = useState(false)
   const dragControls = useDragControls()
   const constraintRef = useRef<HTMLDivElement>(null)
+
+  // 消费 settingsInitialNav
+  useEffect(() => {
+    if (settingsInitialNav) {
+      setActiveNav(settingsInitialNav)
+      setSettingsInitialNav(null)
+    }
+  }, [settingsInitialNav, setSettingsInitialNav])
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -241,6 +289,24 @@ export default function SettingsPanel() {
             {/* 底部栏 */}
             <div className="absolute bottom-0 left-0 right-0 h-[64px] bg-bg-card/90 backdrop-blur-md border-t border-border flex items-center justify-end px-8 gap-4 rounded-br-2xl z-10">
               <span className="text-text-3 text-[12px] mr-2">修改设置后如未生效，请重启页面或重启应用</span>
+              {activeNav === 'sync' && (
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={syncTesting}
+                    onClick={handleTestSync}
+                    className="flex items-center gap-1.5 px-5 py-2 bg-bg-base text-text-2 rounded-lg text-[13px] hover:bg-border transition-colors font-medium disabled:opacity-50"
+                  >
+                    {syncTesting ? <Loader2 size={14} className="animate-spin" /> : null}
+                    {syncTesting ? '同步中...' : '测试同步'}
+                  </button>
+                  {syncTestResult && (
+                    <span className={`flex items-center gap-1 text-[12px] ${syncTestResult.ok ? 'text-chart-green' : 'text-status-error'}`}>
+                      {syncTestResult.ok ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
+                      {syncTestResult.msg}
+                    </span>
+                  )}
+                </div>
+              )}
               <button
                 className="px-5 py-2 bg-bg-base text-text-2 rounded-lg text-[13px] hover:bg-border transition-colors font-medium"
                 onClick={resetToDefaults}

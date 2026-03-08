@@ -280,6 +280,7 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
         ) : (
           <SshTerminal
             paneId={paneId}
+            tabId={tabId}
             connection={connection}
             onStatusChange={handleStatusChange}
             onContextMenu={handleContextMenu}

@@ -25,7 +25,7 @@ export default function IslandModal({
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
       <div
         className={cn(
           'bg-bg-base rounded-xl shadow-2xl border border-border/60 w-full flex flex-col overflow-hidden',
