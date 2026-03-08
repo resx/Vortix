@@ -73,7 +73,6 @@ export default function SyncSettings() {
   const syncEncryptionKey = useSettingsStore((s) => s.syncEncryptionKey)
   const gitUrl = useSettingsStore((s) => s.syncGitUrl)
   const gitBranch = useSettingsStore((s) => s.syncGitBranch)
-  const gitPath = useSettingsStore((s) => s.syncGitPath)
   const gitUsername = useSettingsStore((s) => s.syncGitUsername)
   const gitPassword = useSettingsStore((s) => s.syncGitPassword)
   const gitSshKey = useSettingsStore((s) => s.syncGitSshKey)
@@ -138,7 +137,7 @@ export default function SyncSettings() {
       const info = await api.getSyncStatus(buildSyncBody())
       setFileInfo(info)
     } catch { setFileInfo(null) }
-  }, [repoSource, syncLocalPath, gitUrl, gitBranch, gitPath, webdavEndpoint, webdavPath, s3Endpoint, s3Path, s3Bucket, buildSyncBody])
+  }, [repoSource, syncLocalPath, gitUrl, gitBranch, webdavEndpoint, webdavPath, s3Endpoint, s3Path, s3Bucket, buildSyncBody])
 
   useEffect(() => { refreshFileInfo() }, [refreshFileInfo])
 
@@ -363,14 +362,8 @@ export default function SyncSettings() {
                   className={`${inputCls} w-[200px]`}
                 />
               </SettingRow>
-              <SettingRow label="路径" desc="仓库内子目录，留空则存放在根目录">
-                <input
-                  type="text"
-                  value={gitPath}
-                  onChange={(e) => update('syncGitPath', e.target.value)}
-                  placeholder="例如: vortix 或 data/sync"
-                  className={`${inputCls} w-[200px]`}
-                />
+              <SettingRow label="存储路径" desc="同步文件固定存放在仓库的 Vortix/ 目录下">
+                <span className="text-[11px] text-text-3 font-mono">Vortix/vortix-sync.dat</span>
               </SettingRow>
               {gitAuthType === 'https' ? (
                 <>

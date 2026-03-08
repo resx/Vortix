@@ -20,7 +20,7 @@ function parseProviderConfig(body: Record<string, unknown>): ProviderConfig {
         type: 'git',
         url: body.syncGitUrl as string,
         branch: (body.syncGitBranch as string) || 'master',
-        path: body.syncGitPath as string | undefined,
+        path: 'Vortix',
         username: body.syncGitUsername as string | undefined,
         password: body.syncGitPassword as string | undefined,
         sshKey: body.syncGitSshKey as string | undefined,
