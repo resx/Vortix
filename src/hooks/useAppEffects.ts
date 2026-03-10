@@ -1,0 +1,179 @@
+/* ── App 全局副作用 hooks ── */
+
+import { useEffect } from 'react'
+import { useSettingsStore } from '../stores/useSettingsStore'
+import { useAssetStore } from '../stores/useAssetStore'
+import { useShortcutStore } from '../stores/useShortcutStore'
+import { useTerminalProfileStore } from '../stores/useTerminalProfileStore'
+import { useTabStore } from '../stores/useTabStore'
+import { useUIStore } from '../stores/useUIStore'
+import { resolveFontChain } from '../lib/fonts'
+import { loadLocale } from '../i18n'
+
+/** 初始化：加载设置、资产、快捷命令、恢复标签页 */
+export function useAppInit() {
+  useEffect(() => {
+    Promise.all([
+      useSettingsStore.getState().loadSettings(),
+      useAssetStore.getState().fetchAssets(),
+      useShortcutStore.getState().fetchShortcuts(),
+    ]).then(() => {
+      useTerminalProfileStore.getState().loadProfiles()
+      const lang = useSettingsStore.getState().language
+      loadLocale(lang)
+    })
+
+    // 检测 URL 参数 ?restore= 恢复标签页状态
+    const params = new URLSearchParams(window.location.search)
+    const restoreData = params.get('restore')
+    if (restoreData) {
+      try {
+        if (restoreData.length > 50000) throw new Error('restore data too large')
+        const state = JSON.parse(restoreData)
+        if (state.tabs && Array.isArray(state.tabs) && state.tabs.length <= 50) {
+          for (const tab of state.tabs) {
+            if (tab.type === 'asset' && tab.assetRow && typeof tab.assetRow.id === 'string' && typeof tab.assetRow.name === 'string') {
+              useTabStore.getState().openAssetTab(tab.assetRow)
+            }
+          }
+        }
+      } catch {
+        // 解析失败静默忽略
+      }
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+}
+
+/** 主题切换 */
+export function useThemeEffect() {
+  const theme = useSettingsStore((s) => s.theme)
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.classList.add('theme-switching')
+
+    if (theme === 'dark') {
+      root.classList.add('dark')
+    } else if (theme === 'light') {
+      root.classList.remove('dark')
+    } else {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      const apply = () => {
+        root.classList.add('theme-switching')
+        mq.matches ? root.classList.add('dark') : root.classList.remove('dark')
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => root.classList.remove('theme-switching'))
+        })
+      }
+      apply()
+      mq.addEventListener('change', apply)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => root.classList.remove('theme-switching'))
+      })
+      return () => mq.removeEventListener('change', apply)
+    }
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => root.classList.remove('theme-switching'))
+    })
+  }, [theme])
+}
+
+/** UI 字体 */
+export function useUIFontEffect() {
+  const uiFontFamily = useSettingsStore((s) => s.uiFontFamily)
+  useEffect(() => {
+    if (uiFontFamily.length === 0 || (uiFontFamily.length === 1 && uiFontFamily[0] === 'system')) {
+      document.body.style.fontFamily = ''
+    } else {
+      document.body.style.fontFamily = resolveFontChain(uiFontFamily, 'system-ui, -apple-system, sans-serif')
+    }
+  }, [uiFontFamily])
+}
+
+/** 缩放比例 */
+export function useZoomEffect() {
+  const uiZoom = useSettingsStore((s) => s.uiZoom)
+  useEffect(() => {
+    const el = document.body
+    const factor = uiZoom / 100
+    if (factor === 1) {
+      el.style.transform = ''
+      el.style.transformOrigin = ''
+      el.style.width = ''
+      el.style.height = ''
+    } else {
+      el.style.transformOrigin = '0 0'
+      el.style.transform = `scale(${factor})`
+      el.style.width = `${100 / factor}vw`
+      el.style.height = `${100 / factor}vh`
+    }
+  }, [uiZoom])
+}
+
+/** 动画开关 */
+export function useAnimationEffect() {
+  const enableAnimation = useSettingsStore((s) => s.enableAnimation)
+  useEffect(() => {
+    document.documentElement.classList.toggle('reduce-motion', !enableAnimation)
+  }, [enableAnimation])
+}
+
+/** 全局快捷键 + Ctrl+Scroll 缩放 */
+export function useGlobalShortcuts() {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'F') {
+        e.preventDefault()
+        useUIStore.getState().toggleQuickSearch()
+      }
+      if (e.ctrlKey && !e.shiftKey && e.key === 'w') {
+        e.preventDefault()
+        const { activeTabId, closeTab } = useTabStore.getState()
+        if (activeTabId !== 'list') closeTab(activeTabId)
+      }
+      if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j')) {
+        e.preventDefault()
+      }
+      if (e.key === 'F12' && !useSettingsStore.getState().debugMode) {
+        e.preventDefault()
+      }
+      if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+        e.preventDefault()
+      }
+      if (e.ctrlKey && !e.shiftKey && (e.key === '=' || e.key === '+' || e.key === '-' || e.key === '0')) {
+        e.preventDefault()
+        const { termZoomEnabled, uiZoom, updateSetting } = useSettingsStore.getState()
+        if (!termZoomEnabled) return
+        const step = 5
+        if (e.key === '0') {
+          if (uiZoom !== 100) updateSetting('uiZoom', 100)
+        } else if (e.key === '=' || e.key === '+') {
+          const next = Math.min(200, uiZoom + step)
+          if (next !== uiZoom) updateSetting('uiZoom', next)
+        } else {
+          const next = Math.max(50, uiZoom - step)
+          if (next !== uiZoom) updateSetting('uiZoom', next)
+        }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: WheelEvent) => {
+      if (!e.ctrlKey) return
+      if ((e.target as HTMLElement).closest?.('.terminal-container')) return
+      e.preventDefault()
+      const { termZoomEnabled, uiZoom, updateSetting } = useSettingsStore.getState()
+      if (!termZoomEnabled) return
+      const step = 5
+      const next = e.deltaY < 0 ? Math.min(200, uiZoom + step) : Math.max(50, uiZoom - step)
+      if (next !== uiZoom) updateSetting('uiZoom', next)
+    }
+    window.addEventListener('wheel', handler, { passive: false })
+    return () => window.removeEventListener('wheel', handler)
+  }, [])
+}

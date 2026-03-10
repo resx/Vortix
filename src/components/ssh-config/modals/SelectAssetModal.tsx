@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Search, FolderPlus, Copy, ChevronDown, ChevronRight, Folder, Monitor } from 'lucide-react'
+import { AppIcon, icons } from '../../icons/AppIcon'
 import IslandModal from '../../ui/island-modal'
 import { useSshConfigStore } from '../../../stores/useSshConfigStore'
 import { MOCK_ASSET_TREE } from '../../../data/ssh-config-mock'
@@ -42,7 +42,7 @@ export default function SelectAssetModal() {
         {/* 搜索栏 */}
         <div className="relative flex items-center gap-2 p-3 border-b border-border/50 bg-bg-card shrink-0">
           <div className="relative flex-1">
-            <Search size={14} className="absolute left-3 top-2 text-text-3" />
+            <AppIcon icon={icons.search} size={14} className="absolute left-3 top-2 text-text-3" />
             <input
               type="text"
               placeholder="搜索..."
@@ -51,8 +51,8 @@ export default function SelectAssetModal() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <button className="p-1.5 text-text-3 hover:bg-bg-hover rounded transition-colors"><FolderPlus size={16} /></button>
-          <button className="p-1.5 text-text-3 hover:bg-bg-hover rounded transition-colors"><Copy size={16} className="rotate-90" /></button>
+          <button className="p-1.5 text-text-3 hover:bg-bg-hover rounded transition-colors"><AppIcon icon={icons.folderPlus} size={16} /></button>
+          <button className="p-1.5 text-text-3 hover:bg-bg-hover rounded transition-colors"><AppIcon icon={icons.copy} size={16} className="rotate-90" /></button>
         </div>
 
         {/* 树 */}
@@ -94,9 +94,9 @@ function TreeNode({
           onClick={() => setIsOpen(!isOpen)}
         >
           <div className="mr-1 text-text-3 w-4 flex justify-center">
-            {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            {isOpen ? <AppIcon icon={icons.chevronDown} size={14} /> : <AppIcon icon={icons.chevronRight} size={14} />}
           </div>
-          <Folder size={14} className="mr-1.5 text-icon-folder fill-icon-folder" />
+          <AppIcon icon={icons.folder} size={14} className="mr-1.5 text-icon-folder" />
           {node.name}
         </div>
         {isOpen && node.children && (
@@ -116,7 +116,7 @@ function TreeNode({
       style={{ paddingLeft: `${level * 16 + 28}px` }}
       onClick={() => onSelect(node)}
     >
-      <Monitor size={14} className={`mr-1.5 ${isSelected ? 'text-primary' : 'text-text-3'}`} />
+      <AppIcon icon={icons.monitor} size={14} className={`mr-1.5 ${isSelected ? 'text-primary' : 'text-text-3'}`} />
       <span>{node.name}</span>
       {node.ip && <span className={`ml-4 text-[10px] ${isSelected ? 'text-primary/70' : 'text-text-3'}`}>{node.ip}</span>}
     </div>

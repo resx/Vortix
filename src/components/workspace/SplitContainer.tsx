@@ -17,9 +17,11 @@ const MIN_SIZE = 80 // px
 function Resizer({
   direction,
   onResize,
+  onResizeEnd,
 }: {
   direction: 'horizontal' | 'vertical'
   onResize: (delta: number) => void
+  onResizeEnd: () => void
 }) {
   const startRef = useRef(0)
   const isHorizontal = direction === 'horizontal'
@@ -40,11 +42,12 @@ function Resizer({
       document.body.classList.remove('is-resizing')
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      onResizeEnd()
     }
 
     document.addEventListener('mousemove', handleMouseMove)
     document.addEventListener('mouseup', handleMouseUp)
-  }, [isHorizontal, onResize])
+  }, [isHorizontal, onResize, onResizeEnd])
 
   return (
     <div
@@ -68,6 +71,9 @@ export default function SplitContainer({ node, tabId, tab }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const isHorizontal = node.direction === 'horizontal'
 
+  // 拖拽期间只操作 DOM，mouseup 时才同步到 store
+  const pendingRef = useRef<{ child1Id: string; child2Id: string; size1: number; size2: number } | null>(null)
+
   const handleResize = useCallback((index: number) => (delta: number) => {
     const container = containerRef.current
     if (!container) return
@@ -90,11 +96,22 @@ export default function SplitContainer({ node, tabId, tab }: Props) {
     prev.style.flex = `${newPrevSize} 0 0px`
     next.style.flex = `${newNextSize} 0 0px`
 
-    // 同步回 store（节流由 mouseup 处理）
-    const child1 = node.children[index]
-    const child2 = node.children[index + 1]
-    updateFlexGrow(tabId, child1.id, newPrevSize, child2.id, newNextSize)
-  }, [isHorizontal, node.children, tabId, updateFlexGrow])
+    // 暂存待同步数据
+    pendingRef.current = {
+      child1Id: node.children[index].id,
+      child2Id: node.children[index + 1].id,
+      size1: newPrevSize,
+      size2: newNextSize,
+    }
+  }, [isHorizontal, node.children])
+
+  const handleResizeEnd = useCallback(() => {
+    const pending = pendingRef.current
+    if (pending) {
+      updateFlexGrow(tabId, pending.child1Id, pending.size1, pending.child2Id, pending.size2)
+      pendingRef.current = null
+    }
+  }, [tabId, updateFlexGrow])
 
   return (
     <div
@@ -105,7 +122,7 @@ export default function SplitContainer({ node, tabId, tab }: Props) {
         <div key={child.id} className="contents">
           {i > 0 && (
             <div data-resizer="true">
-              <Resizer direction={node.direction} onResize={handleResize(i - 1)} />
+              <Resizer direction={node.direction} onResize={handleResize(i - 1)} onResizeEnd={handleResizeEnd} />
             </div>
           )}
           <div style={{ flex: `${child.flexGrow} 0 0px` }} className="min-w-0 min-h-0 flex">

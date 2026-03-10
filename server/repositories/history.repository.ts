@@ -1,31 +1,20 @@
 /* ── 命令历史 Repository ── */
 
-import { getDb } from '../db/database.js'
+import { historyStore } from '../db/stores.js'
 import type { CommandHistory } from '../types/index.js'
 
 export function findByConnection(connectionId: string, limit = 100): CommandHistory[] {
-  const db = getDb()
-  return db.prepare(
-    'SELECT * FROM command_history WHERE connection_id = ? ORDER BY executed_at DESC LIMIT ?'
-  ).all(connectionId, limit) as CommandHistory[]
+  return historyStore.find((r) => r.connection_id === connectionId, limit)
 }
 
 export function create(connectionId: string, command: string): CommandHistory {
-  const db = getDb()
-  const now = new Date().toISOString()
-  const result = db.prepare(
-    'INSERT INTO command_history (connection_id, command, executed_at) VALUES (?, ?, ?)'
-  ).run(connectionId, command, now)
-  return {
-    id: Number(result.lastInsertRowid),
+  return historyStore.append({
     connection_id: connectionId,
     command,
-    executed_at: now,
-  }
+    executed_at: new Date().toISOString(),
+  } as Omit<CommandHistory, 'id'>)
 }
 
 export function removeByConnection(connectionId: string): number {
-  const db = getDb()
-  const result = db.prepare('DELETE FROM command_history WHERE connection_id = ?').run(connectionId)
-  return result.changes
+  return historyStore.removeWhere((r) => r.connection_id === connectionId)
 }

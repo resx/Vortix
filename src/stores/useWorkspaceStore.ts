@@ -70,6 +70,8 @@ interface WorkspaceState {
   workspaces: Record<string, TabWorkspace>
   initWorkspace: (tabId: string) => void
   initWorkspaceWithPaneId: (tabId: string, paneId: string) => void
+  /** 初始化包含多个 pane 的工作区（同屏打开） */
+  initWorkspaceWithPanes: (tabId: string, panes: { id: string; meta: PaneMeta }[], direction?: SplitDirection) => void
   removeWorkspace: (tabId: string) => void
   splitPane: (tabId: string, paneId: string, direction: SplitDirection) => void
   closePane: (tabId: string, paneId: string) => void
@@ -107,6 +109,37 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       workspaces: {
         ...s.workspaces,
         [tabId]: { rootNode: leaf, activePaneId: paneId },
+      },
+    }))
+  },
+
+  initWorkspaceWithPanes: (tabId, panes, direction = 'horizontal') => {
+    if (get().workspaces[tabId]) return
+    if (panes.length === 0) return
+    if (panes.length === 1) {
+      const leaf: PaneLeaf = { type: 'leaf', id: panes[0].id, flexGrow: 1, collapsed: false, meta: panes[0].meta }
+      set((s) => ({
+        workspaces: {
+          ...s.workspaces,
+          [tabId]: { rootNode: leaf, activePaneId: leaf.id },
+        },
+      }))
+      return
+    }
+    const leaves: PaneLeaf[] = panes.map(p => ({
+      type: 'leaf' as const, id: p.id, flexGrow: 1, collapsed: false, meta: p.meta,
+    }))
+    const root: SplitBranch = {
+      type: 'split',
+      id: nextSplitId(),
+      direction,
+      children: leaves,
+      flexGrow: 1,
+    }
+    set((s) => ({
+      workspaces: {
+        ...s.workspaces,
+        [tabId]: { rootNode: root, activePaneId: leaves[0].id },
       },
     }))
   },

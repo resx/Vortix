@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
-import { X } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { useUIStore } from '../../stores/useUIStore'
 import { useSshConfigStore } from '../../stores/useSshConfigStore'
 import type { SshConfigTab } from '../../stores/useSshConfigStore'
 import StandardTab from './tabs/StandardTab'
@@ -17,9 +17,9 @@ import SelectAssetModal from './modals/SelectAssetModal'
 const TABS: SshConfigTab[] = ['标准', '隧道', '代理', '环境变量', '高级']
 
 export default function SshConfigDialog() {
-  const closeSshConfig = useAppStore((s) => s.closeSshConfig)
-  const sshConfigMode = useAppStore((s) => s.sshConfigMode)
-  const sshConfigInitialId = useAppStore((s) => s.sshConfigInitialId)
+  const closeSshConfig = useUIStore((s) => s.closeSshConfig)
+  const sshConfigMode = useUIStore((s) => s.sshConfigMode)
+  const sshConfigInitialId = useUIStore((s) => s.sshConfigInitialId)
   const activeTab = useSshConfigStore((s) => s.activeTab)
   const setActiveTab = useSshConfigStore((s) => s.setActiveTab)
   const subModals = useSshConfigStore((s) => s.subModals)
@@ -51,7 +51,7 @@ export default function SshConfigDialog() {
             onClick={closeSshConfig}
             className="p-1.5 hover:bg-bg-hover rounded-md text-text-3 transition-colors"
           >
-            <X size={18} />
+            <AppIcon icon={icons.close} size={18} />
           </button>
         </div>
 

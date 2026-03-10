@@ -1,5 +1,5 @@
-import { FolderOpen, File, Upload, Download, RefreshCw, X } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { useUIStore } from '../../stores/useUIStore'
 import { motion } from 'framer-motion'
 
 const mockFiles = [
@@ -13,7 +13,7 @@ const mockFiles = [
 ]
 
 export default function SftpPanel() {
-  const toggleSftp = useAppStore((s) => s.toggleSftp)
+  const toggleSftp = useUIStore((s) => s.toggleSftp)
 
   return (
     <motion.div
@@ -29,16 +29,16 @@ export default function SftpPanel() {
         <span className="text-[13px] font-bold text-text-1">SFTP</span>
         <div className="flex items-center gap-1">
           <button className="p-1 rounded-md text-text-2 hover:bg-bg-hover transition-colors">
-            <Upload className="w-3.5 h-3.5" />
+            <AppIcon icon={icons.upload} size={14} className="w-3.5 h-3.5" />
           </button>
           <button className="p-1 rounded-md text-text-2 hover:bg-bg-hover transition-colors">
-            <Download className="w-3.5 h-3.5" />
+            <AppIcon icon={icons.download} size={14} className="w-3.5 h-3.5" />
           </button>
           <button className="p-1 rounded-md text-text-2 hover:bg-bg-hover transition-colors">
-            <RefreshCw className="w-3.5 h-3.5" />
+            <AppIcon icon={icons.refresh} size={14} className="w-3.5 h-3.5" />
           </button>
           <button className="p-1 rounded-md text-text-2 hover:bg-bg-hover transition-colors" onClick={toggleSftp}>
-            <X className="w-3.5 h-3.5" />
+            <AppIcon icon={icons.close} size={14} className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
@@ -56,9 +56,9 @@ export default function SftpPanel() {
             className="flex items-center gap-2 px-3 py-1.5 hover:bg-bg-hover cursor-pointer text-[12px]"
           >
             {f.type === 'dir' ? (
-              <FolderOpen className="w-3.5 h-3.5 text-icon-folder shrink-0" />
+              <AppIcon icon={icons.folderOpen} size={14} className="w-3.5 h-3.5 text-icon-folder shrink-0" />
             ) : (
-              <File className="w-3.5 h-3.5 text-text-3 shrink-0" />
+              <AppIcon icon={icons.file} size={14} className="w-3.5 h-3.5 text-text-3 shrink-0" />
             )}
             <span className="flex-1 truncate text-text-1">{f.name}</span>
             {f.type === 'file' && (

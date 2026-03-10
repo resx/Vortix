@@ -5,7 +5,7 @@ import { SettingsDropdown } from '../ui/select'
 import { SettingRow } from './SettingGroup'
 import { cn } from '../../lib/utils'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
-import { Check, ChevronDown, ChevronUp, Search } from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
 import { createPortal } from 'react-dom'
 
 /* ── 公共便捷封装 ── */
@@ -88,7 +88,7 @@ export function SColumnSelect({ k, label }: { k: keyof SettingsState; label: str
       <DropdownMenuPrimitive.Root open={open} onOpenChange={setOpen}>
         <DropdownMenuPrimitive.Trigger className="flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded">
           <span className="max-w-[200px] truncate">{selectedText || '未选择'}</span>
-          {open ? <ChevronUp size={14} className="shrink-0" /> : <ChevronDown size={14} className="shrink-0" />}
+          {open ? <AppIcon icon={icons.chevronUp} size={14} className="shrink-0" /> : <AppIcon icon={icons.chevronDown} size={14} className="shrink-0" />}
         </DropdownMenuPrimitive.Trigger>
         <DropdownMenuPrimitive.Portal>
           <DropdownMenuPrimitive.Content
@@ -113,7 +113,7 @@ export function SColumnSelect({ k, label }: { k: keyof SettingsState; label: str
                       : 'bg-bg-card border-text-disabled',
                   )}
                 >
-                  {checked.has(col.key) && <Check size={11} className="text-white" strokeWidth={3} />}
+                  {checked.has(col.key) && <AppIcon icon={icons.check} size={11} className="text-white" />}
                 </div>
                 {col.label}
               </DropdownMenuPrimitive.CheckboxItem>
@@ -364,7 +364,7 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
             : 'bg-transparent border-primary group-hover:border-bg-card',
         )}>
           {isSelected && (
-            <Check size={11} className="text-white group-hover:text-primary" strokeWidth={3} />
+            <AppIcon icon={icons.check} size={11} className="text-white group-hover:text-primary" />
           )}
         </div>
         {isSelected && orderIdx >= 0 && (
@@ -392,7 +392,7 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
         title={displayText}
       >
         <span className="truncate">{displayText}</span>
-        <ChevronDown size={14} className={cn('shrink-0 transition-transform', open && 'rotate-180')} />
+        <AppIcon icon={icons.chevronDown} size={14} className={cn('shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && createPortal(
@@ -408,7 +408,7 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
           <div className="flex items-center gap-2 px-2.5 pt-2 pb-1.5">
             <div className="relative flex-1">
               <div className="absolute inset-y-0 left-2 flex items-center pointer-events-none">
-                <Search size={12} className="text-text-3" />
+                <AppIcon icon={icons.search} size={12} className="text-text-3" />
               </div>
               <input
                 ref={inputRef}
@@ -425,7 +425,7 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
                   <div className="w-2 h-0.5 bg-primary rounded-sm" />
                 )}
                 {isAllSelected && (
-                  <Check size={10} className="text-primary" strokeWidth={3} />
+                  <AppIcon icon={icons.check} size={10} className="text-primary" />
                 )}
                 <input
                   type="checkbox"

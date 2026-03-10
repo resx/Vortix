@@ -1,5 +1,5 @@
-import { ChevronUp } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { useAssetStore } from '../../stores/useAssetStore'
 
 const shortcuts = [
   { label: '全局搜索', keys: ['Ctrl', 'Shift', 'F'] },
@@ -7,8 +7,8 @@ const shortcuts = [
 ]
 
 export default function HiddenShortcuts() {
-  const setAssetHidden = useAppStore((s) => s.setAssetHidden)
-  const setCurrentFolder = useAppStore((s) => s.setCurrentFolder)
+  const setAssetHidden = useAssetStore((s) => s.setAssetHidden)
+  const setCurrentFolder = useAssetStore((s) => s.setCurrentFolder)
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center bg-bg-card">
@@ -30,7 +30,7 @@ export default function HiddenShortcuts() {
         className="mt-12 flex items-center gap-2 px-4 py-1.5 border border-text-disabled rounded-lg bg-bg-card text-text-2 text-[13px] font-medium hover:bg-bg-hover transition-colors shadow-sm"
         onClick={() => { setAssetHidden(false); setCurrentFolder(null) }}
       >
-        <ChevronUp className="w-3.5 h-3.5" /> 显示资产列表
+        <AppIcon icon={icons.chevronUp} size={14} /> 显示资产列表
       </button>
     </div>
   )

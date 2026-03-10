@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { CloudSun, HelpCircle, Link as LinkIcon, X } from 'lucide-react'
+import { AppIcon, icons } from '../../icons/AppIcon'
 import { useSshConfigStore } from '../../../stores/useSshConfigStore'
 import ResizableHeader from '../shared/ResizableHeader'
 
@@ -38,12 +38,17 @@ export default function EnvVarsTab() {
             isLast={false}
             tooltip={
               <div className="relative inline-block ml-1">
-                <HelpCircle
-                  size={12}
-                  className="text-text-3 cursor-help translate-y-0.5"
+                <span
+                  className="inline-flex"
                   onMouseEnter={() => setShowTooltip(true)}
                   onMouseLeave={() => setShowTooltip(false)}
-                />
+                >
+                  <AppIcon
+                    icon={icons.help}
+                    size={12}
+                    className="text-text-3 cursor-help translate-y-0.5"
+                  />
+                </span>
                 {showTooltip && (
                   <div className="absolute left-1/2 -translate-x-[20%] bottom-full mb-2 w-[400px] bg-tooltip-bg text-tooltip-text text-[11px] rounded shadow-xl p-3 z-50 animate-in fade-in slide-in-from-bottom-1 font-normal whitespace-normal">
                     <ul className="list-disc pl-4 space-y-1.5 leading-relaxed">
@@ -66,7 +71,7 @@ export default function EnvVarsTab() {
         >
           {envVars.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-text-3 min-h-[250px]">
-              <CloudSun size={56} className="mb-3 stroke-[1.5]" />
+              <AppIcon icon={icons.cloudSun} size={56} className="mb-3" />
               <p className="text-xs">鼠标右键添加环境变量</p>
             </div>
           ) : (
@@ -98,7 +103,7 @@ export default function EnvVarsTab() {
             className="w-full text-left px-3 py-1.5 text-xs text-text-1 hover:bg-bg-hover flex items-center"
             onClick={() => { addEnvVar(); setCtxMenu((p) => ({ ...p, visible: false })) }}
           >
-            <LinkIcon size={12} className="mr-2 text-text-3" /> 新建
+            <AppIcon icon={icons.link} size={12} className="mr-2 text-text-3" /> 新建
           </button>
           <button
             className="w-full text-left px-3 py-1.5 text-xs text-text-1 hover:bg-bg-hover flex items-center"
@@ -107,7 +112,7 @@ export default function EnvVarsTab() {
               setCtxMenu((p) => ({ ...p, visible: false }))
             }}
           >
-            <X size={12} className="mr-2 text-text-3" /> 删除
+            <AppIcon icon={icons.close} size={12} className="mr-2 text-text-3" /> 删除
           </button>
         </div>
       )}

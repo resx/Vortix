@@ -1,6 +1,7 @@
 /* ── 本地终端 PTY 处理器 ── */
 
 import { spawn, type IPty } from 'node-pty'
+import { existsSync, statSync } from 'fs'
 import type { WebSocket } from 'ws'
 
 export interface LocalPtyConfig {
@@ -27,7 +28,24 @@ const SHELL_MAP: Record<string, string> = {
  * 返回 IPty 实例供外层管理生命周期
  */
 export function createLocalPty(ws: WebSocket, config: LocalPtyConfig): IPty {
-  const shellExe = SHELL_MAP[config.shell] || config.shell
+  // Shell 白名单验证：不允许任意可执行文件
+  const shellExe = SHELL_MAP[config.shell]
+  if (!shellExe) {
+    throw new Error(`不支持的 Shell 类型: ${config.shell}`)
+  }
+
+  // 验证工作目录存在且为目录
+  if (config.workingDir) {
+    try {
+      if (!existsSync(config.workingDir) || !statSync(config.workingDir).isDirectory()) {
+        throw new Error(`工作路径不存在或不是目录: ${config.workingDir}`)
+      }
+    } catch (e) {
+      if ((e as Error).message.includes('工作路径')) throw e
+      throw new Error(`无法访问工作路径: ${config.workingDir}`)
+    }
+  }
+
   const cols = Math.max(config.cols || 120, 80)
   const rows = Math.max(config.rows || 30, 24)
 

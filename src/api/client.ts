@@ -26,12 +26,17 @@ import type {
 // CEF 预留：运行时可通过 window.__VORTIX_CONFIG__ 覆盖
 const config = (window as Record<string, unknown>).__VORTIX_CONFIG__ as { apiBaseUrl?: string } | undefined
 const BASE_URL = config?.apiBaseUrl || 'http://localhost:3001/api'
+Object.freeze(config)
 
 /** 通用请求方法 */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+      ...options?.headers,
+    },
   })
   const json: ApiResponse<T> = await res.json()
   if (!json.success) {
@@ -208,10 +213,20 @@ export async function pingConnections(ids: string[]): Promise<Record<string, num
   })
 }
 
+export async function uploadSshKey(connectionId: string, keyId: string): Promise<{ message: string }> {
+  return request<{ message: string }>(`/connections/${connectionId}/upload-key`, {
+    method: 'POST',
+    body: JSON.stringify({ keyId }),
+  })
+}
+
 export async function testSshConnection(data: { host: string; port: number; username: string; password?: string; privateKey?: string }): Promise<TestResult> {
   const res = await fetch(`${BASE_URL}/connections/test-ssh`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
     body: JSON.stringify(data),
   })
   return res.json() as Promise<TestResult>
@@ -220,7 +235,10 @@ export async function testSshConnection(data: { host: string; port: number; user
 export async function testLocalTerminal(data: { shell: string; workingDir?: string }): Promise<TestResult> {
   const res = await fetch(`${BASE_URL}/connections/test-local`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
     body: JSON.stringify(data),
   })
   return res.json() as Promise<TestResult>
@@ -264,6 +282,13 @@ export async function deleteShortcut(id: string): Promise<void> {
 
 /* ── 云同步 API ── */
 
+export async function syncTest(body: import('./types').SyncRequestBody): Promise<void> {
+  return request<void>('/sync/test', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export async function syncExport(body: import('./types').SyncRequestBody): Promise<void> {
   return request<void>('/sync/export', {
     method: 'POST',
@@ -292,7 +317,33 @@ export async function deleteSyncRemote(body: import('./types').SyncRequestBody):
   })
 }
 
+export async function checkPushConflict(body: import('./types').SyncRequestBody): Promise<import('./types').SyncConflictInfo> {
+  return request<import('./types').SyncConflictInfo>('/sync/check-push', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function checkPullConflict(body: import('./types').SyncRequestBody): Promise<import('./types').SyncConflictInfo> {
+  return request<import('./types').SyncConflictInfo>('/sync/check-pull', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export async function purgeAllData(): Promise<void> {
   return request<void>('/maintenance/purge-all', { method: 'POST' })
+}
+
+/** 获取 WebSocket 基础 URL（自动检测 ws/wss 协议） */
+export function getWsBaseUrl(): string {
+  try {
+    const url = new URL(BASE_URL)
+    const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${wsProtocol}//${url.host}`
+  } catch {
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+    return `${protocol}//${location.host}`
+  }
 }
 

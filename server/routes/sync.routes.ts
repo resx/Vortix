@@ -2,9 +2,10 @@
 
 import { Router } from 'express'
 import * as syncService from '../services/sync.service.js'
+import * as autoSync from '../services/auto-sync.service.js'
 import { createSyncProvider } from '../services/sync-providers/index.js'
 import type { ProviderConfig } from '../services/sync-providers/types.js'
-import type { ApiResponse, ImportResult } from '../types/index.js'
+import type { ApiResponse, ImportResult, SyncConflictInfo } from '../types/index.js'
 import type { SyncFileInfo } from '../services/sync-providers/types.js'
 
 const router = Router()
@@ -13,12 +14,17 @@ const router = Router()
 function parseProviderConfig(body: Record<string, unknown>): ProviderConfig {
   const source = body.repoSource as string
   switch (source) {
-    case 'local':
-      return { type: 'local', path: body.syncLocalPath as string }
-    case 'git':
+    case 'local': {
+      const localPath = body.syncLocalPath as string
+      if (!localPath || typeof localPath !== 'string') throw new Error('本地路径不能为空')
+      return { type: 'local', path: localPath }
+    }
+    case 'git': {
+      const url = body.syncGitUrl as string
+      if (!url || typeof url !== 'string') throw new Error('Git 仓库地址不能为空')
       return {
         type: 'git',
-        url: body.syncGitUrl as string,
+        url,
         branch: (body.syncGitBranch as string) || 'master',
         path: 'Vortix',
         username: body.syncGitUsername as string | undefined,
@@ -26,19 +32,27 @@ function parseProviderConfig(body: Record<string, unknown>): ProviderConfig {
         sshKey: body.syncGitSshKey as string | undefined,
         tlsVerify: body.syncTlsVerify !== false,
       }
-    case 'webdav':
+    }
+    case 'webdav': {
+      const endpoint = body.syncWebdavEndpoint as string
+      if (!endpoint || typeof endpoint !== 'string') throw new Error('WebDAV 地址不能为空')
+      try { new URL(endpoint) } catch { throw new Error('WebDAV 地址格式无效') }
       return {
         type: 'webdav',
-        endpoint: body.syncWebdavEndpoint as string,
+        endpoint,
         path: (body.syncWebdavPath as string) || 'vortix',
         username: body.syncWebdavUsername as string,
         password: body.syncWebdavPassword as string,
         tlsVerify: body.syncTlsVerify !== false,
       }
-    case 's3':
+    }
+    case 's3': {
+      const endpoint = body.syncS3Endpoint as string
+      if (!endpoint || typeof endpoint !== 'string') throw new Error('S3 地址不能为空')
+      try { new URL(endpoint) } catch { throw new Error('S3 地址格式无效') }
       return {
         type: 's3',
-        endpoint: body.syncS3Endpoint as string,
+        endpoint,
         path: (body.syncS3Path as string) || 'vortix',
         region: (body.syncS3Region as string) || 'us-east-1',
         bucket: body.syncS3Bucket as string,
@@ -47,10 +61,28 @@ function parseProviderConfig(body: Record<string, unknown>): ProviderConfig {
         style: (body.syncS3Style as 'virtual-hosted' | 'path') || 'virtual-hosted',
         tlsVerify: body.syncTlsVerify !== false,
       }
+    }
     default:
       throw new Error(`不支持的仓库源: ${source}`)
   }
 }
+
+// POST /sync/test — 连通性测试（不影响真实同步数据）
+router.post('/sync/test', async (req, res) => {
+  await autoSync.suspend()
+  try {
+    const pc = parseProviderConfig(req.body)
+    const provider = createSyncProvider(pc)
+    await provider.test()
+    const body: ApiResponse = { success: true }
+    res.json(body)
+  } catch (e) {
+    const body: ApiResponse = { success: false, error: (e as Error).message }
+    res.status(500).json(body)
+  } finally {
+    autoSync.resume()
+  }
+})
 
 // POST /sync/export — 导出同步数据到指定源
 router.post('/sync/export', async (req, res) => {
@@ -103,6 +135,34 @@ router.delete('/sync/remote', async (req, res) => {
     const provider = createSyncProvider(pc)
     await provider.delete()
     const body: ApiResponse = { success: true }
+    res.json(body)
+  } catch (e) {
+    const body: ApiResponse = { success: false, error: (e as Error).message }
+    res.status(500).json(body)
+  }
+})
+
+// POST /sync/check-push — 推送前冲突检测
+router.post('/sync/check-push', async (req, res) => {
+  try {
+    const pc = parseProviderConfig(req.body)
+    const provider = createSyncProvider(pc)
+    const info = await syncService.checkPushConflict(provider)
+    const body: ApiResponse<SyncConflictInfo> = { success: true, data: info }
+    res.json(body)
+  } catch (e) {
+    const body: ApiResponse = { success: false, error: (e as Error).message }
+    res.status(500).json(body)
+  }
+})
+
+// POST /sync/check-pull — 拉取前冲突检测
+router.post('/sync/check-pull', async (req, res) => {
+  try {
+    const pc = parseProviderConfig(req.body)
+    const provider = createSyncProvider(pc)
+    const info = await syncService.checkPullConflict(provider)
+    const body: ApiResponse<SyncConflictInfo> = { success: true, data: info }
     res.json(body)
   } catch (e) {
     const body: ApiResponse = { success: false, error: (e as Error).message }

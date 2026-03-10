@@ -227,23 +227,83 @@ export interface SyncFileInfo {
 export interface ImportResult {
   folders: number
   connections: number
-  settings: number
   shortcuts: number
-  profiles: number
+  sshKeys: number
 }
 
-/** 同步文件内部 JSON 结构 */
-export interface SyncPayload {
+/** 同步用 SSH 密钥（含明文私钥/密码短语，不含加密字段） */
+export interface SyncSshKey {
+  id: string
+  name: string
+  key_type: string
+  private_key: string
+  public_key: string | null
+  passphrase: string | null
+  certificate: string | null
+  remark: string
+  description: string
+  created_at: string
+}
+
+/** 旧版同步文件内部 JSON 结构（v1/v2 二进制格式） */
+export interface SyncPayloadLegacy {
   version: number
   exportedAt: string
   data: {
     folders: Folder[]
     connections: SyncConnection[]
-    settings: Record<string, unknown>
+    settings?: Record<string, unknown>
     shortcuts: Shortcut[]
-    terminalProfiles: unknown[]
+    terminalProfiles?: unknown[]
+    sshKeys?: SyncSshKey[]
   }
 }
+
+/** v3 同步文件元信息 */
+export interface SyncMeta {
+  revision: number
+  lastSyncDeviceId: string
+  encryptionSalt?: string
+  /** 'builtin' = 内置密钥, 'user' = 用户自定义密钥, 缺失 = 旧版明文 */
+  encryptionType?: 'builtin' | 'user'
+}
+
+/** v3 JSON 同步文件格式 */
+export interface SyncPayloadV3 {
+  $schema: 'vortix-sync'
+  version: 3
+  deviceId: string
+  exportedAt: string
+  checksum: string
+  syncMeta: SyncMeta
+  data: {
+    folders: Folder[]
+    connections: SyncConnection[]
+    shortcuts: Shortcut[]
+    sshKeys: SyncSshKey[]
+  }
+}
+
+/** 本地同步状态（data/sync-state.json） */
+export interface SyncState {
+  deviceId: string
+  lastSyncRevision: number
+  lastSyncAt: string | null
+  localDirty: boolean
+}
+
+/** 冲突检测结果 */
+export interface SyncConflictInfo {
+  hasConflict: boolean
+  reason?: 'remote_ahead' | 'local_dirty'
+  localRevision: number
+  remoteRevision: number
+  remoteDeviceId?: string
+  remoteExportedAt?: string
+}
+
+/** 兼容新旧格式的统一 payload（内部使用） */
+export type SyncPayload = SyncPayloadLegacy | SyncPayloadV3
 
 // ── SSH 密钥库 ──
 

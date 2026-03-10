@@ -283,6 +283,34 @@ const DEFAULTS: SettingsState = {
   debugMode: false,
 };
 
+/** 从 settings store 构建同步请求体（共享工具函数） */
+export function buildSyncBody(): import('../api/types').SyncRequestBody {
+  const s = useSettingsStore.getState()
+  return {
+    repoSource: s.syncRepoSource,
+    encryptionKey: s.syncEncryptionKey || undefined,
+    syncLocalPath: s.syncLocalPath ?? '',
+    syncTlsVerify: s.syncTlsVerify,
+    syncGitUrl: s.syncGitUrl ?? '',
+    syncGitBranch: s.syncGitBranch ?? 'master',
+    syncGitPath: s.syncGitPath ?? '',
+    syncGitUsername: s.syncGitUsername ?? '',
+    syncGitPassword: s.syncGitPassword ?? '',
+    syncGitSshKey: s.syncGitSshKey ?? '',
+    syncWebdavEndpoint: s.syncWebdavEndpoint ?? '',
+    syncWebdavPath: s.syncWebdavPath ?? 'vortix',
+    syncWebdavUsername: s.syncWebdavUsername ?? '',
+    syncWebdavPassword: s.syncWebdavPassword ?? '',
+    syncS3Style: s.syncS3Style ?? 'virtual-hosted',
+    syncS3Endpoint: s.syncS3Endpoint ?? '',
+    syncS3Path: s.syncS3Path ?? 'vortix',
+    syncS3Region: s.syncS3Region ?? 'ap-east-1',
+    syncS3Bucket: s.syncS3Bucket ?? '',
+    syncS3AccessKey: s.syncS3AccessKey ?? '',
+    syncS3SecretKey: s.syncS3SecretKey ?? '',
+  }
+}
+
 interface SettingsStore extends SettingsState {
   _dirty: boolean;
   _loaded: boolean;

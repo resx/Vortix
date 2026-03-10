@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { AppIcon, icons } from '../../icons/AppIcon'
 import { useSshConfigStore } from '../../../stores/useSshConfigStore'
 import type { ProxyType } from '../../../stores/useSshConfigStore'
 
@@ -32,7 +32,7 @@ export default function ProxyTab() {
               <option key={opt} value={opt}>{opt}</option>
             ))}
           </select>
-          <ChevronDown size={14} className="absolute right-2.5 top-2 text-text-3 pointer-events-none" />
+          <AppIcon icon={icons.chevronDown} size={14} className="absolute right-2.5 top-2 text-text-3 pointer-events-none" />
         </div>
       </div>
 
@@ -59,7 +59,7 @@ export default function ProxyTab() {
               <span className={store.jumpServerName ? 'text-text-1' : 'text-text-3'}>
                 {store.jumpServerName || '请选择'}
               </span>
-              <ChevronDown size={14} className="text-text-3" />
+              <AppIcon icon={icons.chevronDown} size={14} className="text-text-3" />
             </div>
             {err.jumpServer && <p className="text-red-500 text-[10px] mt-1 tracking-wide">{err.jumpServer}</p>}
           </div>
@@ -88,7 +88,7 @@ export default function ProxyTab() {
                 onChange={(e) => store.setField('proxyPassword', e.target.value)}
               />
               <button onClick={() => setShowProxyPwd(!showProxyPwd)} className="absolute right-2.5 top-1.5 text-text-3 hover:text-text-2">
-                {showProxyPwd ? <Eye size={16} /> : <EyeOff size={16} />}
+                {showProxyPwd ? <AppIcon icon={icons.eye} size={16} /> : <AppIcon icon={icons.eyeOff} size={16} />}
               </button>
             </div>
           </div>

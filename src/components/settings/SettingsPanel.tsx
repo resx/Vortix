@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { motion, useDragControls } from 'framer-motion'
-import { Pin, PinOff, Minus, Square, X, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { useUIStore } from '../../stores/useUIStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { getSettingsEntries, getSettingsComponent } from '../../registries/settings-panel.registry'
 import * as api from '../../api/client'
 import type { SyncRequestBody } from '../../api/types'
-import BasicSettings from './BasicSettings'
-import SSHSettings from './SSHSettings'
-import DatabaseSettings from './DatabaseSettings'
-import SyncSettings from './SyncSettings'
 
 /* ── 全息指令盒 Logo（与主 Header 一致） ── */
 
@@ -87,35 +84,14 @@ function WinBtn({ children, onClick, hoverClass = 'hover:bg-border' }: {
   )
 }
 
-/* ── 导航数据 ── */
-
-const NAV_DATA = [
-  { type: 'group', label: '通用' },
-  { type: 'item', id: 'basic', label: '基础' },
-  { type: 'item', id: 'ssh', label: 'SSH/SFTP' },
-  { type: 'item', id: 'database', label: '数据库' },
-  { type: 'group', label: '数据', mt: true },
-  { type: 'item', id: 'sync', label: '数据同步' },
-  { type: 'group', label: '快捷键', mt: true },
-  { type: 'item', id: 'kb-basic', label: '基础' },
-  { type: 'item', id: 'kb-ssh', label: 'SSH/SFTP' },
-  { type: 'item', id: 'kb-database', label: '数据库' },
-  { type: 'item', id: 'kb-docker', label: 'Docker' },
-] as const
-
-const CONTENT_MAP: Record<string, React.ComponentType> = {
-  basic: BasicSettings,
-  ssh: SSHSettings,
-  database: DatabaseSettings,
-  sync: SyncSettings,
-}
+/* ── 导航数据从注册表读取 ── */
 
 /* ── 主组件 ── */
 
 export default function SettingsPanel() {
-  const toggleSettings = useAppStore((s) => s.toggleSettings)
-  const settingsInitialNav = useAppStore((s) => s.settingsInitialNav)
-  const setSettingsInitialNav = useAppStore((s) => s.setSettingsInitialNav)
+  const toggleSettings = useUIStore((s) => s.toggleSettings)
+  const settingsInitialNav = useUIStore((s) => s.settingsInitialNav)
+  const setSettingsInitialNav = useUIStore((s) => s.setSettingsInitialNav)
   const dirty = useSettingsStore((s) => s._dirty)
   const applySettings = useSettingsStore((s) => s.applySettings)
   const resetToDefaults = useSettingsStore((s) => s.resetToDefaults)
@@ -181,8 +157,9 @@ export default function SettingsPanel() {
     return () => window.removeEventListener('keydown', handler)
   }, [toggleSettings, dirty, applySettings])
 
-  const ContentComponent = CONTENT_MAP[activeNav]
-  const PinIcon = pinned ? PinOff : Pin
+  const navData = getSettingsEntries()
+  const ContentComponent = getSettingsComponent(activeNav)
+  const pinIcon = pinned ? icons.pinOff : icons.pin
 
   const panelSize = maximized
     ? 'w-full h-full max-w-full max-h-full rounded-none'
@@ -231,16 +208,16 @@ export default function SettingsPanel() {
           {/* 右：窗口控制 */}
           <div className="flex items-center gap-0.5 w-[120px] justify-end">
             <WinBtn onClick={() => setPinned(!pinned)}>
-              <PinIcon size={13} className={pinned ? 'text-primary' : ''} />
+              <AppIcon icon={pinIcon} size={13} className={pinned ? 'text-primary' : ''} />
             </WinBtn>
             <WinBtn onClick={toggleSettings}>
-              <Minus size={14} />
+              <AppIcon icon={icons.minimize} size={14} />
             </WinBtn>
             <WinBtn onClick={() => setMaximized(!maximized)}>
-              <Square size={12} />
+              <AppIcon icon={icons.maximize} size={12} />
             </WinBtn>
             <WinBtn onClick={toggleSettings} hoverClass="hover:bg-[#FEE2E2]">
-              <X size={14} />
+              <AppIcon icon={icons.close} size={14} />
             </WinBtn>
           </div>
         </div>
@@ -249,7 +226,7 @@ export default function SettingsPanel() {
         <div className="flex-1 flex overflow-hidden">
           {/* 左侧导航 */}
           <div className="w-[180px] flex flex-col py-2 overflow-y-auto custom-scrollbar shrink-0 select-none bg-bg-base">
-            {NAV_DATA.map((item, i) => {
+            {navData.map((item, i) => {
               if (item.type === 'group') {
                 return (
                   <div key={i} className={`text-[12px] text-text-3 px-5 py-1.5 mb-1 font-medium ${'mt' in item && item.mt ? 'mt-3' : 'mt-1'}`}>
@@ -296,12 +273,12 @@ export default function SettingsPanel() {
                     onClick={handleTestSync}
                     className="flex items-center gap-1.5 px-5 py-2 bg-bg-base text-text-2 rounded-lg text-[13px] hover:bg-border transition-colors font-medium disabled:opacity-50"
                   >
-                    {syncTesting ? <Loader2 size={14} className="animate-spin" /> : null}
+                    {syncTesting ? <AppIcon icon={icons.loader} size={14} className="animate-spin" /> : null}
                     {syncTesting ? '同步中...' : '测试同步'}
                   </button>
                   {syncTestResult && (
                     <span className={`flex items-center gap-1 text-[12px] ${syncTestResult.ok ? 'text-chart-green' : 'text-status-error'}`}>
-                      {syncTestResult.ok ? <CheckCircle2 size={13} /> : <AlertTriangle size={13} />}
+                      {syncTestResult.ok ? <AppIcon icon={icons.checkCircle} size={13} /> : <AppIcon icon={icons.alertTriangle} size={13} />}
                       {syncTestResult.msg}
                     </span>
                   )}

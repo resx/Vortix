@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import * as api from '../api/client'
-import { useAppStore } from './useAppStore'
+import { useUIStore } from './useUIStore'
+import { useAssetStore } from './useAssetStore'
 
 /* ── 类型定义 ── */
 
@@ -75,7 +76,8 @@ export const useLocalTerminalConfigStore = create<LocalTerminalConfigState>((set
     if (!s.validate()) return
     set({ saving: true })
     try {
-      const appStore = useAppStore.getState()
+      const appStore = useUIStore.getState()
+      const assetStore = useAssetStore.getState()
       const isEdit = appStore.localTermConfigMode === 'edit' && !!s.editingId
 
       const payload = {
@@ -91,7 +93,7 @@ export const useLocalTerminalConfigStore = create<LocalTerminalConfigState>((set
           workingDir: s.workingDir,
           initialCommand: s.initialCommand,
         }),
-        folder_id: appStore.currentFolder,
+        folder_id: assetStore.currentFolder,
       }
 
       if (isEdit) {
@@ -100,7 +102,7 @@ export const useLocalTerminalConfigStore = create<LocalTerminalConfigState>((set
         await api.createConnection(payload)
       }
 
-      await appStore.fetchAssets()
+      await assetStore.fetchAssets()
       appStore.closeLocalTermConfig()
       get().reset()
     } catch {

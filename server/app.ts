@@ -17,8 +17,10 @@ import sshKeysRoutes from './routes/sshkeys.routes.js'
 const app = express()
 
 // 中间件
-app.use(cors())
-app.use(express.json())
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:4173', 'http://127.0.0.1:4173'],
+}))
+app.use(express.json({ limit: '5mb' }))
 
 // API 路由
 app.use('/api', healthRoutes)

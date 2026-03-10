@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Search, Plus } from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
 import { cn } from '../../lib/utils'
 import type { TermThemePreset } from '../terminal/themes/index'
 import { getThemesByMode } from '../terminal/themes/index'
@@ -68,7 +68,7 @@ export default function TermThemeGrid({
     <div>
       {/* 搜索栏 */}
       <div className="relative mb-3">
-        <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-3" />
+        <AppIcon icon={icons.search} size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-3" />
         <input
           type="text"
           value={search}
@@ -90,7 +90,7 @@ export default function TermThemeGrid({
         ))}
         {/* 自定义主题占位 */}
         <div className="flex flex-col items-center justify-center rounded-lg border-[1.5px] border-dashed border-border cursor-not-allowed opacity-50 min-h-[72px]">
-          <Plus size={16} className="text-text-3 mb-1" />
+          <AppIcon icon={icons.plus} size={16} className="text-text-3 mb-1" />
           <span className="text-[10px] text-text-3">自定义</span>
         </div>
       </div>

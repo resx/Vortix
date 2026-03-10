@@ -2,11 +2,12 @@
 /* 包含：PaneToolbar（浮动工具栏，仅多 pane 时显示）、DropOverlay、SshTerminal */
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { ChevronLeft, ChevronRight, X, GripVertical } from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
 import SshTerminal from '../terminal/SshTerminal'
 import type { TerminalConnection } from '../terminal/SshTerminal'
 import { useWorkspaceStore, collectLeafIds, findNode } from '../../stores/useWorkspaceStore'
-import { useAppStore } from '../../stores/useAppStore'
+import { useTabStore } from '../../stores/useTabStore'
+import { useUIStore } from '../../stores/useUIStore'
 import { destroySession, isTransferring, markTransferring, unmarkTransferring } from '../../stores/terminalSessionRegistry'
 import * as api from '../../api/client'
 import type { AppTab } from '../../types'
@@ -55,7 +56,7 @@ function PaneToolbar({
         className="absolute top-0 right-0 z-10 w-[26px] h-[26px] flex items-center justify-center rounded-bl-md bg-black/20 backdrop-blur-[2px] text-white/60 hover:bg-black/40 hover:text-white/90 transition-all"
         onClick={(e) => { e.stopPropagation(); toggleCollapsed(tabId, paneId) }}
       >
-        <ChevronLeft className="w-3.5 h-3.5" />
+        <AppIcon icon={icons.chevronLeft} size={14} />
       </button>
     )
   }
@@ -69,7 +70,7 @@ function PaneToolbar({
       onMouseDown={(e) => e.stopPropagation()}
       onClick={() => setActivePane(tabId, paneId)}
     >
-      <GripVertical className="w-3 h-3 text-white/60 cursor-grab shrink-0" />
+      <AppIcon icon={icons.gripVertical} size={12} className="text-white/60 cursor-grab shrink-0" />
       {paneIndex != null && (
         <span className="text-[10px] text-white/50 font-mono">#{paneIndex}</span>
       )}
@@ -80,28 +81,28 @@ function PaneToolbar({
         className="p-0.5 rounded hover:bg-white/15 text-white/70 hover:text-white"
         onClick={(e) => { e.stopPropagation(); toggleCollapsed(tabId, paneId) }}
       >
-        <ChevronRight className="w-3 h-3" />
+        <AppIcon icon={icons.chevronRight} size={12} />
       </button>
       <button
         className="p-0.5 rounded hover:bg-red-500/30 text-white/70 hover:text-red-300 shrink-0"
         onClick={(e) => { e.stopPropagation(); closePane(tabId, paneId) }}
       >
-        <X className="w-3 h-3" />
+        <AppIcon icon={icons.close} size={12} />
       </button>
     </div>
   )
 }
 
 export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, paneIndex }: Props) {
-  const showContextMenu = useAppStore(s => s.showContextMenu)
-  const updateTabStatus = useAppStore(s => s.updateTabStatus)
+  const showContextMenu = useUIStore(s => s.showContextMenu)
+  const updateTabStatus = useTabStore(s => s.updateTabStatus)
   const setActivePane = useWorkspaceStore(s => s.setActivePane)
   const workspace = useWorkspaceStore(s => s.workspaces[tabId])
   const movePane = useWorkspaceStore(s => s.movePane)
   const paneMeta = useWorkspaceStore(s => s.getPaneMeta(tabId, paneId))
 
   const insertPaneAt = useWorkspaceStore(s => s.insertPaneAt)
-  const closeTab = useAppStore(s => s.closeTab)
+  const closeTab = useTabStore(s => s.closeTab)
 
   const [dropZone, setDropZone] = useState<DropZone | null>(null)
   const [connection, setConnection] = useState<TerminalConnection | null>(null)
@@ -109,17 +110,21 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
   const loadedRef = useRef(false)
 
   // 加载凭据（每个 pane 独立加载一次）
+  // 优先从 paneMeta 加载（同屏打开 / 跨标签页转移），否则从 tab 级别加载
   const loadCredential = useCallback(async () => {
     if (loadedRef.current) return
     loadedRef.current = true
     try {
-      if (tab.quickConnect) {
-        setConnection(tab.quickConnect)
-      } else if (tab.connectionId) {
-        // 先获取连接信息判断协议类型
-        const conn = await api.getConnection(tab.connectionId)
+      // 确定连接来源：paneMeta 优先于 tab
+      const connId = paneMeta?.connectionId ?? tab.connectionId
+      const quickConn = paneMeta?.quickConnect ?? tab.quickConnect
+      const assetRow = paneMeta?.assetRow ?? tab.assetRow
+
+      if (quickConn) {
+        setConnection(quickConn)
+      } else if (connId) {
+        const conn = await api.getConnection(connId)
         if (conn.protocol === 'local') {
-          // 本地终端：从 advanced JSON 提取配置
           const adv = conn.advanced as Record<string, unknown>
           setConnection({
             type: 'local',
@@ -128,18 +133,17 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
             initialCommand: (adv.initialCommand as string) || undefined,
           })
         } else {
-          // SSH：获取解密凭据
-          const cred = await api.getConnectionCredential(tab.connectionId)
+          const cred = await api.getConnectionCredential(connId)
           setConnection({ host: cred.host, port: cred.port, username: cred.username, password: cred.password, privateKey: cred.private_key })
         }
-      } else if (tab.assetRow) {
-        setConnection({ host: tab.assetRow.host, port: 22, username: tab.assetRow.user })
+      } else if (assetRow) {
+        setConnection({ host: assetRow.host, port: 22, username: assetRow.user })
       }
     } catch (e) {
       setError((e as Error).message)
       updateTabStatus(tab.id, 'error')
     }
-  }, [tab, updateTabStatus])
+  }, [tab, paneMeta, updateTabStatus])
 
   // 首次渲染加载
   useState(() => { loadCredential() })
@@ -205,7 +209,7 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
         const extractedMeta = wsStore.extractPane(sourceTabId, sourceId)
         if (extractedMeta) {
           // 如果 pane 自身没有 meta，从源标签页构建
-          const sourceTab = useAppStore.getState().tabs.find(t => t.id === sourceTabId)
+          const sourceTab = useTabStore.getState().tabs.find(t => t.id === sourceTabId)
           const meta = extractedMeta.label ? extractedMeta : sourceTab ? {
             label: sourceTab.label,
             connectionId: sourceTab.connectionId,
@@ -215,7 +219,7 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
           } : extractedMeta
           wsStore.insertPaneAt(tabId, paneId, sourceId, dropZone, meta)
           // 同步源标签页信息（若仅剩一个带 meta 的 pane）
-          useAppStore.getState().syncTabWithRemainingPanes(sourceTabId)
+          useTabStore.getState().syncTabWithRemainingPanes(sourceTabId)
         }
         setTimeout(() => unmarkTransferring(sourceId), 100)
       } else {
@@ -229,7 +233,7 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
     const dragTabId = e.dataTransfer.getData('text/tab-id')
     if (dragTabId && dragTabId !== tabId) {
       // 禁止拖动当前激活标签页到终端分屏
-      const appStore = useAppStore.getState()
+      const appStore = useTabStore.getState()
       if (dragTabId === appStore.activeTabId) { setDropZone(null); return }
       const sourceTab = appStore.tabs.find(t => t.id === dragTabId)
       const wsStore = useWorkspaceStore.getState()

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { motion, useDragControls } from 'framer-motion'
-import { X, Plus, Copy, Trash2, ChevronDown } from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 import { getThemeById } from '../terminal/themes/index'
 import { DEFAULT_PROFILE_ID } from '../../types/terminal-profile'
@@ -56,7 +56,7 @@ function ProfileSelector({
         className="flex items-center gap-1.5 h-[28px] px-2.5 rounded-md border border-border bg-bg-card text-[12px] text-text-1 hover:border-primary/50 transition-colors min-w-[100px]"
       >
         <span className="truncate">{current?.name ?? '默认'}</span>
-        <ChevronDown size={12} className={`shrink-0 text-text-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <AppIcon icon={icons.chevronDown} size={12} className={`shrink-0 text-text-3 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <>
@@ -172,7 +172,7 @@ export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps)
             onClick={onClose}
             className="w-[28px] h-[28px] flex items-center justify-center rounded-md text-text-3 hover:text-text-1 hover:bg-[#FEE2E2] transition-colors"
           >
-            <X size={14} />
+            <AppIcon icon={icons.close} size={14} />
           </button>
         </div>
 
@@ -181,14 +181,14 @@ export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps)
           <span className="text-[12px] text-text-2 shrink-0">配置:</span>
           <ProfileSelector profiles={allProfiles} activeId={selectedProfileId} onChange={handleProfileChange} />
           <button onClick={handleCreate} className="flex items-center gap-1 h-[28px] px-2 rounded-md text-[11px] text-text-2 hover:text-primary hover:bg-primary/5 transition-colors" title="新建">
-            <Plus size={13} /> 新建
+            <AppIcon icon={icons.plus} size={13} /> 新建
           </button>
           <button onClick={handleDuplicate} className="flex items-center gap-1 h-[28px] px-2 rounded-md text-[11px] text-text-2 hover:text-primary hover:bg-primary/5 transition-colors" title="复制">
-            <Copy size={13} /> 复制
+            <AppIcon icon={icons.copy} size={13} /> 复制
           </button>
           {selectedProfileId !== DEFAULT_PROFILE_ID && (
             <button onClick={handleDelete} className="flex items-center gap-1 h-[28px] px-2 rounded-md text-[11px] text-text-2 hover:text-red-500 hover:bg-red-50 transition-colors" title="删除">
-              <Trash2 size={13} /> 删除
+              <AppIcon icon={icons.trash} size={13} /> 删除
             </button>
           )}
         </div>

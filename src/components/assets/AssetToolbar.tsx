@@ -1,21 +1,18 @@
 import { useRef, useEffect } from 'react'
-import {
-  Home, RefreshCw, Link as LinkIcon, FolderPlus, Eye, EyeOff,
-  ChevronDown, ChevronRight, AlignJustify,
-  Terminal, Package, Monitor, Database, Network, Usb,
-} from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { ProtocolIcon, DB_LABEL_PROTOCOL } from '../icons/ProtocolIcons'
 import { PingIcon, PingOffIcon } from '../icons/CustomIcons'
-import { useAppStore } from '../../stores/useAppStore'
+import { useAssetStore } from '../../stores/useAssetStore'
+import { useUIStore } from '../../stores/useUIStore'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
-import type { LucideIcon } from 'lucide-react'
 
 /* 工具栏按钮 + tooltip */
 function ToolbarActionBtn({
-  icon: Icon,
+  icon,
   tooltip,
   onClick,
 }: {
-  icon: LucideIcon | typeof PingIcon
+  icon: string | typeof PingIcon
   tooltip: string
   onClick?: (e: React.MouseEvent) => void
 }) {
@@ -26,7 +23,7 @@ function ToolbarActionBtn({
           onClick={(e) => { e.stopPropagation(); onClick?.(e) }}
           className="p-1 rounded-md text-text-2 hover:bg-bg-hover hover:text-text-1 transition-colors"
         >
-          <Icon className="w-[15px] h-[15px]" />
+          {typeof icon === 'string' ? <AppIcon icon={icon} size={15} /> : (() => { const C = icon; return <C className="w-[15px] h-[15px]" /> })()}
         </button>
       </TooltipTrigger>
       <TooltipContent>{tooltip}</TooltipContent>
@@ -36,20 +33,20 @@ function ToolbarActionBtn({
 
 /* 新建下拉菜单项 */
 function DropdownMenuItem({
-  icon: Icon,
+  icon,
   label,
   hasSubmenu,
   submenuKey,
   onClick,
 }: {
-  icon: LucideIcon
+  icon: string
   label: string
   hasSubmenu?: boolean
   submenuKey?: string
   onClick?: () => void
 }) {
-  const activeNewSubmenu = useAppStore((s) => s.activeNewSubmenu)
-  const setActiveNewSubmenu = useAppStore((s) => s.setActiveNewSubmenu)
+  const activeNewSubmenu = useUIStore((s) => s.activeNewSubmenu)
+  const setActiveNewSubmenu = useUIStore((s) => s.setActiveNewSubmenu)
 
   return (
     <div
@@ -59,34 +56,28 @@ function DropdownMenuItem({
       onClick={() => { if (!hasSubmenu && onClick) onClick() }}
     >
       <div className="flex items-center gap-2.5">
-        <Icon className="w-3.5 h-3.5 text-text-2 group-hover:text-white transition-colors" />
+        <AppIcon icon={icon} size={14} className="text-text-2 group-hover:text-white transition-colors" />
         <span>{label}</span>
       </div>
-      {hasSubmenu && <ChevronRight className="w-3.5 h-3.5 text-text-3 group-hover:text-white" />}
+      {hasSubmenu && <AppIcon icon={icons.chevronRight} size={14} className="text-text-3 group-hover:text-white" />}
 
       {hasSubmenu && activeNewSubmenu === submenuKey && (
         <div className="absolute top-0 left-full pl-1 z-[101]">
           <div className="bg-bg-card/75 backdrop-blur-2xl border border-bg-card/60 rounded-xl shadow-lg py-1.5 min-w-[150px]">
             {submenuKey === 'remote' && (
               <>
-                <SubItem icon={Terminal} label="SSH" />
-                <SubItem icon={Network} label="SSH隧道" />
-                <SubItem icon={Monitor} label="RDP" />
-                <SubItem icon={Monitor} label="Telnet" />
-                <SubItem icon={Usb} label="串口" />
+                <SubItem icon={icons.terminal} label="SSH" />
+                <SubItem icon={icons.network} label="SSH隧道" />
+                <SubItem icon={icons.screenShare} label="RDP" />
+                <SubItem icon={icons.monitor} label="Telnet" />
+                <SubItem icon={icons.usb} label="串口" />
               </>
             )}
             {submenuKey === 'db' && (
               <>
-                <SubItem icon={Database} label="Redis" />
-                <SubItem icon={Database} label="MySQL" />
-                <SubItem icon={Database} label="MariaDB" />
-                <SubItem icon={Database} label="PostgreSQL" />
-                <SubItem icon={Database} label="SqlServer" />
-                <SubItem icon={Database} label="ClickHouse" />
-                <SubItem icon={Database} label="SQLite" />
-                <SubItem icon={Database} label="Oracle" />
-                <SubItem icon={Database} label="达梦" />
+                {['Redis', 'MySQL', 'MariaDB', 'PostgreSQL', 'SqlServer', 'ClickHouse', 'SQLite', 'Oracle', '达梦'].map((db) => (
+                  <SubItem key={db} iconNode={<ProtocolIcon protocol={DB_LABEL_PROTOCOL[db]} size={14} mono className="text-text-1" />} label={db} />
+                ))}
               </>
             )}
           </div>
@@ -96,28 +87,29 @@ function DropdownMenuItem({
   )
 }
 
-function SubItem({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
+function SubItem({ icon, iconNode, label }: { icon?: string; iconNode?: React.ReactNode; label: string }) {
   return (
     <div className="px-3 py-1.5 hover:bg-bg-hover text-text-1 text-[13px] flex items-center gap-2 cursor-pointer">
-      <Icon className="w-3.5 h-3.5 text-text-2" />
+      {iconNode || (icon && <AppIcon icon={icon} size={14} className="text-text-2" />)}
       {label}
     </div>
   )
 }
 
 export default function AssetToolbar() {
-  const showPing = useAppStore((s) => s.showPing)
-  const togglePing = useAppStore((s) => s.togglePing)
-  const refreshPing = useAppStore((s) => s.refreshPing)
-  const isAnonymized = useAppStore((s) => s.isAnonymized)
-  const toggleAnonymized = useAppStore((s) => s.toggleAnonymized)
-  const setAssetHidden = useAppStore((s) => s.setAssetHidden)
-  const setCurrentFolder = useAppStore((s) => s.setCurrentFolder)
-  const setShowDirModal = useAppStore((s) => s.setShowDirModal)
-  const newMenuOpen = useAppStore((s) => s.newMenuOpen)
-  const setNewMenuOpen = useAppStore((s) => s.setNewMenuOpen)
-  const openLocalTermConfig = useAppStore((s) => s.openLocalTermConfig)
-  const selectedRowIds = useAppStore((s) => s.selectedRowIds)
+  const showPing = useAssetStore((s) => s.showPing)
+  const togglePing = useAssetStore((s) => s.togglePing)
+  const refreshPing = useAssetStore((s) => s.refreshPing)
+  const fetchAssets = useAssetStore((s) => s.fetchAssets)
+  const isAnonymized = useAssetStore((s) => s.isAnonymized)
+  const toggleAnonymized = useAssetStore((s) => s.toggleAnonymized)
+  const setAssetHidden = useAssetStore((s) => s.setAssetHidden)
+  const setCurrentFolder = useAssetStore((s) => s.setCurrentFolder)
+  const setShowDirModal = useUIStore((s) => s.setShowDirModal)
+  const newMenuOpen = useUIStore((s) => s.newMenuOpen)
+  const setNewMenuOpen = useUIStore((s) => s.setNewMenuOpen)
+  const openLocalTermConfig = useUIStore((s) => s.openLocalTermConfig)
+  const selectedRowIds = useAssetStore((s) => s.selectedRowIds)
 
   const newMenuRef = useRef<HTMLDivElement>(null)
 
@@ -134,7 +126,7 @@ export default function AssetToolbar() {
   return (
     <div id="asset-toolbar" className="h-[44px] border-b border-border flex items-center justify-between px-3 shrink-0">
       <div className="flex items-center gap-2">
-        <AlignJustify className="w-3.5 h-3.5 text-text-3" />
+        <AppIcon icon={icons.alignJustify} size={14} className="text-text-3" />
         <span className="text-[13px] font-medium text-text-1">资产列表</span>
         <span className="text-[12px] text-text-3 ml-4">已选择 {selectedRowIds.size} 个连接</span>
       </div>
@@ -148,27 +140,27 @@ export default function AssetToolbar() {
           />
         </div>
 
-        <ToolbarActionBtn icon={Home} tooltip="回到首页" onClick={() => setCurrentFolder(null)} />
-        <ToolbarActionBtn icon={RefreshCw} tooltip="刷新" onClick={refreshPing} />
+        <ToolbarActionBtn icon={icons.home} tooltip="回到首页" onClick={() => setCurrentFolder(null)} />
+        <ToolbarActionBtn icon={icons.refresh} tooltip="刷新" onClick={() => { fetchAssets(); if (showPing) refreshPing() }} />
         <ToolbarActionBtn icon={showPing ? PingIcon : PingOffIcon} tooltip={showPing ? '隐藏ping' : '显示ping'} onClick={togglePing} />
 
         {/* 新建下拉 */}
         <div className="relative" ref={newMenuRef}>
-          <ToolbarActionBtn icon={LinkIcon} tooltip="新建" onClick={() => setNewMenuOpen(!newMenuOpen)} />
+          <ToolbarActionBtn icon={icons.link} tooltip="新建" onClick={() => setNewMenuOpen(!newMenuOpen)} />
           {newMenuOpen && (
             <div className="absolute top-full right-0 mt-2 bg-bg-card/75 backdrop-blur-2xl border border-bg-card/60 rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.1)] py-1.5 min-w-[140px] z-[101]">
-              <DropdownMenuItem icon={FolderPlus} label="目录" />
-              <DropdownMenuItem icon={Terminal} label="本地终端" onClick={() => { setNewMenuOpen(false); openLocalTermConfig('create') }} />
-              <DropdownMenuItem icon={Package} label="Docker" />
-              <DropdownMenuItem icon={Monitor} label="远程连接" hasSubmenu submenuKey="remote" />
-              <DropdownMenuItem icon={Database} label="数据库" hasSubmenu submenuKey="db" />
+              <DropdownMenuItem icon={icons.folderPlus} label="目录" />
+              <DropdownMenuItem icon={icons.localTerminal} label="本地终端" onClick={() => { setNewMenuOpen(false); openLocalTermConfig('create') }} />
+              <DropdownMenuItem icon={icons.container} label="Docker" />
+              <DropdownMenuItem icon={icons.screenShare} label="远程连接" hasSubmenu submenuKey="remote" />
+              <DropdownMenuItem icon={icons.database} label="数据库" hasSubmenu submenuKey="db" />
             </div>
           )}
         </div>
 
-        <ToolbarActionBtn icon={FolderPlus} tooltip="新建目录" onClick={() => setShowDirModal(true)} />
-        <ToolbarActionBtn icon={isAnonymized ? EyeOff : Eye} tooltip={isAnonymized ? '脱敏:已启用' : '脱敏:已关闭'} onClick={toggleAnonymized} />
-        <ToolbarActionBtn icon={ChevronDown} tooltip="隐藏资产列表" onClick={() => setAssetHidden(true)} />
+        <ToolbarActionBtn icon={icons.folderPlus} tooltip="新建目录" onClick={() => setShowDirModal(true)} />
+        <ToolbarActionBtn icon={isAnonymized ? icons.eyeOff : icons.eye} tooltip={isAnonymized ? '脱敏:已启用' : '脱敏:已关闭'} onClick={toggleAnonymized} />
+        <ToolbarActionBtn icon={icons.chevronDown} tooltip="隐藏资产列表" onClick={() => setAssetHidden(true)} />
       </div>
     </div>
   )

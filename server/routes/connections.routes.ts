@@ -6,6 +6,7 @@ import { spawn } from 'child_process'
 import { existsSync, statSync } from 'fs'
 import { Socket } from 'net'
 import * as connectionRepo from '../repositories/connection.repository.js'
+import * as sshKeyRepo from '../repositories/sshkey.repository.js'
 import { encrypt, decrypt } from '../services/crypto.service.js'
 
 const router = Router()
@@ -80,6 +81,29 @@ router.post('/connections', (req, res) => {
     res.status(400).json({ success: false, error: isLocal ? '名称不能为空' : '名称、主机和用户名不能为空' })
     return
   }
+  // 输入长度/范围验证
+  if (typeof name !== 'string' || name.length > 255) {
+    res.status(400).json({ success: false, error: '名称长度不能超过 255' })
+    return
+  }
+  if (!isLocal) {
+    if (typeof host !== 'string' || host.length > 255) {
+      res.status(400).json({ success: false, error: '主机地址长度不能超过 255' })
+      return
+    }
+    if (typeof username !== 'string' || username.length > 255) {
+      res.status(400).json({ success: false, error: '用户名长度不能超过 255' })
+      return
+    }
+    const port = rest.port
+    if (port !== undefined && port !== null) {
+      const p = Number(port)
+      if (!Number.isInteger(p) || p < 1 || p > 65535) {
+        res.status(400).json({ success: false, error: '端口号必须在 1-65535 之间' })
+        return
+      }
+    }
+  }
 
   const encryptedPassword = password ? encrypt(password) : null
   const encryptedPrivateKey = private_key ? encrypt(private_key) : null
@@ -129,6 +153,11 @@ router.post('/connections/ping', async (req, res) => {
   const { ids } = req.body as { ids: string[] }
   if (!Array.isArray(ids) || ids.length === 0) {
     res.json({ success: true, data: {} })
+    return
+  }
+  // 限制批量 ping 数量
+  if (ids.length > 50) {
+    res.status(400).json({ success: false, error: '批量 ping 数量不能超过 50' })
     return
   }
 
@@ -264,6 +293,74 @@ router.post('/connections/test-local', (req, res) => {
     clearTimeout(timeout)
     res.json({ success: false, error: `无法启动 ${shell}: ${err.message}` })
   })
+})
+
+// 上传 SSH 公钥到远程服务器（ssh-copy-id）
+router.post('/connections/:id/upload-key', (req, res) => {
+  const { keyId } = req.body as { keyId: string }
+  if (!keyId) {
+    res.status(400).json({ success: false, error: '请选择要上传的密钥' })
+    return
+  }
+
+  const raw = connectionRepo.findRawById(req.params.id)
+  if (!raw) {
+    res.status(404).json({ success: false, error: '连接不存在' })
+    return
+  }
+
+  const keyData = sshKeyRepo.findById(keyId)
+  if (!keyData || !keyData.public_key) {
+    res.status(404).json({ success: false, error: '密钥不存在或无公钥' })
+    return
+  }
+
+  const publicKey = keyData.public_key.trimEnd()
+  const client = new SshClient()
+  const timeout = setTimeout(() => {
+    client.end()
+    res.json({ success: false, error: '连接超时（10s）' })
+  }, 10000)
+
+  const connConfig: Record<string, unknown> = {
+    host: raw.host,
+    port: raw.port || 22,
+    username: raw.username,
+    readyTimeout: 8000,
+  }
+  if (raw.encrypted_private_key) connConfig.privateKey = decrypt(raw.encrypted_private_key)
+  else if (raw.encrypted_password) connConfig.password = decrypt(raw.encrypted_password)
+
+  client
+    .on('ready', () => {
+      // 安全地追加公钥到 authorized_keys
+      const escaped = publicKey.replace(/'/g, "'\\''")
+      const cmd = `mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '${escaped}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`
+      client.exec(cmd, (err, stream) => {
+        if (err) {
+          clearTimeout(timeout)
+          client.end()
+          res.json({ success: false, error: err.message })
+          return
+        }
+        let stderr = ''
+        stream.stderr.on('data', (d: Buffer) => { stderr += d.toString() })
+        stream.on('close', (code: number) => {
+          clearTimeout(timeout)
+          client.end()
+          if (code === 0) {
+            res.json({ success: true, message: '公钥上传成功' })
+          } else {
+            res.json({ success: false, error: stderr || `退出码: ${code}` })
+          }
+        })
+      })
+    })
+    .on('error', (err: Error) => {
+      clearTimeout(timeout)
+      res.json({ success: false, error: err.message })
+    })
+    .connect(connConfig as Parameters<SshClient['connect']>[0])
 })
 
 export default router

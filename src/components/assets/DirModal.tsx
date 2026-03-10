@@ -1,13 +1,14 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { useAssetStore } from '../../stores/useAssetStore'
+import { useUIStore } from '../../stores/useUIStore'
 
 export default function DirModal() {
-  const showDirModal = useAppStore((s) => s.showDirModal)
-  const dirName = useAppStore((s) => s.dirName)
-  const setDirName = useAppStore((s) => s.setDirName)
-  const setShowDirModal = useAppStore((s) => s.setShowDirModal)
-  const createFolderAction = useAppStore((s) => s.createFolderAction)
+  const showDirModal = useUIStore((s) => s.showDirModal)
+  const dirName = useUIStore((s) => s.dirName)
+  const setDirName = useUIStore((s) => s.setDirName)
+  const setShowDirModal = useUIStore((s) => s.setShowDirModal)
+  const createFolderAction = useAssetStore((s) => s.createFolderAction)
   const [saving, setSaving] = useState(false)
 
   if (!showDirModal) return null
@@ -37,7 +38,7 @@ export default function DirModal() {
             onClick={() => setShowDirModal(false)}
             className="p-1.5 hover:bg-bg-hover rounded-md text-text-3 transition-colors"
           >
-            <X size={16} />
+            <AppIcon icon={icons.close} size={16} />
           </button>
         </div>
 

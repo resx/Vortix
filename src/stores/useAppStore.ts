@@ -1,815 +1,445 @@
 import { create } from 'zustand'
 import type { TreeItem, ActiveFilter, ContextMenuState, AppTab, ListViewMode, AssetRow } from '../types'
+import type { RecentConnection, UpdateShortcutDto } from '../api/types'
 import * as api from '../api/client'
-import type { Folder, Connection, RecentConnection, CreateShortcutDto, UpdateShortcutDto } from '../api/types'
-import { useWorkspaceStore } from './useWorkspaceStore'
-import { destroySession, getSession } from './terminalSessionRegistry'
+import { useToastStore } from './useToastStore'
+import { useUIStore } from './useUIStore'
+import { useShortcutStore } from './useShortcutStore'
+import { useTabStore } from './useTabStore'
+import { useAssetStore } from './useAssetStore'
+
+/** @deprecated 从 useToastStore 导入 */
+export type { ToastItem } from './useToastStore'
 
 interface AppState {
+  // Toast 通知（代理 → useToastStore）
+  /** @deprecated 使用 useToastStore */
+  toasts: ToastItem[]
+  /** @deprecated 使用 useToastStore */
+  addToast: (type: 'success' | 'error', message: string) => void
+  /** @deprecated 使用 useToastStore */
+  removeToast: (id: string) => void
+
+  /** @deprecated 使用 useAssetStore */
   activeFilter: ActiveFilter
+  /** @deprecated 使用 useAssetStore */
   setActiveFilter: (filter: ActiveFilter) => void
 
+  /** @deprecated 使用 useUIStore */
   isSidebarOpen: boolean
+  /** @deprecated 使用 useUIStore */
   toggleSidebar: () => void
 
+  /** @deprecated 使用 useAssetStore */
   assets: TreeItem[]
+  /** @deprecated 使用 useShortcutStore */
   shortcuts: TreeItem[]
+  /** @deprecated 使用 useAssetStore */
   tableData: AssetRow[]
+  /** @deprecated 使用 useAssetStore */
   toggleFolder: (target: 'assets' | 'shortcuts', id: string) => void
+  /** @deprecated 使用 useAssetStore */
   expandAllFolders: (target: 'assets' | 'shortcuts') => void
+  /** @deprecated 使用 useAssetStore */
   collapseAllFolders: (target: 'assets' | 'shortcuts') => void
 
+  /** @deprecated 使用 useAssetStore */
   selectedSidebarItemId: string | null
+  /** @deprecated 使用 useAssetStore */
   setSelectedSidebarItemId: (id: string | null) => void
 
   // 数据加载
+  /** @deprecated 使用 useAssetStore */
   isDataLoading: boolean
+  /** @deprecated 使用 useAssetStore */
   dataError: string | null
+  /** @deprecated 使用 useAssetStore */
   fetchAssets: () => Promise<void>
+  /** @deprecated 使用 useShortcutStore */
   fetchShortcuts: () => Promise<void>
 
-  // 快捷命令 CRUD
+  /** @deprecated 使用 useShortcutStore */
   createShortcutAction: (name: string, command: string, remark?: string) => Promise<void>
+  /** @deprecated 使用 useShortcutStore */
   deleteShortcutAction: (id: string) => Promise<void>
+  /** @deprecated 使用 useShortcutStore */
   updateShortcutAction: (id: string, data: UpdateShortcutDto) => Promise<void>
+  /** @deprecated 使用 useShortcutStore */
   executeShortcut: (command: string, mode: 'execute' | 'paste') => void
 
-  // 快捷命令对话框
+  /** @deprecated 使用 useShortcutStore */
   shortcutDialogOpen: boolean
+  /** @deprecated 使用 useShortcutStore */
   shortcutDialogMode: 'create' | 'edit'
+  /** @deprecated 使用 useShortcutStore */
   shortcutDialogInitialId: string | null
+  /** @deprecated 使用 useShortcutStore */
   openShortcutDialog: (mode: 'create' | 'edit', id?: string) => void
+  /** @deprecated 使用 useShortcutStore */
   closeShortcutDialog: () => void
 
-  // 右键菜单
+  /** @deprecated 使用 useUIStore */
   contextMenu: ContextMenuState
+  /** @deprecated 使用 useUIStore */
   showContextMenu: (x: number, y: number, type: ContextMenuState['type'], data?: ContextMenuState['data']) => void
+  /** @deprecated 使用 useUIStore */
   hideContextMenu: () => void
 
   // 资产列表功能
+  /** @deprecated 使用 useAssetStore */
   currentFolder: string | null
+  /** @deprecated 使用 useAssetStore */
   setCurrentFolder: (id: string | null) => void
 
+  /** @deprecated 使用 useAssetStore */
   isAnonymized: boolean
+  /** @deprecated 使用 useAssetStore */
   toggleAnonymized: () => void
 
+  /** @deprecated 使用 useAssetStore */
   isAssetHidden: boolean
+  /** @deprecated 使用 useAssetStore */
   setAssetHidden: (v: boolean) => void
 
+  /** @deprecated 使用 useAssetStore */
   showPing: boolean
+  /** @deprecated 使用 useAssetStore */
   pings: Record<string, string>
+  /** @deprecated 使用 useAssetStore */
   togglePing: () => Promise<void>
+  /** @deprecated 使用 useAssetStore */
   refreshPing: () => Promise<void>
 
+  /** @deprecated 使用 useUIStore */
   showDirModal: boolean
+  /** @deprecated 使用 useUIStore */
   dirName: string
+  /** @deprecated 使用 useUIStore */
   setShowDirModal: (v: boolean) => void
+  /** @deprecated 使用 useUIStore */
   setDirName: (v: string) => void
 
+  /** @deprecated 使用 useUIStore */
   newMenuOpen: boolean
+  /** @deprecated 使用 useUIStore */
   setNewMenuOpen: (v: boolean) => void
+  /** @deprecated 使用 useUIStore */
   activeNewSubmenu: string | null
+  /** @deprecated 使用 useUIStore */
   setActiveNewSubmenu: (v: string | null) => void
 
-  // 标签页系统
+  /** @deprecated 使用 useTabStore */
   tabs: AppTab[]
+  /** @deprecated 使用 useTabStore */
   activeTabId: string
+  /** @deprecated 使用 useTabStore */
   listViewMode: ListViewMode
+  /** @deprecated 使用 useTabStore */
   openAssetTab: (row: AssetRow) => void
+  /** @deprecated 使用 useTabStore */
   openQuickConnect: (config: { host: string; port: number; username: string; password?: string; privateKey?: string }) => void
+  /** @deprecated 使用 useTabStore */
   closeTab: (id: string) => void
+  /** @deprecated 使用 useTabStore */
   setActiveTab: (id: string) => void
+  /** @deprecated 使用 useTabStore */
   setListViewMode: (mode: ListViewMode) => void
+  /** @deprecated 使用 useTabStore */
   reorderTab: (fromId: string, toId: string) => void
+  /** @deprecated 使用 useTabStore */
   updateTabStatus: (id: string, status: AppTab['status']) => void
+  /** @deprecated 使用 useTabStore */
   closeOtherTabs: (tabId: string) => void
+  /** @deprecated 使用 useTabStore */
   closeAllTabs: () => void
+  /** @deprecated 使用 useTabStore */
   closeLeftTabs: (tabId: string) => void
+  /** @deprecated 使用 useTabStore */
   closeRightTabs: (tabId: string) => void
+  /** @deprecated 使用 useTabStore */
   renameTab: (tabId: string, newLabel: string) => void
+  /** @deprecated 使用 useTabStore */
   duplicateTab: (tabId: string) => void
+  /** @deprecated 使用 useTabStore */
   reconnectTab: (tabId: string) => void
-  /** 从分屏面板创建独立标签页（保留会话，不重新连接） */
+  /** @deprecated 使用 useTabStore */
   createTabFromPane: (sourceTabId: string, paneId: string) => string | null
-  /** 提取 pane 后，同步源标签页信息（若仅剩一个带 meta 的 pane，更新标签页标题和连接信息） */
+  /** @deprecated 使用 useTabStore */
   syncTabWithRemainingPanes: (tabId: string) => void
+  /** @deprecated 使用 useTabStore */
   updateTabStatus: (id: string, status: AppTab['status']) => void
+  /** @deprecated 使用 useTabStore */
+  openSplitTab: (rows: AssetRow[]) => void
+  /** @deprecated 使用 useTabStore */
+  serializeTabState: () => string
 
   // 连接 CRUD
+  /** @deprecated 使用 useAssetStore */
   moveConnectionToFolder: (connectionId: string, folderId: string | null) => Promise<void>
+  /** @deprecated 使用 useAssetStore */
   createConnectionAction: (data: api.CreateConnectionDto) => Promise<void>
+  /** @deprecated 使用 useAssetStore */
   deleteConnectionAction: (id: string) => Promise<void>
+  /** @deprecated 使用 useAssetStore */
   cloneConnectionAction: (id: string) => Promise<void>
 
   // 文件夹 CRUD
+  /** @deprecated 使用 useAssetStore */
   createFolderAction: (name: string, parentId?: string | null) => Promise<void>
+  /** @deprecated 使用 useAssetStore */
   deleteFolderAction: (id: string) => Promise<void>
+  /** @deprecated 使用 useAssetStore */
   renameFolderAction: (id: string, name: string) => Promise<void>
+  /** @deprecated 使用 useAssetStore */
   renameConnectionAction: (id: string, name: string) => Promise<void>
 
-  // 主菜单
+  /** @deprecated 使用 useUIStore */
   menuVariant: 'default' | 'glass'
+  /** @deprecated 使用 useUIStore */
   setMenuVariant: (v: 'default' | 'glass') => void
 
-  // 设置面板
+  /** @deprecated 使用 useUIStore */
   settingsOpen: boolean
+  /** @deprecated 使用 useUIStore */
   settingsInitialNav: string | null
+  /** @deprecated 使用 useUIStore */
   toggleSettings: () => void
+  /** @deprecated 使用 useUIStore */
   setSettingsInitialNav: (nav: string | null) => void
 
-  // SFTP 与服务器面板
+  /** @deprecated 使用 useUIStore */
   sftpOpen: boolean
+  /** @deprecated 使用 useUIStore */
   toggleSftp: () => void
+  /** @deprecated 使用 useUIStore */
   serverPanelOpen: boolean
+  /** @deprecated 使用 useUIStore */
   toggleServerPanel: () => void
 
-  // SSH 配置编辑器
+  /** @deprecated 使用 useUIStore */
   sshConfigOpen: boolean
+  /** @deprecated 使用 useUIStore */
   sshConfigMode: 'create' | 'edit'
+  /** @deprecated 使用 useUIStore */
   sshConfigInitialId: string | null
+  /** @deprecated 使用 useUIStore */
   openSshConfig: (mode: 'create' | 'edit', id?: string) => void
+  /** @deprecated 使用 useUIStore */
   closeSshConfig: () => void
 
-  // 本地终端配置编辑器
+  /** @deprecated 使用 useUIStore */
   localTermConfigOpen: boolean
+  /** @deprecated 使用 useUIStore */
   localTermConfigMode: 'create' | 'edit'
+  /** @deprecated 使用 useUIStore */
   localTermConfigInitialId: string | null
+  /** @deprecated 使用 useUIStore */
   openLocalTermConfig: (mode: 'create' | 'edit', id?: string) => void
+  /** @deprecated 使用 useUIStore */
   closeLocalTermConfig: () => void
 
   // 最近连接
+  /** @deprecated 使用 useAssetStore */
   recentConnections: RecentConnection[]
+  /** @deprecated 使用 useAssetStore */
   fetchRecentConnections: () => Promise<void>
 
-  // 对话框状态
+  /** @deprecated 使用 useUIStore */
   quickSearchOpen: boolean
+  /** @deprecated 使用 useUIStore */
   toggleQuickSearch: () => void
+  /** @deprecated 使用 useUIStore */
   updateDialogOpen: boolean
+  /** @deprecated 使用 useUIStore */
   toggleUpdateDialog: () => void
+  /** @deprecated 使用 useUIStore */
   clearDataDialogOpen: boolean
+  /** @deprecated 使用 useUIStore */
   toggleClearDataDialog: () => void
+  /** @deprecated 使用 useUIStore */
   reloadDialogOpen: boolean
+  /** @deprecated 使用 useUIStore */
   toggleReloadDialog: () => void
 
   // 资产多选
+  /** @deprecated 使用 useAssetStore */
   selectedRowIds: Set<string>
+  /** @deprecated 使用 useAssetStore */
   setSelectedRowIds: (ids: Set<string>) => void
+  /** @deprecated 使用 useAssetStore */
   toggleRowSelection: (id: string) => void
+  /** @deprecated 使用 useAssetStore */
   clearRowSelection: () => void
+  /** @deprecated 使用 useAssetStore */
   batchOpenSelected: () => void
+  /** @deprecated 使用 useTabStore */
+  /** 同屏打开：多个连接在一个标签页内分屏 */
+  openSplitTab: (rows: AssetRow[]) => void
 
   // 窗口状态序列化
+  /** @deprecated 使用 useTabStore */
   serializeTabState: () => string
 }
 
-const toggleInTree = (items: TreeItem[], id: string): TreeItem[] =>
-  items.map(item =>
-    item.id === id ? { ...item, isOpen: !item.isOpen } : item
-  )
-
-/** 将 API 数据合成前端 TreeItem[] */
-function buildTree(folders: Folder[], connections: Connection[]): TreeItem[] {
-  const tree: TreeItem[] = folders.map(f => ({
-    id: f.id,
-    name: f.name,
-    type: 'folder' as const,
-    isOpen: false,
-    children: connections
-      .filter(c => c.folder_id === f.id)
-      .map(c => ({
-        id: c.id,
-        name: c.name,
-        type: 'connection' as const,
-        protocol: c.protocol,
-        colorTag: c.color_tag,
-      })),
-  }))
-
-  // 没有文件夹的连接放在顶层
-  const orphanConnections = connections
-    .filter(c => !c.folder_id)
-    .map(c => ({
-      id: c.id,
-      name: c.name,
-      type: 'connection' as const,
-      protocol: c.protocol,
-      colorTag: c.color_tag,
-    }))
-
-  return [...tree, ...orphanConnections]
-}
-
-/** 将 API 数据合成前端 AssetRow[] */
-function buildTableData(folders: Folder[], connections: Connection[]): AssetRow[] {
-  const folderMap = new Map(folders.map(f => [f.id, f.name]))
-
-  const folderRows: AssetRow[] = folders.map(f => ({
-    id: f.id,
-    name: f.name,
-    type: 'folder',
-    latency: '-',
-    host: '-',
-    user: '-',
-    created: f.created_at.replace('T', ' ').slice(0, 16),
-    expire: '-',
-    remark: '-',
-  }))
-
-  const connectionRows: AssetRow[] = connections.map(c => ({
-    id: c.id,
-    name: c.name,
-    type: 'asset',
-    protocol: c.protocol,
-    colorTag: c.color_tag,
-    latency: '-',
-    host: c.host,
-    user: c.username,
-    created: c.created_at.replace('T', ' ').slice(0, 16),
-    expire: '-',
-    remark: c.remark || '-',
-    folderId: c.folder_id,
-    folderName: c.folder_id ? folderMap.get(c.folder_id) : undefined,
-  }))
-
-  return [...folderRows, ...connectionRows]
-}
-
 export const useAppStore = create<AppState>((set, get) => ({
-  activeFilter: 'all',
-  setActiveFilter: (filter) => set({ activeFilter: filter }),
+  // Toast 通知（代理 → useToastStore，仅 action 转发）
+  toasts: [],
+  addToast: (type, message) => useToastStore.getState().addToast(type, message),
+  removeToast: (id) => useToastStore.getState().removeToast(id),
 
+  activeFilter: 'all',
+  setActiveFilter: (filter) => useAssetStore.getState().setActiveFilter(filter),
+
+  // 侧边栏（代理 → useUIStore）
   isSidebarOpen: true,
-  toggleSidebar: () => set((s) => ({ isSidebarOpen: !s.isSidebarOpen })),
+  toggleSidebar: () => useUIStore.getState().toggleSidebar(),
 
   assets: [],
   shortcuts: [],
   tableData: [],
-  toggleFolder: (target, id) =>
-    set((state) => ({
-      [target]: toggleInTree(state[target], id),
-    })),
-
-  expandAllFolders: (target) =>
-    set((state) => ({
-      [target]: state[target].map(item =>
-        item.type === 'folder' ? { ...item, isOpen: true } : item
-      ),
-    })),
-
-  collapseAllFolders: (target) =>
-    set((state) => ({
-      [target]: state[target].map(item =>
-        item.type === 'folder' ? { ...item, isOpen: false } : item
-      ),
-    })),
+  toggleFolder: (target, id) => useAssetStore.getState().toggleFolder(target, id),
+  expandAllFolders: (target) => useAssetStore.getState().expandAllFolders(target),
+  collapseAllFolders: (target) => useAssetStore.getState().collapseAllFolders(target),
 
   selectedSidebarItemId: null,
-  setSelectedSidebarItemId: (id) => set({ selectedSidebarItemId: id }),
+  setSelectedSidebarItemId: (id) => useAssetStore.getState().setSelectedSidebarItemId(id),
 
   // 数据加载
   isDataLoading: false,
   dataError: null,
+  fetchAssets: async () => useAssetStore.getState().fetchAssets(),
 
-  fetchAssets: async () => {
-    set({ isDataLoading: true, dataError: null })
-    try {
-      const [folders, connections] = await Promise.all([
-        api.getFolders(),
-        api.getConnections(),
-      ])
-      set({
-        assets: buildTree(folders, connections),
-        tableData: buildTableData(folders, connections),
-        isDataLoading: false,
-      })
-    } catch (e) {
-      set({ isDataLoading: false, dataError: (e as Error).message })
-    }
-  },
+  // 快捷命令（代理 → useShortcutStore）
+  fetchShortcuts: async () => useShortcutStore.getState().fetchShortcuts(),
+  createShortcutAction: async (name, command, remark) => useShortcutStore.getState().createShortcutAction(name, command, remark),
+  deleteShortcutAction: async (id) => useShortcutStore.getState().deleteShortcutAction(id),
+  updateShortcutAction: async (id, data) => useShortcutStore.getState().updateShortcutAction(id, data),
+  executeShortcut: (command, mode) => useShortcutStore.getState().executeShortcut(command, mode),
 
-  fetchShortcuts: async () => {
-    try {
-      const data = await api.getShortcuts()
-      const items: TreeItem[] = data.map(s => ({
-        id: s.id,
-        name: s.name,
-        type: 'connection' as const,
-        command: s.command,
-        remark: s.remark,
-      }))
-      set({ shortcuts: items })
-    } catch {
-      // 静默失败
-    }
-  },
-
-  // 快捷命令 CRUD
-  createShortcutAction: async (name, command, remark) => {
-    await api.createShortcut({ name, command, remark })
-    await get().fetchShortcuts()
-  },
-
-  deleteShortcutAction: async (id) => {
-    await api.deleteShortcut(id)
-    await get().fetchShortcuts()
-  },
-
-  updateShortcutAction: async (id, data) => {
-    await api.updateShortcut(id, data)
-    await get().fetchShortcuts()
-  },
-
-  executeShortcut: (command, mode) => {
-    const { activeTabId } = get()
-    const session = getSession(activeTabId)
-    // 尝试从工作区获取活跃 pane 的 session
-    const wsStore = useWorkspaceStore.getState()
-    const paneIds = wsStore.getAllPaneIds(activeTabId)
-    let ws: WebSocket | null = null
-    // 优先使用第一个有活跃 ws 的 pane
-    for (const pid of paneIds) {
-      const s = getSession(pid)
-      if (s?.ws?.readyState === WebSocket.OPEN) {
-        ws = s.ws
-        break
-      }
-    }
-    // 回退到直接用 tabId 查找
-    if (!ws && session?.ws?.readyState === WebSocket.OPEN) {
-      ws = session.ws
-    }
-    if (ws) {
-      if (mode === 'execute') {
-        // 执行模式：合并多行为单行
-        // 先修复被换行拆开的操作符（&& || \续行），再合并剩余换行
-        const normalized = command
-          .replace(/\\\s*\n\s*/g, '')
-          .replace(/&\s*\n\s*&/g, '&&')
-          .replace(/\|\s*\n\s*\|/g, '||')
-          .replace(/\s*\n\s*/g, ' ')
-          .trim()
-        ws.send(JSON.stringify({ type: 'input', data: normalized + '\r' }))
-      } else {
-        // 粘贴模式：保持原始格式
-        const isMultiLine = command.includes('\n')
-        if (isMultiLine) {
-          const PASTE_START = '\x1b[200~'
-          const PASTE_END = '\x1b[201~'
-          const text = command.replace(/\n/g, '\r')
-          ws.send(JSON.stringify({ type: 'input', data: PASTE_START + text + PASTE_END }))
-        } else {
-          ws.send(JSON.stringify({ type: 'input', data: command }))
-        }
-      }
-    }
-  },
-
-  // 快捷命令对话框
+  // 快捷命令对话框（代理 → useShortcutStore）
   shortcutDialogOpen: false,
   shortcutDialogMode: 'create',
   shortcutDialogInitialId: null,
-  openShortcutDialog: (mode, id) => set({ shortcutDialogOpen: true, shortcutDialogMode: mode, shortcutDialogInitialId: id ?? null }),
-  closeShortcutDialog: () => set({ shortcutDialogOpen: false, shortcutDialogInitialId: null }),
+  openShortcutDialog: (mode, id) => useShortcutStore.getState().openShortcutDialog(mode, id),
+  closeShortcutDialog: () => useShortcutStore.getState().closeShortcutDialog(),
 
+  // 右键菜单（代理 → useUIStore）
   contextMenu: { visible: false, x: 0, y: 0, type: null, data: null },
-  showContextMenu: (x, y, type, data = null) => {
-    set({ contextMenu: { visible: true, x, y, type, data } })
-  },
-  hideContextMenu: () =>
-    set((s) => ({ contextMenu: { ...s.contextMenu, visible: false } })),
+  showContextMenu: (x, y, type, data = null) => useUIStore.getState().showContextMenu(x, y, type, data),
+  hideContextMenu: () => useUIStore.getState().hideContextMenu(),
 
   currentFolder: null,
-  setCurrentFolder: (id) => set({ currentFolder: id }),
+  setCurrentFolder: (id) => useAssetStore.getState().setCurrentFolder(id),
 
   isAnonymized: false,
-  toggleAnonymized: () => set((s) => ({ isAnonymized: !s.isAnonymized })),
+  toggleAnonymized: () => useAssetStore.getState().toggleAnonymized(),
 
   isAssetHidden: false,
-  setAssetHidden: (v) => set({ isAssetHidden: v }),
+  setAssetHidden: (v) => useAssetStore.getState().setAssetHidden(v),
 
   showPing: false,
   pings: {},
-  togglePing: async () => {
-    const { showPing, tableData } = get()
-    if (showPing) {
-      set({ showPing: false, pings: {} })
-      return
-    }
-    // 收集所有 asset 类型的 ID
-    const ids = tableData.filter(r => r.type === 'asset' && r.protocol !== 'local').map(r => r.id)
-    if (ids.length === 0) {
-      set({ showPing: true, pings: {} })
-      return
-    }
-    set({ showPing: true })
-    try {
-      const result = await api.pingConnections(ids)
-      const newPings: Record<string, string> = {}
-      for (const [id, ms] of Object.entries(result)) {
-        newPings[id] = ms !== null ? `${ms}ms` : '超时'
-      }
-      set({ pings: newPings })
-    } catch {
-      // 请求失败时显示全部超时
-      const newPings: Record<string, string> = {}
-      ids.forEach(id => { newPings[id] = '超时' })
-      set({ pings: newPings })
-    }
-  },
-  refreshPing: async () => {
-    const { tableData } = get()
-    const ids = tableData.filter(r => r.type === 'asset' && r.protocol !== 'local').map(r => r.id)
-    if (ids.length === 0) return
-    try {
-      const result = await api.pingConnections(ids)
-      const newPings: Record<string, string> = {}
-      for (const [id, ms] of Object.entries(result)) {
-        newPings[id] = ms !== null ? `${ms}ms` : '超时'
-      }
-      set({ pings: newPings })
-    } catch {
-      // 静默失败
-    }
-  },
+  togglePing: async () => useAssetStore.getState().togglePing(),
+  refreshPing: async () => useAssetStore.getState().refreshPing(),
 
+  // 新建文件夹弹窗（代理 → useUIStore）
   showDirModal: false,
   dirName: '',
-  setShowDirModal: (v) => set({ showDirModal: v, dirName: '' }),
-  setDirName: (v) => set({ dirName: v }),
+  setShowDirModal: (v) => useUIStore.getState().setShowDirModal(v),
+  setDirName: (v) => useUIStore.getState().setDirName(v),
 
+  // 新建菜单（代理 → useUIStore）
   newMenuOpen: false,
-  setNewMenuOpen: (v) => set({ newMenuOpen: v, activeNewSubmenu: null }),
+  setNewMenuOpen: (v) => useUIStore.getState().setNewMenuOpen(v),
   activeNewSubmenu: null,
-  setActiveNewSubmenu: (v) => set({ activeNewSubmenu: v }),
+  setActiveNewSubmenu: (v) => useUIStore.getState().setActiveNewSubmenu(v),
 
-  // 标签页系统
+  // 标签页系统（代理 → useTabStore）
   tabs: [{ id: 'list', type: 'list', label: '列表', status: 'idle' }],
   activeTabId: 'list',
   listViewMode: 'list',
+  openAssetTab: (row) => useTabStore.getState().openAssetTab(row),
+  openQuickConnect: (config) => useTabStore.getState().openQuickConnect(config),
+  closeTab: (id) => useTabStore.getState().closeTab(id),
+  setActiveTab: (id) => useTabStore.getState().setActiveTab(id),
+  setListViewMode: (mode) => useTabStore.getState().setListViewMode(mode),
+  reorderTab: (fromId, toId) => useTabStore.getState().reorderTab(fromId, toId),
+  updateTabStatus: (id, status) => useTabStore.getState().updateTabStatus(id, status),
+  closeOtherTabs: (tabId) => useTabStore.getState().closeOtherTabs(tabId),
+  closeAllTabs: () => useTabStore.getState().closeAllTabs(),
+  closeLeftTabs: (tabId) => useTabStore.getState().closeLeftTabs(tabId),
+  closeRightTabs: (tabId) => useTabStore.getState().closeRightTabs(tabId),
+  renameTab: (tabId, newLabel) => useTabStore.getState().renameTab(tabId, newLabel),
+  duplicateTab: (tabId) => useTabStore.getState().duplicateTab(tabId),
+  reconnectTab: (tabId) => useTabStore.getState().reconnectTab(tabId),
+  createTabFromPane: (sourceTabId, paneId) => useTabStore.getState().createTabFromPane(sourceTabId, paneId),
+  syncTabWithRemainingPanes: (tabId) => useTabStore.getState().syncTabWithRemainingPanes(tabId),
 
-  openAssetTab: (row) => set((s) => {
-    const existing = s.tabs.find(t => t.type === 'asset' && t.assetRow?.id === row.id)
-    if (existing) return { activeTabId: existing.id }
-    const newTab: AppTab = {
-      id: `asset-${row.id}`,
-      type: 'asset',
-      label: row.name,
-      assetRow: row,
-      status: 'connecting',
-      connectionId: row.id,
-    }
-    return { tabs: [...s.tabs, newTab], activeTabId: newTab.id }
-  }),
+  // 连接 CRUD（代理 → useAssetStore）
+  moveConnectionToFolder: async (connectionId, folderId) => useAssetStore.getState().moveConnectionToFolder(connectionId, folderId),
+  createConnectionAction: async (data) => useAssetStore.getState().createConnectionAction(data),
+  deleteConnectionAction: async (id) => useAssetStore.getState().deleteConnectionAction(id),
+  cloneConnectionAction: async (id) => useAssetStore.getState().cloneConnectionAction(id),
 
-  openQuickConnect: (config) => set((s) => {
-    const id = `quick-${Date.now()}`
-    const newTab: AppTab = {
-      id,
-      type: 'asset',
-      label: `${config.host}:${config.port}`,
-      status: 'connecting',
-      quickConnect: config,
-    }
-    return { tabs: [...s.tabs, newTab], activeTabId: id }
-  }),
+  // 文件夹 CRUD（代理 → useAssetStore）
+  createFolderAction: async (name, parentId) => useAssetStore.getState().createFolderAction(name, parentId),
+  deleteFolderAction: async (id) => useAssetStore.getState().deleteFolderAction(id),
+  renameFolderAction: async (id, name) => useAssetStore.getState().renameFolderAction(id, name),
+  renameConnectionAction: async (id, name) => useAssetStore.getState().renameConnectionAction(id, name),
 
-  closeTab: (id) => set((s) => {
-    if (id === 'list') return {}
-    // 联动清理分屏工作区
-    useWorkspaceStore.getState().removeWorkspace(id)
-    const newTabs = s.tabs.filter(t => t.id !== id)
-    const newActiveId = s.activeTabId === id ? 'list' : s.activeTabId
-    return { tabs: newTabs, activeTabId: newActiveId }
-  }),
-
-  setActiveTab: (id) => set({ activeTabId: id }),
-
-  setListViewMode: (mode) => set({ listViewMode: mode }),
-
-  reorderTab: (fromId, toId) => set((s) => {
-    if (fromId === toId) return {}
-    const tabs = [...s.tabs]
-    const fromIdx = tabs.findIndex(t => t.id === fromId)
-    const toIdx = tabs.findIndex(t => t.id === toId)
-    if (fromIdx < 0 || toIdx < 0) return {}
-    const [moved] = tabs.splice(fromIdx, 1)
-    tabs.splice(toIdx, 0, moved)
-    return { tabs }
-  }),
-
-  updateTabStatus: (id, status) => set((s) => ({
-    tabs: s.tabs.map(t => t.id === id ? { ...t, status, connectedAt: status === 'connected' ? new Date().toISOString() : t.connectedAt } : t),
-  })),
-
-  closeOtherTabs: (tabId) => set((s) => {
-    const closingTabs = s.tabs.filter(t => t.id !== 'list' && t.id !== tabId)
-    closingTabs.forEach(t => useWorkspaceStore.getState().removeWorkspace(t.id))
-    return {
-      tabs: s.tabs.filter(t => t.id === 'list' || t.id === tabId),
-      activeTabId: s.activeTabId === tabId || s.activeTabId === 'list' ? s.activeTabId : tabId,
-    }
-  }),
-
-  closeAllTabs: () => set((s) => {
-    s.tabs.filter(t => t.id !== 'list').forEach(t => useWorkspaceStore.getState().removeWorkspace(t.id))
-    return { tabs: s.tabs.filter(t => t.id === 'list'), activeTabId: 'list' }
-  }),
-
-  closeLeftTabs: (tabId) => set((s) => {
-    const idx = s.tabs.findIndex(t => t.id === tabId)
-    if (idx <= 0) return {}
-    const closing = s.tabs.slice(0, idx).filter(t => t.id !== 'list')
-    closing.forEach(t => useWorkspaceStore.getState().removeWorkspace(t.id))
-    const closingIds = new Set(closing.map(t => t.id))
-    return {
-      tabs: s.tabs.filter(t => !closingIds.has(t.id)),
-      activeTabId: closingIds.has(s.activeTabId) ? tabId : s.activeTabId,
-    }
-  }),
-
-  closeRightTabs: (tabId) => set((s) => {
-    const idx = s.tabs.findIndex(t => t.id === tabId)
-    if (idx < 0) return {}
-    const closing = s.tabs.slice(idx + 1).filter(t => t.id !== 'list')
-    closing.forEach(t => useWorkspaceStore.getState().removeWorkspace(t.id))
-    const closingIds = new Set(closing.map(t => t.id))
-    return {
-      tabs: s.tabs.filter(t => !closingIds.has(t.id)),
-      activeTabId: closingIds.has(s.activeTabId) ? tabId : s.activeTabId,
-    }
-  }),
-
-  renameTab: (tabId, newLabel) => set((s) => ({
-    tabs: s.tabs.map(t => t.id === tabId ? { ...t, label: newLabel } : t),
-  })),
-
-  duplicateTab: (tabId) => set((s) => {
-    const source = s.tabs.find(t => t.id === tabId)
-    if (!source || source.type !== 'asset') return {}
-    // 计算序号：统计同名标签数量
-    const baseName = source.label.replace(/\s*\(\d+\)$/, '')
-    const count = s.tabs.filter(t => t.label === baseName || t.label.match(new RegExp(`^${baseName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\(\\d+\\)$`))).length
-    const newId = `asset-dup-${Date.now()}`
-    const newTab: AppTab = {
-      ...source,
-      id: newId,
-      label: `${baseName} (${count})`,
-      status: 'connecting',
-      connectedAt: undefined,
-    }
-    return { tabs: [...s.tabs, newTab], activeTabId: newId }
-  }),
-
-  reconnectTab: (tabId) => {
-    const state = get()
-    const tab = state.tabs.find(t => t.id === tabId)
-    if (!tab || tab.type !== 'asset') return
-    // 销毁该 tab 关联的所有终端会话
-    const wsStore = useWorkspaceStore.getState()
-    const paneIds = wsStore.getAllPaneIds(tabId)
-    paneIds.forEach((pid: string) => destroySession(pid))
-    // 移除工作区（重新挂载时会自动初始化）
-    wsStore.removeWorkspace(tabId)
-    // 更新 tab 状态，递增 reconnectKey 强制重新挂载
-    set((s) => ({
-      tabs: s.tabs.map(t => t.id === tabId ? {
-        ...t,
-        status: 'connecting' as const,
-        reconnectKey: (t.reconnectKey ?? 0) + 1,
-        connectedAt: undefined,
-        errorMessage: undefined,
-      } : t),
-    }))
-  },
-
-  createTabFromPane: (sourceTabId, paneId) => {
-    const state = get()
-    const sourceTab = state.tabs.find(t => t.id === sourceTabId)
-    if (!sourceTab) return null
-
-    // 先读取 pane 自身的元数据（跨标签页转移时保留的原始信息）
-    const wsStore = useWorkspaceStore.getState()
-    const paneMeta = wsStore.getPaneMeta(sourceTabId, paneId)
-
-    // 从源工作区提取 pane
-    const extracted = wsStore.extractPane(sourceTabId, paneId)
-    if (!extracted) return null
-
-    // 创建新标签页：优先使用 pane 自身 meta，回退到源标签页信息
-    const newTabId = `asset-pane-${Date.now()}`
-    const newTab: AppTab = {
-      id: newTabId,
-      type: 'asset',
-      label: paneMeta?.label || sourceTab.label,
-      assetRow: paneMeta?.assetRow || sourceTab.assetRow,
-      status: sourceTab.status,
-      quickConnect: paneMeta?.quickConnect || sourceTab.quickConnect,
-      connectionId: paneMeta?.connectionId || sourceTab.connectionId,
-      connectedAt: paneMeta?.connectedAt || sourceTab.connectedAt,
-    }
-
-    // 为新标签页创建工作区，复用原 paneId（保留会话）
-    wsStore.initWorkspaceWithPaneId(newTabId, paneId)
-
-    set((s) => ({
-      tabs: [...s.tabs, newTab],
-      activeTabId: newTabId,
-    }))
-
-    // 同步源标签页信息
-    get().syncTabWithRemainingPanes(sourceTabId)
-
-    return newTabId
-  },
-
-  syncTabWithRemainingPanes: (tabId) => {
-    const wsStore = useWorkspaceStore.getState()
-    const ws = wsStore.workspaces[tabId]
-    if (!ws) return
-    const leafIds = wsStore.getAllPaneIds(tabId)
-    if (leafIds.length !== 1) return
-    const meta = wsStore.getPaneMeta(tabId, leafIds[0])
-    if (!meta?.label) return
-    set((s) => ({
-      tabs: s.tabs.map(t => t.id === tabId ? {
-        ...t,
-        label: meta.label,
-        connectionId: meta.connectionId ?? t.connectionId,
-        assetRow: meta.assetRow ?? t.assetRow,
-        quickConnect: meta.quickConnect ?? t.quickConnect,
-        connectedAt: meta.connectedAt ?? t.connectedAt,
-      } : t),
-    }))
-  },
-
-  // 连接 CRUD
-  moveConnectionToFolder: async (connectionId, folderId) => {
-    await api.updateConnection(connectionId, { folder_id: folderId })
-    await get().fetchAssets()
-  },
-
-  createConnectionAction: async (data) => {
-    await api.createConnection(data)
-    await get().fetchAssets()
-  },
-
-  deleteConnectionAction: async (id) => {
-    await api.deleteConnection(id)
-    // 关闭对应标签
-    set((s) => {
-      const newTabs = s.tabs.filter(t => t.connectionId !== id)
-      const newActiveId = s.tabs.find(t => t.connectionId === id && t.id === s.activeTabId) ? 'list' : s.activeTabId
-      return { tabs: newTabs, activeTabId: newActiveId }
-    })
-    await get().fetchAssets()
-  },
-
-  cloneConnectionAction: async (id) => {
-    try {
-      // 获取完整连接配置 + 解密凭据
-      const [conn, cred] = await Promise.all([
-        api.getConnection(id),
-        api.getConnectionCredential(id),
-      ])
-      // 生成克隆名称：原名 + " (副本)" / " (副本 2)" ...
-      const { tableData } = get()
-      const baseName = conn.name.replace(/\s*\(副本(?:\s*\d+)?\)$/, '')
-      const existingNames = new Set(tableData.map(r => r.name))
-      let cloneName = `${baseName} (副本)`
-      let i = 2
-      while (existingNames.has(cloneName)) {
-        cloneName = `${baseName} (副本 ${i++})`
-      }
-      await api.createConnection({
-        folder_id: conn.folder_id,
-        name: cloneName,
-        protocol: conn.protocol,
-        host: conn.host,
-        port: conn.port,
-        username: conn.username,
-        auth_method: conn.auth_method,
-        password: cred.password,
-        private_key: cred.private_key,
-        remark: conn.remark,
-        color_tag: conn.color_tag,
-        environment: conn.environment,
-        auth_type: conn.auth_type,
-        proxy_type: conn.proxy_type,
-        proxy_host: conn.proxy_host,
-        proxy_port: conn.proxy_port,
-        proxy_username: conn.proxy_username,
-        proxy_password: cred.proxy_password,
-        proxy_timeout: conn.proxy_timeout,
-        jump_server_id: conn.jump_server_id,
-        tunnels: JSON.stringify(conn.tunnels),
-        env_vars: JSON.stringify(conn.env_vars),
-        advanced: JSON.stringify(conn.advanced),
-      })
-      await get().fetchAssets()
-    } catch (e) {
-      console.error('克隆连接失败:', e)
-    }
-  },
-
-  // 文件夹 CRUD
-  createFolderAction: async (name, parentId) => {
-    await api.createFolder({ name, parent_id: parentId ?? null })
-    await get().fetchAssets()
-  },
-
-  deleteFolderAction: async (id) => {
-    await api.deleteFolder(id)
-    await get().fetchAssets()
-  },
-
-  renameFolderAction: async (id, name) => {
-    await api.updateFolder(id, { name })
-    await get().fetchAssets()
-  },
-
-  renameConnectionAction: async (id, name) => {
-    await api.updateConnection(id, { name })
-    await get().fetchAssets()
-  },
-
-  // 主菜单
+  // 主菜单（代理 → useUIStore）
   menuVariant: 'default',
-  setMenuVariant: (v) => set({ menuVariant: v }),
+  setMenuVariant: (v) => useUIStore.getState().setMenuVariant(v),
 
-  // 设置面板
+  // 设置面板（代理 → useUIStore）
   settingsOpen: false,
   settingsInitialNav: null,
-  toggleSettings: () => set((s) => ({ settingsOpen: !s.settingsOpen })),
-  setSettingsInitialNav: (nav) => set({ settingsInitialNav: nav }),
+  toggleSettings: () => useUIStore.getState().toggleSettings(),
+  setSettingsInitialNav: (nav) => useUIStore.getState().setSettingsInitialNav(nav),
 
-  // SFTP 与服务器面板
+  // SFTP 与服务器面板（代理 → useUIStore）
   sftpOpen: false,
-  toggleSftp: () => set((s) => ({ sftpOpen: !s.sftpOpen })),
+  toggleSftp: () => useUIStore.getState().toggleSftp(),
   serverPanelOpen: false,
-  toggleServerPanel: () => set((s) => ({ serverPanelOpen: !s.serverPanelOpen })),
+  toggleServerPanel: () => useUIStore.getState().toggleServerPanel(),
 
-  // SSH 配置编辑器
+  // SSH 配置编辑器（代理 → useUIStore）
   sshConfigOpen: false,
   sshConfigMode: 'create',
   sshConfigInitialId: null,
-  openSshConfig: (mode, id) => set({ sshConfigOpen: true, sshConfigMode: mode, sshConfigInitialId: id ?? null }),
-  closeSshConfig: () => set({ sshConfigOpen: false, sshConfigInitialId: null }),
+  openSshConfig: (mode, id) => useUIStore.getState().openSshConfig(mode, id),
+  closeSshConfig: () => useUIStore.getState().closeSshConfig(),
 
-  // 本地终端配置编辑器
+  // 本地终端配置编辑器（代理 → useUIStore）
   localTermConfigOpen: false,
   localTermConfigMode: 'create',
   localTermConfigInitialId: null,
-  openLocalTermConfig: (mode, id) => set({ localTermConfigOpen: true, localTermConfigMode: mode, localTermConfigInitialId: id ?? null }),
-  closeLocalTermConfig: () => set({ localTermConfigOpen: false, localTermConfigInitialId: null }),
+  openLocalTermConfig: (mode, id) => useUIStore.getState().openLocalTermConfig(mode, id),
+  closeLocalTermConfig: () => useUIStore.getState().closeLocalTermConfig(),
 
-  // 最近连接
+  // 最近连接（代理 → useAssetStore）
   recentConnections: [],
-  fetchRecentConnections: async () => {
-    try {
-      const data = await api.getRecentConnections()
-      set({ recentConnections: data })
-    } catch {
-      // 静默失败
-    }
-  },
+  fetchRecentConnections: async () => useAssetStore.getState().fetchRecentConnections(),
 
-  // 对话框状态
+  // 对话框状态（代理 → useUIStore）
   quickSearchOpen: false,
-  toggleQuickSearch: () => set((s) => ({ quickSearchOpen: !s.quickSearchOpen })),
+  toggleQuickSearch: () => useUIStore.getState().toggleQuickSearch(),
   updateDialogOpen: false,
-  toggleUpdateDialog: () => set((s) => ({ updateDialogOpen: !s.updateDialogOpen })),
+  toggleUpdateDialog: () => useUIStore.getState().toggleUpdateDialog(),
   clearDataDialogOpen: false,
-  toggleClearDataDialog: () => set((s) => ({ clearDataDialogOpen: !s.clearDataDialogOpen })),
+  toggleClearDataDialog: () => useUIStore.getState().toggleClearDataDialog(),
   reloadDialogOpen: false,
-  toggleReloadDialog: () => set((s) => ({ reloadDialogOpen: !s.reloadDialogOpen })),
+  toggleReloadDialog: () => useUIStore.getState().toggleReloadDialog(),
 
-  // 资产多选
+  // 资产多选（代理 → useAssetStore）
   selectedRowIds: new Set<string>(),
-  setSelectedRowIds: (ids) => set({ selectedRowIds: ids }),
-  toggleRowSelection: (id) => set((s) => {
-    const next = new Set(s.selectedRowIds)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    return { selectedRowIds: next }
-  }),
-  clearRowSelection: () => set({ selectedRowIds: new Set<string>() }),
-  batchOpenSelected: () => {
-    const { selectedRowIds, tableData, openAssetTab } = get()
-    for (const id of selectedRowIds) {
-      const row = tableData.find(r => r.id === id && r.type === 'asset')
-      if (row) openAssetTab(row)
-    }
-  },
+  setSelectedRowIds: (ids) => useAssetStore.getState().setSelectedRowIds(ids),
+  toggleRowSelection: (id) => useAssetStore.getState().toggleRowSelection(id),
+  clearRowSelection: () => useAssetStore.getState().clearRowSelection(),
+  batchOpenSelected: () => useAssetStore.getState().batchOpenSelected(),
 
-  // 窗口状态序列化
-  serializeTabState: () => {
-    const { tabs, activeTabId } = get()
-    const serializable = tabs.map(t => ({
-      id: t.id, type: t.type, label: t.label,
-      connectionId: t.connectionId,
-      assetRow: t.assetRow,
-      quickConnect: t.quickConnect,
-    }))
-    return JSON.stringify({ tabs: serializable, activeTabId })
-  },
+  // 标签页代理（代理 → useTabStore）
+  openSplitTab: (rows) => useTabStore.getState().openSplitTab(rows),
+
+  serializeTabState: () => useTabStore.getState().serializeTabState(),
 }))

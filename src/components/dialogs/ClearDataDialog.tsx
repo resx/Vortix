@@ -1,14 +1,14 @@
 /* ── 清除无效数据确认对话框 ── */
 
 import { useState } from 'react'
-import { X, Trash2, FileX, ScrollText, HardDrive } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { useUIStore } from '../../stores/useUIStore'
 import * as api from '../../api/client'
 import { useT } from '../../i18n'
 
 export default function ClearDataDialog() {
-  const open = useAppStore((s) => s.clearDataDialogOpen)
-  const toggle = useAppStore((s) => s.toggleClearDataDialog)
+  const open = useUIStore((s) => s.clearDataDialogOpen)
+  const toggle = useUIStore((s) => s.toggleClearDataDialog)
   const t = useT()
 
   const [cleaning, setCleaning] = useState(false)
@@ -44,11 +44,11 @@ export default function ClearDataDialog() {
         {/* 头部 */}
         <div className="flex items-center justify-between px-5 py-3.5">
           <h3 className="text-[14px] font-bold text-text-1 flex items-center gap-2">
-            <Trash2 size={15} className="text-status-error" />
+            <AppIcon icon={icons.trash} size={15} className="text-status-error" />
             {t('dialog.clearData.title')}
           </h3>
           <button onClick={handleClose} className="p-1.5 hover:bg-bg-hover rounded-md text-text-3 transition-colors">
-            <X size={16} />
+            <AppIcon icon={icons.close} size={16} />
           </button>
         </div>
 
@@ -60,15 +60,15 @@ export default function ClearDataDialog() {
                 <p className="text-[13px] text-text-2 mb-3">{t('dialog.clearData.desc')}</p>
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2.5 text-[12px] text-text-2">
-                    <ScrollText size={14} className="text-text-3 shrink-0" />
+                    <AppIcon icon={icons.scrollText} size={14} className="text-text-3 shrink-0" />
                     {t('dialog.clearData.orphanHistory')}
                   </div>
                   <div className="flex items-center gap-2.5 text-[12px] text-text-2">
-                    <FileX size={14} className="text-text-3 shrink-0" />
+                    <AppIcon icon={icons.fileX} size={14} className="text-text-3 shrink-0" />
                     {t('dialog.clearData.orphanLogs')}
                   </div>
                   <div className="flex items-center gap-2.5 text-[12px] text-text-2">
-                    <HardDrive size={14} className="text-text-3 shrink-0" />
+                    <AppIcon icon={icons.hardDrive} size={14} className="text-text-3 shrink-0" />
                     {t('dialog.clearData.localExpired')}
                   </div>
                 </div>

@@ -5,7 +5,7 @@ import TermThemePanel from './TermThemePanel'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 import { getThemeById } from '../terminal/themes/index'
-import { FolderPlus, ChevronRight } from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
 import * as api from '../../api/client'
 import type { TermThemePreset } from '../terminal/themes/index'
 
@@ -107,7 +107,7 @@ export default function SSHSettings() {
               <PreviewSwatches preset={lightPreset} />
               <span className="text-text-3 text-[11px]">/</span>
               <PreviewSwatches preset={darkPreset} />
-              <ChevronRight size={14} className="shrink-0 text-text-3" />
+              <AppIcon icon={icons.chevronRight} size={14} className="shrink-0 text-text-3" />
             </button>
           </SettingRow>
           <SToggle k="termHighlightEnhance" label="终端高亮增强" />
@@ -166,7 +166,7 @@ export default function SSHSettings() {
                 }}
                 className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
               >
-                <FolderPlus size={13} className="text-text-2" />
+                <AppIcon icon={icons.folderPlus} size={13} className="text-text-2" />
               </button>
               <input
                 type="text"
@@ -264,7 +264,7 @@ export default function SSHSettings() {
                 }}
                 className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
               >
-                <FolderPlus size={13} className="text-text-2" />
+                <AppIcon icon={icons.folderPlus} size={13} className="text-text-2" />
               </button>
               <input
                 type="text"

@@ -1,7 +1,8 @@
 /* ── 连接 Repository ── */
 
 import crypto from 'crypto'
-import { getDb } from '../db/database.js'
+import { connectionStore } from '../db/stores.js'
+import { markDirty } from '../services/auto-sync.service.js'
 import type { Connection, ConnectionRow, CreateConnectionDto, UpdateConnectionDto } from '../types/index.js'
 
 /** 将数据库行转为 API 安全响应（不含明文密码） */
@@ -42,77 +43,61 @@ function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
 }
 
 export function findAll(folderId?: string): Connection[] {
-  const db = getDb()
-  let rows: ConnectionRow[]
-  if (folderId) {
-    rows = db.prepare('SELECT * FROM connections WHERE folder_id = ? ORDER BY sort_order, name').all(folderId) as ConnectionRow[]
-  } else {
-    rows = db.prepare('SELECT * FROM connections ORDER BY sort_order, name').all() as ConnectionRow[]
-  }
-  return rows.map(toConnection)
+  let rows = connectionStore.findAll()
+  if (folderId) rows = rows.filter((r) => r.folder_id === folderId)
+  return rows.sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)).map(toConnection)
 }
 
 export function findById(id: string): Connection | undefined {
-  const db = getDb()
-  const row = db.prepare('SELECT * FROM connections WHERE id = ?').get(id) as ConnectionRow | undefined
+  const row = connectionStore.findById(id)
   return row ? toConnection(row) : undefined
 }
 
 /** 获取原始行（包含加密字段，仅内部使用） */
 export function findRawById(id: string): ConnectionRow | undefined {
-  const db = getDb()
-  return db.prepare('SELECT * FROM connections WHERE id = ?').get(id) as ConnectionRow | undefined
+  return connectionStore.findById(id)
 }
 
 /** 获取所有原始行（含加密字段，仅同步服务使用） */
 export function findAllRaw(): ConnectionRow[] {
-  const db = getDb()
-  return db.prepare('SELECT * FROM connections ORDER BY sort_order, name').all() as ConnectionRow[]
+  return connectionStore.findAll()
 }
 
 export function create(dto: CreateConnectionDto, encryptedPassword?: string | null, encryptedPrivateKey?: string | null, encryptedProxyPassword?: string | null): Connection {
-  const db = getDb()
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
-
-  db.prepare(`
-    INSERT INTO connections (
-      id, folder_id, name, protocol, host, port, username, auth_method,
-      encrypted_password, encrypted_private_key, sort_order, remark,
-      color_tag, environment, auth_type, proxy_type, proxy_host, proxy_port,
-      proxy_username, proxy_password, proxy_timeout, jump_server_id,
-      tunnels, env_vars, advanced, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
+  const row: ConnectionRow = {
     id,
-    dto.folder_id ?? null,
-    dto.name,
-    dto.protocol ?? 'ssh',
-    dto.host,
-    dto.port ?? 22,
-    dto.username,
-    dto.auth_method ?? 'password',
-    encryptedPassword ?? null,
-    encryptedPrivateKey ?? null,
-    dto.remark ?? '',
-    dto.color_tag ?? null,
-    dto.environment ?? '无',
-    dto.auth_type ?? 'password',
-    dto.proxy_type ?? '关闭',
-    dto.proxy_host ?? '127.0.0.1',
-    dto.proxy_port ?? 7890,
-    dto.proxy_username ?? '',
-    encryptedProxyPassword ?? null,
-    dto.proxy_timeout ?? 5,
-    dto.jump_server_id ?? null,
-    dto.tunnels ?? '[]',
-    dto.env_vars ?? '[]',
-    dto.advanced ?? '{}',
-    now,
-    now,
-  )
-
-  return findById(id)!
+    folder_id: dto.folder_id ?? null,
+    name: dto.name,
+    protocol: dto.protocol ?? 'ssh',
+    host: dto.host,
+    port: dto.port ?? 22,
+    username: dto.username,
+    auth_method: dto.auth_method ?? 'password',
+    encrypted_password: encryptedPassword ?? null,
+    encrypted_private_key: encryptedPrivateKey ?? null,
+    sort_order: 0,
+    remark: dto.remark ?? '',
+    color_tag: dto.color_tag ?? null,
+    environment: dto.environment ?? '无',
+    auth_type: dto.auth_type ?? 'password',
+    proxy_type: dto.proxy_type ?? '关闭',
+    proxy_host: dto.proxy_host ?? '127.0.0.1',
+    proxy_port: dto.proxy_port ?? 7890,
+    proxy_username: dto.proxy_username ?? '',
+    proxy_password: encryptedProxyPassword ?? '',
+    proxy_timeout: dto.proxy_timeout ?? 5,
+    jump_server_id: dto.jump_server_id ?? null,
+    tunnels: dto.tunnels ?? '[]',
+    env_vars: dto.env_vars ?? '[]',
+    advanced: dto.advanced ?? '{}',
+    created_at: now,
+    updated_at: now,
+  }
+  connectionStore.insert(row)
+  markDirty()
+  return toConnection(row)
 }
 
 export function update(
@@ -122,54 +107,42 @@ export function update(
   encryptedPrivateKey?: string | null,
   encryptedProxyPassword?: string | null,
 ): Connection | undefined {
-  const db = getDb()
-  const existing = db.prepare('SELECT * FROM connections WHERE id = ?').get(id) as ConnectionRow | undefined
-  if (!existing) return undefined
-
-  const now = new Date().toISOString()
-
-  db.prepare(`
-    UPDATE connections SET
-      folder_id = ?, name = ?, protocol = ?, host = ?, port = ?, username = ?,
-      auth_method = ?, encrypted_password = ?, encrypted_private_key = ?,
-      remark = ?, color_tag = ?, environment = ?, auth_type = ?,
-      proxy_type = ?, proxy_host = ?, proxy_port = ?, proxy_username = ?,
-      proxy_password = ?, proxy_timeout = ?, jump_server_id = ?,
-      tunnels = ?, env_vars = ?, advanced = ?, updated_at = ?
-    WHERE id = ?
-  `).run(
-    dto.folder_id !== undefined ? dto.folder_id : existing.folder_id,
-    dto.name ?? existing.name,
-    dto.protocol ?? existing.protocol,
-    dto.host ?? existing.host,
-    dto.port ?? existing.port,
-    dto.username ?? existing.username,
-    dto.auth_method ?? existing.auth_method,
-    encryptedPassword !== undefined ? encryptedPassword : existing.encrypted_password,
-    encryptedPrivateKey !== undefined ? encryptedPrivateKey : existing.encrypted_private_key,
-    dto.remark !== undefined ? dto.remark : existing.remark,
-    dto.color_tag !== undefined ? dto.color_tag : existing.color_tag,
-    dto.environment !== undefined ? dto.environment : existing.environment,
-    dto.auth_type !== undefined ? dto.auth_type : existing.auth_type,
-    dto.proxy_type !== undefined ? dto.proxy_type : existing.proxy_type,
-    dto.proxy_host !== undefined ? dto.proxy_host : existing.proxy_host,
-    dto.proxy_port !== undefined ? dto.proxy_port : existing.proxy_port,
-    dto.proxy_username !== undefined ? dto.proxy_username : existing.proxy_username,
-    encryptedProxyPassword !== undefined ? encryptedProxyPassword : existing.proxy_password,
-    dto.proxy_timeout !== undefined ? dto.proxy_timeout : existing.proxy_timeout,
-    dto.jump_server_id !== undefined ? dto.jump_server_id : existing.jump_server_id,
-    dto.tunnels !== undefined ? dto.tunnels : existing.tunnels,
-    dto.env_vars !== undefined ? dto.env_vars : existing.env_vars,
-    dto.advanced !== undefined ? dto.advanced : existing.advanced,
-    now,
-    id,
-  )
-
-  return findById(id)
+  const result = connectionStore.update(id, (existing) => ({
+    ...existing,
+    folder_id: dto.folder_id !== undefined ? dto.folder_id : existing.folder_id,
+    name: dto.name ?? existing.name,
+    protocol: dto.protocol ?? existing.protocol,
+    host: dto.host ?? existing.host,
+    port: dto.port ?? existing.port,
+    username: dto.username ?? existing.username,
+    auth_method: dto.auth_method ?? existing.auth_method,
+    encrypted_password: encryptedPassword !== undefined ? encryptedPassword : existing.encrypted_password,
+    encrypted_private_key: encryptedPrivateKey !== undefined ? encryptedPrivateKey : existing.encrypted_private_key,
+    remark: dto.remark !== undefined ? dto.remark : existing.remark,
+    color_tag: dto.color_tag !== undefined ? dto.color_tag : existing.color_tag,
+    environment: dto.environment !== undefined ? dto.environment : existing.environment,
+    auth_type: dto.auth_type !== undefined ? dto.auth_type : existing.auth_type,
+    proxy_type: dto.proxy_type !== undefined ? dto.proxy_type : existing.proxy_type,
+    proxy_host: dto.proxy_host !== undefined ? dto.proxy_host : existing.proxy_host,
+    proxy_port: dto.proxy_port !== undefined ? dto.proxy_port : existing.proxy_port,
+    proxy_username: dto.proxy_username !== undefined ? dto.proxy_username : existing.proxy_username,
+    proxy_password: encryptedProxyPassword !== undefined ? (encryptedProxyPassword ?? '') : existing.proxy_password,
+    proxy_timeout: dto.proxy_timeout !== undefined ? dto.proxy_timeout : existing.proxy_timeout,
+    jump_server_id: dto.jump_server_id !== undefined ? dto.jump_server_id : existing.jump_server_id,
+    tunnels: dto.tunnels !== undefined ? dto.tunnels : existing.tunnels,
+    env_vars: dto.env_vars !== undefined ? dto.env_vars : existing.env_vars,
+    advanced: dto.advanced !== undefined ? dto.advanced : existing.advanced,
+    updated_at: new Date().toISOString(),
+  }))
+  if (result) {
+    markDirty()
+    return toConnection(result)
+  }
+  return undefined
 }
 
 export function remove(id: string): boolean {
-  const db = getDb()
-  const result = db.prepare('DELETE FROM connections WHERE id = ?').run(id)
-  return result.changes > 0
+  const ok = connectionStore.remove(id)
+  if (ok) markDirty()
+  return ok
 }

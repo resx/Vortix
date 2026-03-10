@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import SshTerminal from './SshTerminal'
-import { useAppStore } from '../../stores/useAppStore'
+import { useUIStore } from '../../stores/useUIStore'
+import { useTabStore } from '../../stores/useTabStore'
 import * as api from '../../api/client'
 import type { AppTab } from '../../types'
 
@@ -20,8 +21,8 @@ interface ConnectionInfo {
 }
 
 export default function SshTerminalWrapper({ tab }: Props) {
-  const updateTabStatus = useAppStore((s) => s.updateTabStatus)
-  const showContextMenu = useAppStore((s) => s.showContextMenu)
+  const updateTabStatus = useTabStore((s) => s.updateTabStatus)
+  const showContextMenu = useUIStore((s) => s.showContextMenu)
   const [connection, setConnection] = useState<ConnectionInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retryKey, setRetryKey] = useState(0)

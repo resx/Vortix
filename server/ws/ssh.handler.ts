@@ -22,6 +22,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
     let lastActivity = Date.now()
     let currentConnectionId: string | null = null
     let cmdBuffer = '' // 命令累积缓冲区
+    let cachedHistoryEnabled: boolean | null = null // 缓存 sshHistoryEnabled 设置
 
     // 监控相关
     let monitorTimer: ReturnType<typeof setInterval> | null = null
@@ -103,7 +104,26 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
             host: string; port: number; username: string; password?: string; privateKey?: string; connectionId?: string
           }
 
+          // 输入验证
+          if (!host || typeof host !== 'string' || host.length > 255) {
+            ws.send(JSON.stringify({ type: 'error', data: '无效的主机地址' }))
+            break
+          }
+          if (!username || typeof username !== 'string' || username.length > 255) {
+            ws.send(JSON.stringify({ type: 'error', data: '无效的用户名' }))
+            break
+          }
+          const portNum = Number(port) || 22
+          if (!Number.isInteger(portNum) || portNum < 1 || portNum > 65535) {
+            ws.send(JSON.stringify({ type: 'error', data: '端口号必须在 1-65535 之间' }))
+            break
+          }
+
           currentConnectionId = connectionId || null
+          // 缓存历史记录设置，避免每次 Enter 都查询数据库
+          try {
+            cachedHistoryEnabled = settingsRepo.get('sshHistoryEnabled') !== false
+          } catch { cachedHistoryEnabled = true }
           sshClient = new Client()
           const connectStartTime = Date.now()
 
@@ -176,7 +196,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
           })
 
           const connectConfig: Record<string, unknown> = {
-            host, port: port || 22, username, readyTimeout: 10000,
+            host, port: portNum, username, readyTimeout: 10000,
           }
           if (privateKey) connectConfig.privateKey = privateKey
           else if (password) connectConfig.password = password
@@ -188,6 +208,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
         // 前端输入
         case 'input': {
           const inputData = msg.data as string
+          if (typeof inputData !== 'string') break
           if (ptyProcess) ptyProcess.write(inputData)
           else if (sshStream) sshStream.write(inputData)
 
@@ -199,8 +220,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
               const trimmed = cmdBuffer.trim()
               if (trimmed && currentConnectionId) {
                 try {
-                  const historyEnabled = settingsRepo.get('sshHistoryEnabled')
-                  if (historyEnabled !== false) {
+                  if (cachedHistoryEnabled !== false) {
                     historyRepo.create(currentConnectionId, trimmed)
                   }
                 } catch { /* 静默 */ }
@@ -225,8 +245,12 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
         // 终端尺寸调整
         case 'resize': {
           const { cols, rows } = msg.data as { cols: number; rows: number }
-          if (ptyProcess) ptyProcess.resize(cols, rows)
-          else if (sshStream) sshStream.setWindow(rows, cols, 0, 0)
+          // 验证 cols/rows 为正整数且在合理范围
+          const c = Number(cols)
+          const r = Number(rows)
+          if (!Number.isInteger(c) || !Number.isInteger(r) || c < 1 || c > 500 || r < 1 || r > 200) break
+          if (ptyProcess) ptyProcess.resize(c, r)
+          else if (sshStream) sshStream.setWindow(r, c, 0, 0)
           break
         }
 

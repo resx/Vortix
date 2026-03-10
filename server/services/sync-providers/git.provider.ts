@@ -3,10 +3,12 @@
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import crypto from 'crypto'
 import { simpleGit, type SimpleGitOptions } from 'simple-git'
 import type { SyncProvider, SyncFileInfo, GitProviderConfig } from './types.js'
 
-const SYNC_FILENAME = 'vortix-sync.dat'
+const SYNC_FILENAME = 'vortix-sync.json'
+const LEGACY_FILENAME = 'vortix-sync.dat'
 
 export class GitProvider implements SyncProvider {
   private config: GitProviderConfig
@@ -45,8 +47,9 @@ export class GitProvider implements SyncProvider {
   }
 
   /** 构建 git 环境变量 */
-  private getEnv(): Record<string, string> {
+  private getEnv(): { env: Record<string, string>; keyPath?: string } {
     const env: Record<string, string> = { ...process.env as Record<string, string> }
+    let keyPath: string | undefined
     // TLS 验证控制
     if (!this.config.tlsVerify) {
       env.GIT_SSL_NO_VERIFY = 'true'
@@ -57,19 +60,27 @@ export class GitProvider implements SyncProvider {
       let keyContent = this.config.sshKey.trim().replace(/\r\n/g, '\n')
       if (!keyContent.endsWith('\n')) keyContent += '\n'
 
-      const keyPath = path.join(os.tmpdir(), 'vortix-git-ssh-key')
+      // 使用随机文件名防止冲突和预测
+      keyPath = path.join(os.tmpdir(), `vortix-git-ssh-${crypto.randomUUID()}`)
       fs.writeFileSync(keyPath, keyContent, { mode: 0o600 })
 
       // Windows 路径需要用正斜杠，避免 SSH 解析反斜杠出错
       const sshKeyPath = keyPath.replace(/\\/g, '/')
-      env.GIT_SSH_COMMAND = `ssh -i "${sshKeyPath}" -o StrictHostKeyChecking=no -o IdentitiesOnly=yes`
+      env.GIT_SSH_COMMAND = `ssh -i "${sshKeyPath}" -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes`
     }
-    return env
+    return { env, keyPath }
+  }
+
+  /** 清理临时 SSH 密钥文件 */
+  private cleanupKeyFile(keyPath?: string): void {
+    if (keyPath) {
+      try { fs.unlinkSync(keyPath) } catch { /* 静默 */ }
+    }
   }
 
   /** 确保本地仓库就绪（clone 或 pull） */
-  private async ensureRepo(): Promise<ReturnType<typeof simpleGit>> {
-    const env = this.getEnv()
+  private async ensureRepo(): Promise<{ git: ReturnType<typeof simpleGit>; keyPath?: string }> {
+    const { env, keyPath } = this.getEnv()
     const branch = this.config.branch || 'master'
     const opts: Partial<SimpleGitOptions> = { baseDir: this.workDir }
 
@@ -84,27 +95,28 @@ export class GitProvider implements SyncProvider {
 
     const git = simpleGit(opts)
     git.env(env)
-    // 拉取最新
+    // fetch + reset 代替 pull，兼容 force push 后的 diverged history
     try {
-      await git.pull('origin', branch)
+      await git.fetch('origin', branch)
+      await git.reset(['--hard', `origin/${branch}`])
     } catch {
-      // 空仓库或首次推送时 pull 可能失败，忽略
+      // 空仓库或首次推送时可能失败，忽略
     }
-    return git
+    return { git, keyPath }
   }
 
   /** 通过 git ls-files 精确查找并移除非当前路径的旧同步文件 */
   private async cleanupOldSyncFiles(git: ReturnType<typeof simpleGit>): Promise<boolean> {
     let changed = false
     try {
-      // 列出所有已跟踪文件，在 JS 侧过滤同步文件名
       const result = await git.raw(['ls-files'])
       const tracked = result.trim().split('\n').filter(Boolean)
       for (const rel of tracked) {
-        // 只匹配文件名为 vortix-sync.dat 且不在当前路径的
         const basename = rel.split('/').pop()
-        if (basename !== SYNC_FILENAME) continue
-        if (rel === this.syncRelPath) continue
+        // 清理旧 .dat 文件和不在当前路径的 .json 文件
+        const isLegacy = basename === LEGACY_FILENAME
+        const isOldJson = basename === SYNC_FILENAME && rel !== this.syncRelPath
+        if (!isLegacy && !isOldJson) continue
         const abs = path.join(this.workDir, rel)
         if (fs.existsSync(abs)) fs.unlinkSync(abs)
         await git.rm(rel)
@@ -117,60 +129,122 @@ export class GitProvider implements SyncProvider {
   }
 
   async upload(data: Buffer): Promise<void> {
-    const git = await this.ensureRepo()
-    // 清理旧位置的同步文件
-    await this.cleanupOldSyncFiles(git)
-    const filePath = path.join(this.workDir, this.syncRelPath)
-    // 确保子目录存在
-    fs.mkdirSync(path.dirname(filePath), { recursive: true })
-    fs.writeFileSync(filePath, data)
-    await git.add(this.syncRelPath)
-    await git.commit(`chore: vortix sync ${new Date().toISOString()}`)
-    await git.push('origin', this.config.branch || 'master')
+    const { git, keyPath } = await this.ensureRepo()
+    try {
+      // 清理旧位置的同步文件
+      await this.cleanupOldSyncFiles(git)
+      const filePath = path.join(this.workDir, this.syncRelPath)
+      // 确保子目录存在
+      fs.mkdirSync(path.dirname(filePath), { recursive: true })
+      fs.writeFileSync(filePath, data)
+      await git.add(this.syncRelPath)
+
+      const branch = this.config.branch || 'master'
+      const msg = `chore: vortix sync ${new Date().toISOString()}`
+
+      // amend + force push，仓库只保留 1 个 commit
+      let hasCommits = false
+      try { await git.log({ maxCount: 1 }); hasCommits = true } catch { /* 空仓库 */ }
+
+      if (hasCommits) {
+        await git.commit(msg, { '--amend': null })
+        await git.push('origin', branch, { '--force': null })
+      } else {
+        await git.commit(msg)
+        await git.push('origin', branch)
+      }
+    } finally {
+      this.cleanupKeyFile(keyPath)
+    }
   }
 
   async download(): Promise<Buffer> {
-    await this.ensureRepo()
-    const filePath = path.join(this.workDir, this.syncRelPath)
-    if (!fs.existsSync(filePath)) {
+    const { keyPath } = await this.ensureRepo()
+    try {
+      const filePath = path.join(this.workDir, this.syncRelPath)
+      if (fs.existsSync(filePath)) {
+        return fs.readFileSync(filePath)
+      }
+      // fallback: 尝试读取旧 .dat 文件
+      const legacyRelPath = this.syncRelPath.replace(/\.json$/, '.dat')
+      const legacyPath = path.join(this.workDir, legacyRelPath)
+      if (fs.existsSync(legacyPath)) {
+        return fs.readFileSync(legacyPath)
+      }
       throw new Error('Git 仓库中不存在同步文件')
+    } finally {
+      this.cleanupKeyFile(keyPath)
     }
-    return fs.readFileSync(filePath)
   }
 
   async delete(): Promise<void> {
-    const git = await this.ensureRepo()
-    let hasChanges = false
+    const { git, keyPath } = await this.ensureRepo()
+    try {
+      let hasChanges = false
 
-    // 删除当前路径的同步文件
-    const filePath = path.join(this.workDir, this.syncRelPath)
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath)
-      await git.rm(this.syncRelPath)
-      hasChanges = true
-    }
+      // 删除当前路径的同步文件
+      const filePath = path.join(this.workDir, this.syncRelPath)
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath)
+        await git.rm(this.syncRelPath)
+        hasChanges = true
+      }
 
-    // 清理其他位置的旧同步文件
-    if (await this.cleanupOldSyncFiles(git)) hasChanges = true
+      // 清理其他位置的旧同步文件
+      if (await this.cleanupOldSyncFiles(git)) hasChanges = true
 
-    if (hasChanges) {
-      await git.commit(`chore: remove vortix sync data`)
-      await git.push('origin', this.config.branch || 'master')
+      if (hasChanges) {
+        const branch = this.config.branch || 'master'
+        // amend + force push，保持仓库只有 1 个 commit
+        let hasCommits = false
+        try { await git.log({ maxCount: 1 }); hasCommits = true } catch { /* */ }
+
+        if (hasCommits) {
+          await git.commit('chore: remove vortix sync data', { '--amend': null })
+          await git.push('origin', branch, { '--force': null })
+        } else {
+          await git.commit('chore: remove vortix sync data')
+          await git.push('origin', branch)
+        }
+      }
+    } finally {
+      this.cleanupKeyFile(keyPath)
     }
   }
 
   async status(): Promise<SyncFileInfo> {
+    let keyPath: string | undefined
     try {
-      await this.ensureRepo()
+      const result = await this.ensureRepo()
+      keyPath = result.keyPath
+      // 优先检查新格式，fallback 旧格式
       const filePath = path.join(this.workDir, this.syncRelPath)
-      const stat = fs.statSync(filePath)
-      return {
-        exists: true,
-        lastModified: stat.mtime.toISOString(),
-        size: stat.size,
+      const legacyRelPath = this.syncRelPath.replace(/\.json$/, '.dat')
+      const legacyPath = path.join(this.workDir, legacyRelPath)
+      for (const fp of [filePath, legacyPath]) {
+        try {
+          const stat = fs.statSync(fp)
+          return { exists: true, lastModified: stat.mtime.toISOString(), size: stat.size }
+        } catch { /* 继续 */ }
       }
+      return { exists: false, lastModified: null, size: null }
     } catch {
       return { exists: false, lastModified: null, size: null }
+    } finally {
+      this.cleanupKeyFile(keyPath)
+    }
+  }
+
+  async test(): Promise<void> {
+    // 使用 git ls-remote 验证凭据和仓库地址，完全不碰本地工作目录
+    const { env, keyPath } = this.getEnv()
+    try {
+      const remoteUrl = this.isSsh() ? this.config.url : this.getAuthUrl()
+      const git = simpleGit()
+      git.env(env)
+      await git.listRemote([remoteUrl, 'HEAD'])
+    } finally {
+      this.cleanupKeyFile(keyPath)
     }
   }
 }

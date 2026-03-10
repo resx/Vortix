@@ -1,10 +1,7 @@
 /* ── 密钥管理器（密钥库模式） ── */
 
 import { useState, useEffect, useCallback } from 'react'
-import {
-  FileText, Loader2, Copy, Check, Eye, EyeOff,
-  KeyRound, Plus, Trash2, Download, Pencil, ArrowLeft, ClipboardPaste,
-} from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
 import IslandModal from '../ui/island-modal'
 import * as api from '../../api/client'
 import type { SshKey } from '../../api/types'
@@ -60,11 +57,11 @@ export default function KeyPickerModal({ onSelect, onClose }: KeyPickerModalProp
       <div className="flex border-b border-border/50 px-4 pt-3 gap-1">
         {tab === 'edit' ? (
           <button onClick={handleBackToList} className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-text-3 hover:text-text-2">
-            <ArrowLeft size={13} /> 返回列表
+            <AppIcon icon={icons.arrowLeft} size={13} /> 返回列表
           </button>
         ) : (
           <>
-            {([['list', '密钥库', KeyRound], ['generate', '新建密钥', Plus], ['import', '手动导入', ClipboardPaste]] as const).map(([key, label, Icon]) => (
+            {([['list', '密钥库', icons.key], ['generate', '新建密钥', icons.plus], ['import', '手动导入', icons.clipboardPaste]] as const).map(([key, label, iconId]) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
@@ -74,7 +71,7 @@ export default function KeyPickerModal({ onSelect, onClose }: KeyPickerModalProp
                     : 'text-text-3 hover:text-text-2 hover:bg-bg-hover'
                 }`}
               >
-                <Icon size={13} />
+                <AppIcon icon={iconId} size={13} />
                 {label}
               </button>
             ))}
@@ -173,7 +170,7 @@ function ListView({ keys, loading, onSelect, onClose, onEdit, onRefresh }: {
     <>
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 size={18} className="animate-spin text-text-3" />
+          <AppIcon icon={icons.loader} size={18} className="animate-spin text-text-3" />
         </div>
       ) : keys.length === 0 ? (
         <div className="text-center py-8 text-[12px] text-text-3">
@@ -209,10 +206,10 @@ function ListView({ keys, loading, onSelect, onClose, onEdit, onRefresh }: {
                   <td className="px-3 py-2">
                     <div className="flex items-center gap-1">
                       <button onClick={(e) => { e.stopPropagation(); onEdit(row) }} className="p-1 text-text-3 hover:text-primary rounded" title="编辑">
-                        <Pencil size={12} />
+                        <AppIcon icon={icons.pencil} size={12} />
                       </button>
                       <button onClick={(e) => { e.stopPropagation(); handleExport(row.id) }} className="p-1 text-text-3 hover:text-teal-500 rounded" title="导出">
-                        <Download size={12} />
+                        <AppIcon icon={icons.download} size={12} />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(row.id) }}
@@ -220,7 +217,7 @@ function ListView({ keys, loading, onSelect, onClose, onEdit, onRefresh }: {
                         className="p-1 text-text-3 hover:text-red-500 rounded disabled:opacity-50"
                         title="删除"
                       >
-                        {deleting === row.id ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                        {deleting === row.id ? <AppIcon icon={icons.loader} size={12} className="animate-spin" /> : <AppIcon icon={icons.trash} size={12} />}
                       </button>
                     </div>
                   </td>
@@ -252,7 +249,7 @@ function ListView({ keys, loading, onSelect, onClose, onEdit, onRefresh }: {
             disabled={importing}
             className="flex items-center gap-1 text-xs text-teal-500 hover:text-teal-600 font-medium disabled:opacity-50"
           >
-            {importing ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+            {importing ? <AppIcon icon={icons.loader} size={12} className="animate-spin" /> : <AppIcon icon={icons.fileText} size={12} />}
             导入本地文件
           </button>
         </div>
@@ -380,7 +377,7 @@ function GenerateView({ onDone }: { onDone: () => void }) {
             className="w-full px-3 py-2 text-xs rounded-lg border border-border/60 bg-bg-base text-text-1 placeholder:text-text-3 focus:outline-none focus:border-primary/60 pr-8"
           />
           <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-3 hover:text-text-2">
-            {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+            {showPass ? <AppIcon icon={icons.eyeOff} size={14} /> : <AppIcon icon={icons.eye} size={14} />}
           </button>
         </div>
       </div>
@@ -403,7 +400,7 @@ function GenerateView({ onDone }: { onDone: () => void }) {
         disabled={generating}
         className="w-full py-2 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-1.5 transition-colors"
       >
-        {generating ? <Loader2 size={13} className="animate-spin" /> : <KeyRound size={13} />}
+        {generating ? <AppIcon icon={icons.loader} size={13} className="animate-spin" /> : <AppIcon icon={icons.key} size={13} />}
         {generating ? '生成中...' : '生成密钥'}
       </button>
 
@@ -415,7 +412,7 @@ function GenerateView({ onDone }: { onDone: () => void }) {
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-text-3">公钥（已自动保存到密钥库）</span>
             <button onClick={handleCopyPub} className="flex items-center gap-1 text-[11px] text-text-3 hover:text-primary transition-colors">
-              {copied ? <Check size={11} className="text-green-500" /> : <Copy size={11} />}
+              {copied ? <AppIcon icon={icons.check} size={11} className="text-green-500" /> : <AppIcon icon={icons.copy} size={11} />}
               {copied ? '已复制' : '复制'}
             </button>
           </div>
@@ -517,7 +514,7 @@ function ImportView({ onDone }: { onDone: () => void }) {
             className="w-full px-3 py-2 text-xs rounded-lg border border-border/60 bg-bg-base text-text-1 placeholder:text-text-3 focus:outline-none focus:border-primary/60 pr-8"
           />
           <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-3 hover:text-text-2">
-            {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+            {showPass ? <AppIcon icon={icons.eyeOff} size={14} /> : <AppIcon icon={icons.eye} size={14} />}
           </button>
         </div>
       </div>
@@ -550,7 +547,7 @@ function ImportView({ onDone }: { onDone: () => void }) {
         disabled={saving}
         className="w-full py-2 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-1.5 transition-colors"
       >
-        {saving ? <Loader2 size={13} className="animate-spin" /> : <ClipboardPaste size={13} />}
+        {saving ? <AppIcon icon={icons.loader} size={13} className="animate-spin" /> : <AppIcon icon={icons.clipboardPaste} size={13} />}
         {saving ? '保存中...' : '保存到密钥库'}
       </button>
     </div>
@@ -621,7 +618,7 @@ function EditView({ keyData, onDone }: { keyData: SshKey; onDone: () => void }) 
       <div>
         <label className="text-[11px] text-text-3 mb-1.5 block">私钥</label>
         {!privateKeyLoaded ? (
-          <div className="flex items-center gap-1.5 py-2 text-xs text-text-3"><Loader2 size={12} className="animate-spin" /> 加载中...</div>
+          <div className="flex items-center gap-1.5 py-2 text-xs text-text-3"><AppIcon icon={icons.loader} size={12} className="animate-spin" /> 加载中...</div>
         ) : (
           <textarea
             value={privateKey}
@@ -657,7 +654,7 @@ function EditView({ keyData, onDone }: { keyData: SshKey; onDone: () => void }) 
             className="w-full px-3 py-2 text-xs rounded-lg border border-border/60 bg-bg-base text-text-1 placeholder:text-text-3 focus:outline-none focus:border-primary/60 pr-8"
           />
           <button type="button" onClick={() => setShowPass(!showPass)} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-3 hover:text-text-2">
-            {showPass ? <EyeOff size={14} /> : <Eye size={14} />}
+            {showPass ? <AppIcon icon={icons.eyeOff} size={14} /> : <AppIcon icon={icons.eye} size={14} />}
           </button>
         </div>
       </div>
@@ -692,7 +689,7 @@ function EditView({ keyData, onDone }: { keyData: SshKey; onDone: () => void }) 
         disabled={saving}
         className="w-full py-2 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-1.5 transition-colors"
       >
-        {saving ? <Loader2 size={13} className="animate-spin" /> : null}
+        {saving ? <AppIcon icon={icons.loader} size={13} className="animate-spin" /> : null}
         {saving ? '保存中...' : '保存修改'}
       </button>
     </div>

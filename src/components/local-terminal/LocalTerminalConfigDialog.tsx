@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
-import { X, ChevronDown, Folder } from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
 import IslandModal from '../ui/island-modal'
-import { useAppStore } from '../../stores/useAppStore'
+import { useUIStore } from '../../stores/useUIStore'
 import { useLocalTerminalConfigStore } from '../../stores/useLocalTerminalConfigStore'
 import type { ShellType } from '../../stores/useLocalTerminalConfigStore'
 import * as api from '../../api/client'
@@ -20,9 +20,9 @@ function errorInputClass(hasError: boolean) {
 }
 
 export default function LocalTerminalConfigDialog() {
-  const closeLocalTermConfig = useAppStore((s) => s.closeLocalTermConfig)
-  const mode = useAppStore((s) => s.localTermConfigMode)
-  const initialId = useAppStore((s) => s.localTermConfigInitialId)
+  const closeLocalTermConfig = useUIStore((s) => s.closeLocalTermConfig)
+  const mode = useUIStore((s) => s.localTermConfigMode)
+  const initialId = useUIStore((s) => s.localTermConfigInitialId)
 
   const store = useLocalTerminalConfigStore()
   const { saving, loading, errors, testing, testResult } = store
@@ -107,7 +107,7 @@ export default function LocalTerminalConfigDialog() {
               className="text-text-3 hover:text-text-2 ml-1"
               onClick={() => store.setField('colorTag', null)}
             >
-              <X size={14} />
+              <AppIcon icon={icons.close} size={14} />
             </button>
           </div>
         </div>
@@ -132,7 +132,7 @@ export default function LocalTerminalConfigDialog() {
               ${shellOpen ? 'border border-primary ring-1 ring-primary/20 bg-bg-card' : 'border border-transparent hover:bg-bg-hover'}`}
           >
             <span className="font-mono text-text-1">{store.shell}</span>
-            <ChevronDown size={12} className="text-text-3" />
+            <AppIcon icon={icons.chevronDown} size={12} className="text-text-3" />
           </div>
           {shellOpen && (
             <div className="absolute top-full left-0 w-full mt-1 bg-bg-card border border-border rounded-lg shadow-lg z-10 py-1 max-h-48 overflow-y-auto">
@@ -168,7 +168,7 @@ export default function LocalTerminalConfigDialog() {
               onClick={handlePickDir}
               disabled={pickingDir}
             >
-              <Folder size={14} />
+              <AppIcon icon={icons.folder} size={14} />
             </button>
           </div>
         </div>

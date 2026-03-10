@@ -1,18 +1,16 @@
-import {
-  Folder, Terminal, Database, Package, Zap, List,
-} from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { useAssetStore } from '../../stores/useAssetStore'
+import { useUIStore } from '../../stores/useUIStore'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
+import { AppIcon, icons } from '../icons/AppIcon'
 import type { ActiveFilter } from '../../types'
-import type { LucideIcon } from 'lucide-react'
 
 function TooltipButton({
-  icon: Icon,
+  icon,
   isActive,
   tooltipText,
   onClick,
 }: {
-  icon: LucideIcon
+  icon: string
   isActive: boolean
   tooltipText: string
   onClick: () => void
@@ -26,7 +24,7 @@ function TooltipButton({
             isActive ? 'bg-border text-text-1' : 'text-text-3 hover:bg-border/60'
           }`}
         >
-          <Icon className="w-[18px] h-[18px]" />
+          <AppIcon icon={icon} size={18} />
         </button>
       </TooltipTrigger>
       <TooltipContent side="right">{tooltipText}</TooltipContent>
@@ -34,20 +32,19 @@ function TooltipButton({
   )
 }
 
-const filterItems: { key: ActiveFilter; icon: LucideIcon; tooltip: string }[] = [
-  { key: 'all', icon: List, tooltip: '显示全部' },
-  { key: 'ssh', icon: Terminal, tooltip: '显示终端/SSH资产' },
-  { key: 'db', icon: Database, tooltip: '显示数据库资产' },
-  { key: 'docker', icon: Package, tooltip: '显示Docker资产' },
+const filterItems: { key: ActiveFilter; icon: string; tooltip: string }[] = [
+  { key: 'all', icon: icons.list, tooltip: '显示全部' },
+  { key: 'ssh', icon: icons.terminal, tooltip: '显示终端/SSH资产' },
+  { key: 'db', icon: icons.database, tooltip: '显示数据库资产' },
+  { key: 'docker', icon: icons.container, tooltip: '显示Docker资产' },
 ]
 
 export default function ActivityBar() {
-  const activeFilter = useAppStore((s) => s.activeFilter)
-  const setActiveFilter = useAppStore((s) => s.setActiveFilter)
-  const isSidebarOpen = useAppStore((s) => s.isSidebarOpen)
-  const toggleSidebar = useAppStore((s) => s.toggleSidebar)
+  const activeFilter = useAssetStore((s) => s.activeFilter)
+  const setActiveFilter = useAssetStore((s) => s.setActiveFilter)
+  const isSidebarOpen = useUIStore((s) => s.isSidebarOpen)
+  const toggleSidebar = useUIStore((s) => s.toggleSidebar)
 
-  // 快捷命令按钮：折叠态下同时展开 sidebar
   const handleShortcutsClick = () => {
     setActiveFilter('shortcuts')
     if (!isSidebarOpen) toggleSidebar()
@@ -55,10 +52,9 @@ export default function ActivityBar() {
 
   return (
     <div id="activity-bar" className="w-[48px] flex flex-col items-center py-2 shrink-0 select-none z-20">
-      {/* 显示/隐藏资产树按钮 */}
       <div className="w-full mb-2 flex justify-center">
         <TooltipButton
-          icon={Folder}
+          icon={icons.folder}
           isActive={isSidebarOpen}
           onClick={toggleSidebar}
           tooltipText={isSidebarOpen ? '隐藏资产树' : '显示资产树'}
@@ -67,7 +63,6 @@ export default function ActivityBar() {
 
       <div className="w-[24px] h-px bg-border mb-2" />
 
-      {/* 筛选按钮 */}
       <div className="flex flex-col gap-1.5 w-full items-center">
         {filterItems.map(({ key, icon, tooltip }) => (
           <TooltipButton
@@ -80,10 +75,9 @@ export default function ActivityBar() {
         ))}
       </div>
 
-      {/* 底部快捷命令 */}
       <div className="mt-auto mb-1 w-full flex justify-center">
         <TooltipButton
-          icon={Zap}
+          icon={icons.zap}
           isActive={activeFilter === 'shortcuts'}
           onClick={handleShortcutsClick}
           tooltipText="显示快捷命令"

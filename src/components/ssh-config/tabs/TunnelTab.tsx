@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { CloudSun, Link as LinkIcon, FileEdit, Pencil, X } from 'lucide-react'
+import { AppIcon, icons } from '../../icons/AppIcon'
 import { useSshConfigStore } from '../../../stores/useSshConfigStore'
 import ResizableHeader from '../shared/ResizableHeader'
 import EditTunnelModal from '../modals/EditTunnelModal'
@@ -51,7 +51,7 @@ export default function TunnelTab() {
         >
           {tunnels.length === 0 ? (
             <div className="flex-1 flex flex-col items-center justify-center text-text-3">
-              <CloudSun size={56} className="mb-3 stroke-[1.5]" />
+              <AppIcon icon={icons.cloudSun} size={56} className="mb-3" />
               <p className="text-xs">鼠标右键添加隧道</p>
             </div>
           ) : (
@@ -81,15 +81,15 @@ export default function TunnelTab() {
           style={{ top: ctxMenu.y, left: ctxMenu.x }}
         >
           <div className="text-[10px] text-text-3 px-3 py-1 mb-1 border-b border-border/50">操作</div>
-          <CtxBtn icon={LinkIcon} label="新建" onClick={() => { setField('editingTunnel', null); toggleSubModal('editTunnel', true) }} />
+          <CtxBtn icon={icons.link} label="新建" onClick={() => { setField('editingTunnel', null); toggleSubModal('editTunnel', true) }} />
           {ctxMenu.tunnelId && (
             <>
-              <CtxBtn icon={FileEdit} label="编辑" onClick={() => {
+              <CtxBtn icon={icons.fileEdit} label="编辑" onClick={() => {
                 const t = tunnels.find((x) => x.id === ctxMenu.tunnelId)
                 if (t) { setField('editingTunnel', t); toggleSubModal('editTunnel', true) }
               }} />
-              <CtxBtn icon={Pencil} label="重命名" onClick={() => {}} />
-              <CtxBtn icon={X} label="删除" onClick={() => { if (ctxMenu.tunnelId) removeTunnel(ctxMenu.tunnelId) }} />
+              <CtxBtn icon={icons.pencil} label="重命名" onClick={() => {}} />
+              <CtxBtn icon={icons.close} label="删除" onClick={() => { if (ctxMenu.tunnelId) removeTunnel(ctxMenu.tunnelId) }} />
             </>
           )}
         </div>
@@ -101,13 +101,13 @@ export default function TunnelTab() {
   )
 }
 
-function CtxBtn({ icon: Icon, label, onClick }: { icon: typeof LinkIcon; label: string; onClick: () => void }) {
+function CtxBtn({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
   return (
     <button
       className="w-full text-left px-3 py-1.5 text-xs text-text-1 hover:bg-bg-hover flex items-center"
       onClick={onClick}
     >
-      <Icon size={12} className="mr-2 text-text-3" /> {label}
+      <AppIcon icon={icon} size={12} className="mr-2 text-text-3" /> {label}
     </button>
   )
 }

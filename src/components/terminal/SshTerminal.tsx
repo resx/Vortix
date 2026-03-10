@@ -8,6 +8,7 @@ import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 import { useMonitorStore } from '../../stores/useMonitorStore'
 import { useKeywordHighlight } from './useKeywordHighlight'
 import { getSession, setSession } from '../../stores/terminalSessionRegistry'
+import { getWsBaseUrl } from '../../api/client'
 import type { TerminalSession } from '../../stores/terminalSessionRegistry'
 import '@xterm/xterm/css/xterm.css'
 
@@ -44,7 +45,8 @@ interface SshTerminalProps {
   onContextMenu?: (x: number, y: number, hasSelection: boolean) => void
 }
 
-export default function SshTerminal({ paneId, tabId, wsUrl = 'ws://localhost:3001/ws/ssh', connection, connectionId, profileId, onStatusChange, onContextMenu }: SshTerminalProps) {
+export default function SshTerminal({ paneId, tabId, wsUrl, connection, connectionId, profileId, onStatusChange, onContextMenu }: SshTerminalProps) {
+  const resolvedWsUrl = wsUrl || `${getWsBaseUrl()}/ws/ssh`
   const wrapperRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -94,7 +96,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl = 'ws://localhost:300
     const { term, fitAddon } = session
     const isLocal = 'type' in conn && conn.type === 'local'
 
-    const ws = new WebSocket(wsUrl)
+    const ws = new WebSocket(resolvedWsUrl)
     session.ws = ws
     wsRef.current = ws
 
@@ -211,7 +213,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl = 'ws://localhost:300
         ws.send(JSON.stringify({ type: 'input', data }))
       }
     })
-  }, [wsUrl, sendHighlightConfig])
+  }, [resolvedWsUrl, sendHighlightConfig])
 
   // 主 effect：挂载恢复 / 首次创建
   useEffect(() => {
@@ -314,17 +316,21 @@ export default function SshTerminal({ paneId, tabId, wsUrl = 'ws://localhost:300
     }
 
     // ── 绑定 Observers ──
+    let resizeRafId = 0
     const handleResize = () => {
-      const s = getSession(paneId)
-      if (!s) return
-      // 仅在容器有有效尺寸时才 fit，防止切走时 0 尺寸破坏终端状态
-      const container = wrapperRef.current
-      if (!container || container.clientWidth <= 0 || container.clientHeight <= 0) return
-      safeFit(s.fitAddon)
-      const dims = s.fitAddon.proposeDimensions()
-      if (dims && s.ws?.readyState === WebSocket.OPEN) {
-        s.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
-      }
+      cancelAnimationFrame(resizeRafId)
+      resizeRafId = requestAnimationFrame(() => {
+        const s = getSession(paneId)
+        if (!s) return
+        // 仅在容器有有效尺寸时才 fit，防止切走时 0 尺寸破坏终端状态
+        const container = wrapperRef.current
+        if (!container || container.clientWidth <= 0 || container.clientHeight <= 0) return
+        safeFit(s.fitAddon)
+        const dims = s.fitAddon.proposeDimensions()
+        if (dims && s.ws?.readyState === WebSocket.OPEN) {
+          s.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
+        }
+      })
     }
     const resizeObserver = new ResizeObserver(handleResize)
     resizeObserver.observe(wrapper)
@@ -347,6 +353,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl = 'ws://localhost:300
     intersectionObserver.observe(wrapper)
 
     return () => {
+      cancelAnimationFrame(resizeRafId)
       resizeObserver.disconnect()
       intersectionObserver.disconnect()
       // 从 wrapper 分离 containerEl（防止 React 移除 wrapper 时一起销毁）
@@ -386,7 +393,22 @@ export default function SshTerminal({ paneId, tabId, wsUrl = 'ws://localhost:300
     }
 
     const unsub1 = useTerminalProfileStore.subscribe(applyProfile)
-    const unsub2 = useSettingsStore.subscribe(applyProfile)
+    // 只监听终端相关设置字段变化
+    const unsub2 = useSettingsStore.subscribe((s, prev) => {
+      if (
+        s.activeProfileId !== prev.activeProfileId ||
+        s.fontLigatures !== prev.fontLigatures ||
+        s.termFontFamily !== prev.termFontFamily ||
+        s.termFontSize !== prev.termFontSize ||
+        s.termLineHeight !== prev.termLineHeight ||
+        s.termLetterSpacing !== prev.termLetterSpacing ||
+        s.termScrollback !== prev.termScrollback ||
+        s.termCursorStyle !== prev.termCursorStyle ||
+        s.termCursorBlink !== prev.termCursorBlink
+      ) {
+        applyProfile()
+      }
+    })
     const observer = new MutationObserver(applyProfile)
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 

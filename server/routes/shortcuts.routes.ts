@@ -21,6 +21,14 @@ router.post('/shortcuts', (req, res) => {
     res.status(400).json(body)
     return
   }
+  if (typeof name !== 'string' || name.length > 255) {
+    res.status(400).json({ success: false, error: 'name 长度不能超过 255' })
+    return
+  }
+  if (typeof command !== 'string' || command.length > 2000) {
+    res.status(400).json({ success: false, error: 'command 长度不能超过 2000' })
+    return
+  }
   const data = shortcutRepo.create({ name, command, remark, sort_order })
   const body: ApiResponse<Shortcut> = { success: true, data }
   res.status(201).json(body)

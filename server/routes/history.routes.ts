@@ -7,7 +7,7 @@ const router = Router()
 
 // 获取连接的命令历史
 router.get('/history/:connectionId', (req, res) => {
-  const limit = parseInt(req.query.limit as string) || 100
+  const limit = Math.min(parseInt(req.query.limit as string) || 100, 1000)
   const history = historyRepo.findByConnection(req.params.connectionId, limit)
   res.json({ success: true, data: history })
 })

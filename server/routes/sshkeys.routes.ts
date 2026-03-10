@@ -38,6 +38,10 @@ router.post('/ssh-keys', (req: Request, res: Response, next: NextFunction) => {
       res.status(400).json({ success: false, error: '名称和私钥不能为空' })
       return
     }
+    if (typeof name !== 'string' || name.length > 255) {
+      res.status(400).json({ success: false, error: '名称长度不能超过 255' })
+      return
+    }
     const key = sshKeyRepo.create({ name, private_key, public_key, passphrase, certificate, remark })
     res.json({ success: true, data: key })
   } catch (err) { next(err) }
@@ -58,6 +62,22 @@ router.post('/ssh-keys/generate', (req: Request, res: Response, next: NextFuncti
     if (!name) {
       res.status(400).json({ success: false, error: '密钥名称不能为空' })
       return
+    }
+    if (typeof name !== 'string' || name.length > 255) {
+      res.status(400).json({ success: false, error: '密钥名称长度不能超过 255' })
+      return
+    }
+    // bits 白名单验证
+    const allowedBits: Record<string, number[]> = {
+      rsa: [2048, 3072, 4096],
+      ecdsa: [256, 384, 521],
+      'ml-dsa': [44, 65, 87],
+    }
+    if (bits !== undefined && allowedBits[type]) {
+      if (!allowedBits[type].includes(bits)) {
+        res.status(400).json({ success: false, error: `${type} 不支持的 bits 值: ${bits}` })
+        return
+      }
     }
 
     let privateKey: string

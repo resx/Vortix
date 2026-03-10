@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff } from 'lucide-react'
+import { AppIcon, icons } from '../../icons/AppIcon'
 import IslandModal from '../../ui/island-modal'
 import { useSshConfigStore } from '../../../stores/useSshConfigStore'
 
@@ -73,7 +73,7 @@ export default function ManagePresetModal() {
             />
             {!password.trim() && <p className="text-red-500 text-[10px]">password is a required field</p>}
             <button onClick={() => setShowPwd(!showPwd)} className="absolute right-0 top-4 text-text-1">
-              {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+              {showPwd ? <AppIcon icon={icons.eyeOff} size={16} /> : <AppIcon icon={icons.eye} size={16} />}
             </button>
           </div>
         </div>

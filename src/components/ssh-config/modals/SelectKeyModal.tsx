@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { AppIcon, icons } from '../../icons/AppIcon'
 import IslandModal from '../../ui/island-modal'
 import { useSshConfigStore } from '../../../stores/useSshConfigStore'
 import { MOCK_PRIVATE_KEYS } from '../../../data/ssh-config-mock'
@@ -43,10 +43,10 @@ export default function SelectKeyModal() {
         <table className="w-full text-xs text-left">
           <thead className="text-text-3 border-b border-border/50">
             <tr>
-              <th className="px-3 py-2 font-normal hover:bg-bg-hover">名称 <ChevronDown size={12} className="ml-0.5 opacity-50 inline" /></th>
-              <th className="px-3 py-2 font-normal hover:bg-bg-hover">文件名 <ChevronDown size={12} className="ml-0.5 opacity-50 inline" /></th>
-              <th className="px-3 py-2 font-normal hover:bg-bg-hover">类型 <ChevronDown size={12} className="ml-0.5 opacity-50 inline" /></th>
-              <th className="px-3 py-2 font-normal hover:bg-bg-hover">更新时间 <ChevronDown size={12} className="ml-0.5 opacity-50 inline" /></th>
+              <th className="px-3 py-2 font-normal hover:bg-bg-hover">名称 <AppIcon icon={icons.chevronDown} size={12} className="ml-0.5 opacity-50 inline" /></th>
+              <th className="px-3 py-2 font-normal hover:bg-bg-hover">文件名 <AppIcon icon={icons.chevronDown} size={12} className="ml-0.5 opacity-50 inline" /></th>
+              <th className="px-3 py-2 font-normal hover:bg-bg-hover">类型 <AppIcon icon={icons.chevronDown} size={12} className="ml-0.5 opacity-50 inline" /></th>
+              <th className="px-3 py-2 font-normal hover:bg-bg-hover">更新时间 <AppIcon icon={icons.chevronDown} size={12} className="ml-0.5 opacity-50 inline" /></th>
             </tr>
           </thead>
           <tbody>

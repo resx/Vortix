@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Globe, ArrowRight, Monitor, ChevronDown, ChevronUp } from 'lucide-react'
+import { AppIcon, icons } from '../../icons/AppIcon'
 import IslandModal from '../../ui/island-modal'
 import { useSshConfigStore } from '../../../stores/useSshConfigStore'
 import type { TunnelEntry } from '../../../stores/useSshConfigStore'
@@ -79,15 +79,15 @@ export default function EditTunnelModal() {
         <div className="absolute top-4 left-[16.66%] right-[16.66%] border-t-[1.5px] border-border z-0" />
         <div className="flex justify-between text-center relative z-10">
           <div className="flex-1 flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white shadow-sm border-[3px] border-bg-card bg-clip-padding"><Globe size={16} /></div>
+            <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white shadow-sm border-[3px] border-bg-card bg-clip-padding"><AppIcon icon={icons.globe} size={16} /></div>
             <div className="mt-2.5 text-[11px] text-text-2">{isSocks ? '所有 TCP 端口流量' : '单个 TCP 端口流量'}</div>
           </div>
           <div className="flex-1 flex flex-col items-center">
-            <div className="w-6 h-6 mt-1 rounded-full bg-orange-400 flex items-center justify-center text-white shadow-sm border-[3px] border-bg-card bg-clip-padding"><ArrowRight size={14} /></div>
+            <div className="w-6 h-6 mt-1 rounded-full bg-orange-400 flex items-center justify-center text-white shadow-sm border-[3px] border-bg-card bg-clip-padding"><AppIcon icon={icons.arrowRight} size={14} /></div>
             <div className="mt-3.5 text-[11px] text-text-2">{mode === '本地' || mode === '本地SOCKS5' ? '本地(绑定)TCP 端口' : '远程(绑定)TCP 端口'}</div>
           </div>
           <div className="flex-1 flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white shadow-sm border-[3px] border-bg-card bg-clip-padding"><Monitor size={16} /></div>
+            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white shadow-sm border-[3px] border-bg-card bg-clip-padding"><AppIcon icon={icons.monitor} size={16} /></div>
             <div className="mt-2.5 text-[11px] text-text-2">{mode === '本地' || mode === '本地SOCKS5' ? '远程 TCP 端口' : '本地 TCP 端口'}</div>
           </div>
         </div>
@@ -109,7 +109,7 @@ export default function EditTunnelModal() {
               className="w-full flex items-center justify-between px-3 py-2 text-xs text-text-1 bg-bg-subtle hover:bg-bg-hover transition-colors"
             >
               <span>SOCKS5 快捷命令</span>
-              {showSocksHelp ? <ChevronUp size={14} className="text-text-3" /> : <ChevronDown size={14} className="text-text-3" />}
+              {showSocksHelp ? <AppIcon icon={icons.chevronUp} size={14} className="text-text-3" /> : <AppIcon icon={icons.chevronDown} size={14} className="text-text-3" />}
             </button>
             {showSocksHelp && (
               <div className="p-3 bg-bg-card border-t border-border font-mono text-[11px] leading-relaxed text-text-2 space-y-2 whitespace-pre-wrap">

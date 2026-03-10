@@ -1,5 +1,6 @@
-import { X, User, Clock, Globe, Monitor, HardDrive, Network, TerminalSquare } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { useUIStore } from '../../stores/useUIStore'
+import { useTabStore } from '../../stores/useTabStore'
 import { useMonitorStore } from '../../stores/useMonitorStore'
 import type { MonitorSnapshot, SystemInfo, HistoryPoint } from '../../stores/useMonitorStore'
 import { motion } from 'framer-motion'
@@ -7,10 +8,10 @@ import { ResponsiveContainer, LineChart as RLineChart, Line, Tooltip, YAxis } fr
 import { cn } from '../../lib/utils'
 
 /* ---- 子组件 ---- */
-function InfoItem({ icon: Icon, label, value }: { icon: typeof User; label: string; value: string }) {
+function InfoItem({ icon, label, value }: { icon: string; label: string; value: string }) {
   return (
     <div className="flex items-center gap-2 py-1.5">
-      <Icon className="w-3.5 h-3.5 text-text-3 shrink-0" />
+      <AppIcon icon={icon} size={14} className="text-text-3 shrink-0" />
       <div className="min-w-0">
         <div className="text-[10px] text-text-3 leading-none">{label}</div>
         <div className="text-[11px] text-text-1 font-medium truncate mt-0.5">{value}</div>
@@ -86,8 +87,8 @@ function fmtBytes(bytes: number): string {
 
 /* ---- 主组件 ---- */
 export default function ServerInfoPanel() {
-  const toggleServerPanel = useAppStore((s) => s.toggleServerPanel)
-  const activeTabId = useAppStore((s) => s.activeTabId)
+  const toggleServerPanel = useUIStore((s) => s.toggleServerPanel)
+  const activeTabId = useTabStore((s) => s.activeTabId)
   const snapshot = useMonitorStore((s) => s.snapshots[activeTabId])
   const sysInfo = useMonitorStore((s) => s.sysInfo[activeTabId])
   const history = useMonitorStore((s) => s.history[activeTabId] ?? [])
@@ -105,7 +106,7 @@ export default function ServerInfoPanel() {
         <div className="h-[48px] flex items-center justify-between px-4 shrink-0 border-b border-border">
           <span className="text-[15px] font-bold text-text-1 tracking-wide">服务器面板</span>
           <button className="p-1 rounded-md text-text-2 hover:bg-bg-hover hover:text-text-1 transition-colors" onClick={toggleServerPanel}>
-            <X className="w-4 h-4" />
+            <AppIcon icon={icons.close} size={16} />
           </button>
         </div>
         <div className="flex-1 flex items-center justify-center">
@@ -128,7 +129,7 @@ export default function ServerInfoPanel() {
       <div className="h-[48px] flex items-center justify-between px-4 shrink-0 border-b border-border">
         <span className="text-[15px] font-bold text-text-1 tracking-wide">服务器面板</span>
         <button className="p-1 rounded-md text-text-2 hover:bg-bg-hover hover:text-text-1 transition-colors" onClick={toggleServerPanel}>
-          <X className="w-4 h-4" />
+          <AppIcon icon={icons.close} size={16} />
         </button>
       </div>
 
@@ -137,10 +138,10 @@ export default function ServerInfoPanel() {
 
         {/* 系统信息 */}
         <div className="px-4 pt-3 pb-2 grid grid-cols-2 gap-x-4 border-b border-bg-base">
-          <InfoItem icon={User} label="用户" value={sysInfo.user} />
-          <InfoItem icon={Clock} label="运行时间" value={sysInfo.uptime} />
-          <InfoItem icon={Globe} label="Host" value={sysInfo.host} />
-          <InfoItem icon={Monitor} label="系统" value={sysInfo.os} />
+          <InfoItem icon={icons.user} label="用户" value={sysInfo.user} />
+          <InfoItem icon={icons.clock} label="运行时间" value={sysInfo.uptime} />
+          <InfoItem icon={icons.globe} label="Host" value={sysInfo.host} />
+          <InfoItem icon={icons.monitor} label="系统" value={sysInfo.os} />
         </div>
 
         {/* CPU 统计 4列 */}
@@ -224,7 +225,7 @@ export default function ServerInfoPanel() {
           <div className="space-y-1">
             {snapshot.processes.map((p) => (
               <div key={p.pid} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-bg-subtle hover:bg-bg-hover transition-colors text-[10px]">
-                <TerminalSquare className="w-3.5 h-3.5 text-text-2 shrink-0" />
+                <AppIcon icon={icons.terminal} size={14} className="text-text-2 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <span className="text-text-1 font-medium truncate block">{p.name}</span>
                   <span className="text-text-3 tabular-nums">PID {p.pid}</span>
@@ -254,11 +255,11 @@ export default function ServerInfoPanel() {
                 {/* 网卡名 + IP */}
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
-                    <Network className="w-3.5 h-3.5 text-[#4080FF]" />
+                    <AppIcon icon={icons.network} size={14} className="text-[#4080FF]" />
                     <span className="text-text-1 font-semibold">{nic.name}</span>
                   </div>
                   <div className="flex items-center gap-1 text-[#4080FF]">
-                    <Globe className="w-3 h-3" />
+                    <AppIcon icon={icons.globe} size={12} />
                     <span className="font-medium">{nic.ip}</span>
                   </div>
                 </div>
@@ -297,7 +298,7 @@ export default function ServerInfoPanel() {
                 <div key={d.path} className="rounded-lg bg-bg-subtle px-3 py-2 text-[10px]">
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-1.5">
-                      <HardDrive className={cn('w-3.5 h-3.5', textColor)} />
+                      <AppIcon icon={icons.hardDrive} size={14} className={textColor} />
                       <span className="text-text-1 font-semibold">{d.name}</span>
                     </div>
                     <span className={cn('font-bold tabular-nums', textColor)}>{d.percent}%</span>
@@ -308,7 +309,7 @@ export default function ServerInfoPanel() {
                   <div className="flex items-center justify-between text-text-3">
                     <span>{d.used.toFixed(1)}GB / {d.total.toFixed(1)}GB</span>
                     <div className="flex items-center gap-1">
-                      <HardDrive className="w-2.5 h-2.5" />
+                      <AppIcon icon={icons.hardDrive} size={10} />
                       <span>{d.path}</span>
                     </div>
                   </div>

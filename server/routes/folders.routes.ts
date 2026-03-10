@@ -18,6 +18,10 @@ router.post('/folders', (req, res) => {
     res.status(400).json({ success: false, error: '文件夹名称不能为空' })
     return
   }
+  if (typeof name !== 'string' || name.length > 255) {
+    res.status(400).json({ success: false, error: '文件夹名称长度不能超过 255' })
+    return
+  }
   const folder = folderRepo.create({ name, parent_id, sort_order })
   res.status(201).json({ success: true, data: folder })
 })

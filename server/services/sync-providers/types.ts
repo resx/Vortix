@@ -17,6 +17,8 @@ export interface SyncProvider {
   delete(): Promise<void>
   /** 查询同步文件状态 */
   status(): Promise<SyncFileInfo>
+  /** 连通性测试：上传测试文件 → 验证 → 删除，不影响真实同步数据 */
+  test(): Promise<void>
 }
 
 export type RepoSource = 'local' | 'git' | 'webdav' | 's3'

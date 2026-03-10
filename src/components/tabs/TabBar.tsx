@@ -1,5 +1,7 @@
-import { ChevronDown, Home, Search, Terminal, X } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { ProtocolIcon } from '../icons/ProtocolIcons'
+import { useTabStore } from '../../stores/useTabStore'
+import { useUIStore } from '../../stores/useUIStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useWorkspaceStore, collectLeafIds } from '../../stores/useWorkspaceStore'
 import { markTransferring, unmarkTransferring } from '../../stores/terminalSessionRegistry'
@@ -7,13 +9,13 @@ import { getColorTagDotClass } from '../../lib/color-tag'
 import { useState, useRef, useEffect, useCallback } from 'react'
 
 export default function TabBar() {
-  const tabs = useAppStore((s) => s.tabs)
-  const activeTabId = useAppStore((s) => s.activeTabId)
-  const setActiveTab = useAppStore((s) => s.setActiveTab)
-  const closeTab = useAppStore((s) => s.closeTab)
-  const createTabFromPane = useAppStore((s) => s.createTabFromPane)
-  const reorderTab = useAppStore((s) => s.reorderTab)
-  const showContextMenu = useAppStore((s) => s.showContextMenu)
+  const tabs = useTabStore((s) => s.tabs)
+  const activeTabId = useTabStore((s) => s.activeTabId)
+  const setActiveTab = useTabStore((s) => s.setActiveTab)
+  const closeTab = useTabStore((s) => s.closeTab)
+  const createTabFromPane = useTabStore((s) => s.createTabFromPane)
+  const reorderTab = useTabStore((s) => s.reorderTab)
+  const showContextMenu = useUIStore((s) => s.showContextMenu)
   const closeLeft = !useSettingsStore((s) => s.tabCloseButtonLeft)
 
   const [showMenu, setShowMenu] = useState(false)
@@ -75,7 +77,7 @@ export default function TabBar() {
             className="h-full px-1.5 flex items-center hover:bg-border/40 transition-colors"
             onClick={() => setShowMenu(!showMenu)}
           >
-            <ChevronDown className={`w-3.5 h-3.5 text-text-3 transition-transform ${showMenu ? 'rotate-180' : ''}`} />
+            <AppIcon icon={icons.chevronDown} size={14} className={`text-text-3 transition-transform ${showMenu ? 'rotate-180' : ''}`} />
           </button>
         </div>
 
@@ -91,7 +93,7 @@ export default function TabBar() {
             {/* 搜索框 */}
             <div className="px-2 py-1.5">
               <div className="flex items-center gap-1.5 px-2 py-1 bg-bg-base/80 rounded-lg">
-                <Search className="w-3 h-3 text-text-3 shrink-0" />
+                <AppIcon icon={icons.search} size={12} className="text-text-3 shrink-0" />
                 <input
                   type="text"
                   placeholder="搜索..."
@@ -116,7 +118,7 @@ export default function TabBar() {
                   }`}
                   onClick={() => { setSelectedDbId(null); setActiveTab('list'); setShowMenu(false); setSearchText('') }}
                 >
-                  <Home className={`w-3.5 h-3.5 ${activeTabId === 'list' ? 'text-white' : 'text-text-2'}`} />
+                  <AppIcon icon={icons.home} size={14} className={activeTabId === 'list' ? 'text-white' : 'text-text-2'} />
                   <span>首页</span>
                 </div>
               )}
@@ -130,7 +132,7 @@ export default function TabBar() {
                   }`}
                   onClick={() => { setSelectedDbId(tab.id); setActiveTab(tab.id); setShowMenu(false); setSearchText('') }}
                 >
-                  <Terminal className={`w-3.5 h-3.5 shrink-0 ${activeTabId === tab.id ? 'text-white' : 'text-icon-terminal'}`} />
+                  <ProtocolIcon protocol={tab.assetRow?.protocol} size={14} className={activeTabId === tab.id ? '!text-white' : ''} />
                   {getColorTagDotClass(tab.assetRow?.colorTag) && (
                     <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${getColorTagDotClass(tab.assetRow?.colorTag)}`} />
                   )}
@@ -139,7 +141,7 @@ export default function TabBar() {
                     className={`opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ${activeTabId === tab.id ? 'text-white/70 hover:text-white' : 'text-text-3 hover:text-text-1'}`}
                     onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
                   >
-                    <X className="w-3 h-3" />
+                    <AppIcon icon={icons.close} size={12} />
                   </button>
                 </div>
               ))}
@@ -189,7 +191,7 @@ export default function TabBar() {
                 className="shrink-0 p-0.5 rounded text-text-3/0 group-hover:text-text-3 hover:!text-text-1 hover:!bg-border/40 transition-all"
                 onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
               >
-                <X className="w-3 h-3" />
+                <AppIcon icon={icons.close} size={12} />
               </button>
             )
 
@@ -251,7 +253,7 @@ export default function TabBar() {
                   {/* 关闭按钮 - 左侧 */}
                   {closeLeft && closeBtn}
 
-                  <Terminal className="w-3 h-3 shrink-0" />
+                  <ProtocolIcon protocol={tab.assetRow?.protocol} size={12} />
                   {getColorTagDotClass(tab.assetRow?.colorTag) && (
                     <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${getColorTagDotClass(tab.assetRow?.colorTag)}`} />
                   )}

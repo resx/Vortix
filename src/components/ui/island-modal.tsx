@@ -1,4 +1,4 @@
-import { X } from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
 import { cn } from '../../lib/utils'
 
 interface IslandModalProps {
@@ -41,7 +41,7 @@ export default function IslandModal({
             onClick={onClose}
             className="p-1.5 hover:bg-bg-hover rounded-md text-text-3 transition-colors"
           >
-            <X size={16} />
+            <AppIcon icon={icons.close} size={16} />
           </button>
         </div>
 

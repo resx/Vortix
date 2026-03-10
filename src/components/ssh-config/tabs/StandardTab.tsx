@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, Eye, EyeOff, LocateFixed, HelpCircle } from 'lucide-react'
+import { AppIcon, icons } from '../../icons/AppIcon'
 import { useSshConfigStore } from '../../../stores/useSshConfigStore'
 import type { AuthType } from '../../../stores/useSshConfigStore'
 
@@ -48,7 +48,7 @@ export default function StandardTab() {
             className="text-text-3 hover:text-text-2 ml-1"
             onClick={() => store.setField('colorTag', null)}
           >
-            <X size={14} />
+            <AppIcon icon={icons.close} size={14} />
           </button>
         </div>
       </div>
@@ -188,7 +188,7 @@ function AuthFields({
             onChange={(e) => store.setField('password', e.target.value)}
           />
           <button onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1.5 text-text-3 hover:text-text-2">
-            {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+            {showPassword ? <AppIcon icon={icons.eye} size={16} /> : <AppIcon icon={icons.eyeOff} size={16} />}
           </button>
         </div>
       </div>
@@ -204,7 +204,7 @@ function AuthFields({
           <div className="relative">
             <input type="text" className={`${errorInputClass(!!err.privateKey)} pr-8`} readOnly value={store.privateKeyId ?? ''} />
             <button onClick={() => store.toggleSubModal('selectKey', true)} className="absolute right-1.5 top-1 p-1 text-text-3 hover:text-text-2 hover:bg-bg-hover rounded">
-              <LocateFixed size={14} />
+              <AppIcon icon={icons.crosshair} size={14} />
             </button>
           </div>
           {err.privateKey && <p className="text-red-500 text-[10px] mt-1 tracking-wide">{err.privateKey}</p>}
@@ -219,7 +219,7 @@ function AuthFields({
               onChange={(e) => store.setField('privateKeyPassword', e.target.value)}
             />
             <button onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1.5 text-text-3 hover:text-text-2">
-              {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+              {showPassword ? <AppIcon icon={icons.eye} size={16} /> : <AppIcon icon={icons.eyeOff} size={16} />}
             </button>
           </div>
         </div>
@@ -241,7 +241,7 @@ function AuthFields({
             onChange={(e) => store.setField('mfaSecret', e.target.value)}
           />
           <button className="absolute right-1.5 top-1 p-1 text-text-3 hover:text-text-2 hover:bg-bg-hover rounded" title="选择已有密钥">
-            <LocateFixed size={14} />
+            <AppIcon icon={icons.crosshair} size={14} />
           </button>
         </div>
         <p className="text-text-3 text-[10px] mt-1.5 leading-relaxed">配置密钥后将自动计算验证码并填充。若服务器采用 Keyboard-Interactive 交互式提示，也可留空手动输入。</p>
@@ -257,7 +257,7 @@ function AuthFields({
         <div className="relative">
           <input type="text" className={`${errorInputClass(!!err.presetId)} pr-8`} readOnly value={store.presetId ?? ''} />
           <button onClick={() => store.toggleSubModal('selectPreset', true)} className="absolute right-1.5 top-1 p-1 text-text-3 hover:text-text-2 hover:bg-bg-hover rounded">
-            <LocateFixed size={14} />
+            <AppIcon icon={icons.crosshair} size={14} />
           </button>
         </div>
         {err.presetId && <p className="text-red-500 text-[10px] mt-1 tracking-wide">{err.presetId}</p>}
@@ -274,7 +274,7 @@ function AuthFields({
           <div className="relative">
             <input type="text" className={`${errorInputClass(!!err.jumpKey)} pr-8`} readOnly placeholder="请选择跳板机的私钥凭证" value={store.jumpKeyId ?? ''} />
             <button onClick={() => store.toggleSubModal('selectKey', true)} className="absolute right-1.5 top-1 p-1 text-text-3 hover:text-text-2 hover:bg-bg-hover rounded">
-              <LocateFixed size={14} />
+              <AppIcon icon={icons.crosshair} size={14} />
             </button>
           </div>
           {err.jumpKey && <p className="text-red-500 text-[10px] mt-1 tracking-wide">{err.jumpKey}</p>}
@@ -290,7 +290,7 @@ function AuthFields({
               onChange={(e) => store.setField('jumpKeyPassword', e.target.value)}
             />
             <button onClick={() => setShowPassword(!showPassword)} className="absolute right-2.5 top-1.5 text-text-3 hover:text-text-2">
-              {showPassword ? <Eye size={16} /> : <EyeOff size={16} />}
+              {showPassword ? <AppIcon icon={icons.eye} size={16} /> : <AppIcon icon={icons.eyeOff} size={16} />}
             </button>
           </div>
         </div>
@@ -316,7 +316,7 @@ function AuthFields({
             onMouseLeave={() => setShowAgentTooltip(false)}
             className="absolute right-2.5 top-1.5 text-text-3 hover:text-text-2 cursor-help"
           >
-            <HelpCircle size={16} />
+            <AppIcon icon={icons.help} size={16} />
           </button>
           {showAgentTooltip && (
             <div className="absolute top-9 right-0 w-[450px] bg-tooltip-bg text-tooltip-text text-[11px] rounded-md shadow-xl p-3 z-50">

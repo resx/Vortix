@@ -60,6 +60,7 @@ export type ContextMenuType =
 export interface TableContextData {
   targetContext: 'blank' | 'folder' | 'asset'
   rowData?: AssetRow
+  currentFolderId?: string | null
 }
 
 export interface TerminalContextData {

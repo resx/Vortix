@@ -237,9 +237,18 @@ export interface SyncFileInfo {
 export interface ImportResult {
   folders: number
   connections: number
-  settings: number
   shortcuts: number
-  profiles: number
+  sshKeys: number
+}
+
+/** 冲突检测结果 */
+export interface SyncConflictInfo {
+  hasConflict: boolean
+  reason?: 'remote_ahead' | 'local_dirty'
+  localRevision: number
+  remoteRevision: number
+  remoteDeviceId?: string
+  remoteExportedAt?: string
 }
 
 /** 同步请求体（多源通用） */

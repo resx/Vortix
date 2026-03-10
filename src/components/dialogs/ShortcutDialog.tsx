@@ -1,17 +1,17 @@
 /* ── 快捷命令编辑对话框 ── */
 
 import { useState, useEffect } from 'react'
-import { X, Terminal } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { useShortcutStore } from '../../stores/useShortcutStore'
 
 export default function ShortcutDialog() {
-  const open = useAppStore((s) => s.shortcutDialogOpen)
-  const mode = useAppStore((s) => s.shortcutDialogMode)
-  const initialId = useAppStore((s) => s.shortcutDialogInitialId)
-  const close = useAppStore((s) => s.closeShortcutDialog)
-  const shortcuts = useAppStore((s) => s.shortcuts)
-  const createShortcutAction = useAppStore((s) => s.createShortcutAction)
-  const updateShortcutAction = useAppStore((s) => s.updateShortcutAction)
+  const open = useShortcutStore((s) => s.shortcutDialogOpen)
+  const mode = useShortcutStore((s) => s.shortcutDialogMode)
+  const initialId = useShortcutStore((s) => s.shortcutDialogInitialId)
+  const close = useShortcutStore((s) => s.closeShortcutDialog)
+  const shortcuts = useShortcutStore((s) => s.shortcuts)
+  const createShortcutAction = useShortcutStore((s) => s.createShortcutAction)
+  const updateShortcutAction = useShortcutStore((s) => s.updateShortcutAction)
 
   const [name, setName] = useState('')
   const [command, setCommand] = useState('')
@@ -57,11 +57,11 @@ export default function ShortcutDialog() {
         {/* 头部 */}
         <div className="flex items-center justify-between px-5 py-3.5">
           <h3 className="text-[14px] font-bold text-text-1 flex items-center gap-2">
-            <Terminal size={15} className="text-primary" />
+            <AppIcon icon={icons.terminal} size={15} className="text-primary" />
             {mode === 'create' ? '新建快捷命令' : '编辑快捷命令'}
           </h3>
           <button onClick={close} className="p-1.5 hover:bg-bg-hover rounded-md text-text-3 transition-colors">
-            <X size={16} />
+            <AppIcon icon={icons.close} size={16} />
           </button>
         </div>
 

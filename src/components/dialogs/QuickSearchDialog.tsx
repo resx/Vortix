@@ -1,16 +1,19 @@
 /* ── 快速搜索对话框 ── */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Search, Terminal, X } from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { ProtocolIcon } from '../icons/ProtocolIcons'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useAppStore } from '../../stores/useAppStore'
+import { useAssetStore } from '../../stores/useAssetStore'
+import { useUIStore } from '../../stores/useUIStore'
+import { useTabStore } from '../../stores/useTabStore'
 import { useT } from '../../i18n'
 
 export default function QuickSearchDialog() {
-  const open = useAppStore((s) => s.quickSearchOpen)
-  const toggle = useAppStore((s) => s.toggleQuickSearch)
-  const tableData = useAppStore((s) => s.tableData)
-  const openAssetTab = useAppStore((s) => s.openAssetTab)
+  const open = useUIStore((s) => s.quickSearchOpen)
+  const toggle = useUIStore((s) => s.toggleQuickSearch)
+  const tableData = useAssetStore((s) => s.tableData)
+  const openAssetTab = useTabStore((s) => s.openAssetTab)
   const t = useT()
 
   const [query, setQuery] = useState('')
@@ -80,7 +83,7 @@ export default function QuickSearchDialog() {
         >
           {/* 搜索输入 */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-border/60">
-            <Search size={16} className="text-text-3 shrink-0" />
+            <AppIcon icon={icons.search} size={16} className="text-text-3 shrink-0" />
             <input
               ref={inputRef}
               type="text"
@@ -91,7 +94,7 @@ export default function QuickSearchDialog() {
               onKeyDown={handleKeyDown}
             />
             <button onClick={toggle} className="p-1 hover:bg-bg-hover rounded text-text-3 transition-colors">
-              <X size={14} />
+              <AppIcon icon={icons.close} size={14} />
             </button>
           </div>
 
@@ -111,7 +114,7 @@ export default function QuickSearchDialog() {
                   onClick={() => handleSelect(idx)}
                   onMouseEnter={() => setSelectedIdx(idx)}
                 >
-                  <Terminal size={14} className={idx === selectedIdx ? 'text-primary' : 'text-text-3'} />
+                  <ProtocolIcon protocol={item.protocol} size={14} className={idx === selectedIdx ? '!text-primary' : '!text-text-3'} />
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-medium truncate">{item.name}</div>
                     <div className="text-[11px] text-text-3 truncate">{item.user}@{item.host}</div>

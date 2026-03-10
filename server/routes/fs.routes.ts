@@ -2,7 +2,7 @@
 
 import { Router } from 'express'
 import { readdirSync, statSync, readFileSync } from 'fs'
-import { join } from 'path'
+import { join, resolve } from 'path'
 import { homedir } from 'os'
 import { execFile } from 'child_process'
 
@@ -11,7 +11,14 @@ const router = Router()
 // 列出指定路径下的子目录
 router.get('/fs/list-dirs', (req, res) => {
   const rawPath = (req.query.path as string) || ''
-  const basePath = rawPath || homedir()
+  const home = homedir()
+  const basePath = rawPath ? resolve(rawPath) : home
+
+  // 路径遍历防护：只允许访问用户主目录及其子目录
+  if (!basePath.startsWith(home)) {
+    res.status(403).json({ success: false, error: '禁止访问用户主目录之外的路径' })
+    return
+  }
 
   try {
     const entries = readdirSync(basePath, { withFileTypes: true })
@@ -34,8 +41,8 @@ router.get('/fs/list-dirs', (req, res) => {
 router.post('/fs/pick-dir', (req, res) => {
   const { initialDir } = req.body as { initialDir?: string }
 
-  // 通过 C# COM Interop 调用 IFileOpenDialog（现代文件夹选择器）
-  const initDirCs = initialDir ? initialDir.replace(/\\/g, '\\\\').replace(/"/g, '\\"') : ''
+  // PowerShell 安全转义：单引号包裹，内部 ' → ''
+  const initDirCs = initialDir ? initialDir.replace(/'/g, "''") : ''
   const script = `
 Add-Type -TypeDefinition @'
 using System;
@@ -87,7 +94,7 @@ public class FolderPicker {
   }
 }
 '@
-Write-Output ([FolderPicker]::Pick("${initDirCs}"))
+Write-Output ([FolderPicker]::Pick('${initDirCs}'))
 `.trim()
 
   execFile('powershell', ['-NoProfile', '-NonInteractive', '-STA', '-Command', script], { timeout: 60000 }, (err, stdout) => {
@@ -104,15 +111,16 @@ Write-Output ([FolderPicker]::Pick("${initDirCs}"))
 router.post('/fs/pick-file', (req, res) => {
   const { title, filters } = req.body as { title?: string; filters?: string }
 
-  const titleCs = (title || '选择文件').replace(/"/g, '\\"')
+  // PowerShell 安全转义：单引号包裹，内部 ' → ''
+  const titleCs = (title || '选择文件').replace(/'/g, "''")
   // filters 格式: "私钥文件|*.pem;*.key;*.ppk;*.id_rsa|所有文件|*.*"
-  const filterCs = (filters || '所有文件|*.*').replace(/"/g, '\\"')
+  const filterCs = (filters || '所有文件|*.*').replace(/'/g, "''")
 
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
 $d = New-Object System.Windows.Forms.OpenFileDialog
-$d.Title = "${titleCs}"
-$d.Filter = "${filterCs}"
+$d.Title = '${titleCs}'
+$d.Filter = '${filterCs}'
 $d.Multiselect = $false
 if ($d.ShowDialog() -eq 'OK') { Write-Output $d.FileName } else { Write-Output '' }
 `.trim()

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff, LocateFixed } from 'lucide-react'
+import { AppIcon, icons } from '../../icons/AppIcon'
 import IslandModal from '../../ui/island-modal'
 import { useSshConfigStore } from '../../../stores/useSshConfigStore'
 
@@ -64,7 +64,7 @@ export default function ImportKeyModal() {
           <div className="flex-1 border-b border-border pb-1 relative">
             <label className="text-xs text-text-2 block mb-0.5">私钥文件</label>
             <input type="text" placeholder="选择私钥文件，自动填入私钥" className="w-full bg-transparent text-xs outline-none placeholder-text-3 text-text-1 pb-0.5" />
-            <button className="absolute right-0 bottom-1.5 text-text-3 hover:text-text-2"><LocateFixed size={14} /></button>
+            <button className="absolute right-0 bottom-1.5 text-text-3 hover:text-text-2"><AppIcon icon={icons.crosshair} size={14} /></button>
           </div>
         </div>
 

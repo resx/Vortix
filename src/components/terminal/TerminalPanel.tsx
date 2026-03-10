@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react'
-import { Plus, X, Terminal as TerminalIcon, Circle } from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
 import SshTerminal from './SshTerminal'
 import SshConnectDialog from './SshConnectDialog'
-import { useAppStore } from '../../stores/useAppStore'
+import { useUIStore } from '../../stores/useUIStore'
 
 interface SshTab {
   id: string
@@ -23,7 +23,7 @@ export default function TerminalPanel() {
   const [tabs, setTabs] = useState<SshTab[]>([])
   const [activeTabId, setActiveTabId] = useState<string | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const showContextMenu = useAppStore((s) => s.showContextMenu)
+  const showContextMenu = useUIStore((s) => s.showContextMenu)
 
   const handleConnect = useCallback((config: SshTab['connection']) => {
     const id = `ssh-${++tabCounter}`
@@ -75,14 +75,14 @@ export default function TerminalPanel() {
                 : 'text-text-3 hover:text-text-2 hover:bg-bg-hover'
             }`}
           >
-            <Circle className={`w-2 h-2 fill-current ${statusColor[tab.status]}`} />
-            <TerminalIcon className="w-3.5 h-3.5 text-text-3" />
+            <AppIcon icon={icons.circle} size={8} className={`fill-current ${statusColor[tab.status]}`} />
+            <AppIcon icon={icons.terminal} size={14} className="text-text-3" />
             <span className="max-w-[140px] truncate">{tab.label}</span>
             <button
               onClick={(e) => { e.stopPropagation(); closeTab(tab.id) }}
               className="ml-1 text-text-3 hover:text-text-1 opacity-0 group-hover:opacity-100 transition-opacity"
             >
-              <X className="w-3.5 h-3.5" />
+              <AppIcon icon={icons.close} size={14} />
             </button>
           </div>
         ))}
@@ -92,7 +92,7 @@ export default function TerminalPanel() {
           onClick={() => setDialogOpen(true)}
           className="flex items-center justify-center w-8 h-full text-text-3 hover:text-text-1 hover:bg-bg-hover rounded-t-md transition-colors"
         >
-          <Plus className="w-4 h-4" />
+          <AppIcon icon={icons.plus} size={16} />
         </button>
       </div>
 
@@ -110,13 +110,13 @@ export default function TerminalPanel() {
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-text-3 gap-4">
-            <TerminalIcon className="w-16 h-16 opacity-20" />
+            <AppIcon icon={icons.terminal} size={64} className="opacity-20" />
             <p className="text-[14px]">暂无终端会话</p>
             <button
               onClick={() => setDialogOpen(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] text-white bg-primary hover:opacity-90 transition-colors"
             >
-              <Plus className="w-4 h-4" />
+              <AppIcon icon={icons.plus} size={16} />
               新建 SSH 连接
             </button>
           </div>

@@ -1,16 +1,16 @@
 /* ── 更新检测对话框 ── */
 
 import { useState, useEffect } from 'react'
-import { X, Download, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { useUIStore } from '../../stores/useUIStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { checkForUpdate } from '../../lib/updater'
 import type { UpdateCheckResult } from '../../lib/updater'
 import { useT } from '../../i18n'
 
 export default function UpdateDialog() {
-  const open = useAppStore((s) => s.updateDialogOpen)
-  const toggle = useAppStore((s) => s.toggleUpdateDialog)
+  const open = useUIStore((s) => s.updateDialogOpen)
+  const toggle = useUIStore((s) => s.toggleUpdateDialog)
   const updateChannel = useSettingsStore((s) => s.updateChannel) as 'stable' | 'experimental'
   const t = useT()
 
@@ -41,7 +41,7 @@ export default function UpdateDialog() {
         <div className="flex items-center justify-between px-5 py-3.5">
           <h3 className="text-[14px] font-bold text-text-1">{t('dialog.update.title')}</h3>
           <button onClick={toggle} className="p-1.5 hover:bg-bg-hover rounded-md text-text-3 transition-colors">
-            <X size={16} />
+            <AppIcon icon={icons.close} size={16} />
           </button>
         </div>
 
@@ -50,14 +50,14 @@ export default function UpdateDialog() {
           <div className="px-5 py-5">
             {loading && (
               <div className="flex items-center gap-3 text-text-2">
-                <Loader2 size={18} className="animate-spin text-primary" />
+                <AppIcon icon={icons.loader} size={18} className="animate-spin text-primary" />
                 <span className="text-[13px]">{t('dialog.update.checking')}</span>
               </div>
             )}
 
             {error && (
               <div className="flex items-center gap-3 text-status-error">
-                <AlertCircle size={18} />
+                <AppIcon icon={icons.alertCircle} size={18} />
                 <div>
                   <div className="text-[13px] font-medium">{t('dialog.update.error')}</div>
                   <div className="text-[12px] mt-1 opacity-80">{error}</div>
@@ -67,7 +67,7 @@ export default function UpdateDialog() {
 
             {result && !result.hasUpdate && (
               <div className="flex items-center gap-3 text-chart-green">
-                <CheckCircle size={18} />
+                <AppIcon icon={icons.checkCircle} size={18} />
                 <div>
                   <div className="text-[13px] font-medium">{t('dialog.update.latest')}</div>
                   <div className="text-[12px] text-text-3 mt-1">v{result.currentVersion}</div>
@@ -78,7 +78,7 @@ export default function UpdateDialog() {
             {result && result.hasUpdate && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2 text-primary">
-                  <Download size={18} />
+                  <AppIcon icon={icons.download} size={18} />
                   <span className="text-[13px] font-medium">{t('dialog.update.available')}</span>
                 </div>
                 <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[12px]">

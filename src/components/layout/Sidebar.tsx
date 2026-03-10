@@ -1,11 +1,10 @@
-import {
-  Search, Crosshair, Link as LinkIcon, CopyPlus,
-  ChevronRight, ChevronDown, Folder, ArrowUpRight,
-  FolderPlus, Terminal, Container, Monitor, Network,
-  Usb, Database,
-} from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { ProtocolIcon, DB_LABEL_PROTOCOL } from '../icons/ProtocolIcons'
+import { useAssetStore } from '../../stores/useAssetStore'
+import { useTabStore } from '../../stores/useTabStore'
+import { useUIStore } from '../../stores/useUIStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useShortcutStore } from '../../stores/useShortcutStore'
 import { getColorTagTextClass } from '../../lib/color-tag'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import {
@@ -13,7 +12,6 @@ import {
   DropdownMenuItem, DropdownMenuSub, DropdownMenuSubTrigger,
   DropdownMenuSubContent, DropdownMenuSeparator,
 } from '../ui/dropdown-menu'
-import type { LucideIcon } from 'lucide-react'
 
 /* 自定义 FolderEye 图标 */
 function FolderEyeIcon({ className }: { className?: string }) {
@@ -28,13 +26,13 @@ function FolderEyeIcon({ className }: { className?: string }) {
 
 /* 侧边栏头部按钮 */
 function SidebarHeaderButton({
-  icon: Icon,
+  icon,
   tooltipText,
   disabled = false,
   onClick,
   className = '',
 }: {
-  icon: LucideIcon | typeof FolderEyeIcon
+  icon: string | typeof FolderEyeIcon
   tooltipText: string
   disabled?: boolean
   onClick?: () => void
@@ -48,7 +46,7 @@ function SidebarHeaderButton({
           className={`p-[5px] rounded-md flex items-center justify-center transition-colors
             ${disabled ? 'text-text-disabled cursor-not-allowed' : 'text-text-1 hover:text-text-1 hover:bg-bg-hover'} ${className}`}
         >
-          <Icon className="w-3.5 h-3.5" />
+          {typeof icon === 'string' ? <AppIcon icon={icon} size={14} /> : (() => { const C = icon; return <C className="w-3.5 h-3.5" /> })()}
         </button>
       </TooltipTrigger>
       {!disabled && <TooltipContent side="bottom">{tooltipText}</TooltipContent>}
@@ -58,33 +56,33 @@ function SidebarHeaderButton({
 
 /* 新建资产下拉菜单 */
 function NewAssetDropdown() {
-  const openSshConfig = useAppStore((s) => s.openSshConfig)
-  const openLocalTermConfig = useAppStore((s) => s.openLocalTermConfig)
-  const setShowDirModal = useAppStore((s) => s.setShowDirModal)
+  const openSshConfig = useUIStore((s) => s.openSshConfig)
+  const openLocalTermConfig = useUIStore((s) => s.openLocalTermConfig)
+  const setShowDirModal = useUIStore((s) => s.setShowDirModal)
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="p-[5px] rounded-md flex items-center justify-center transition-colors text-text-1 hover:bg-bg-hover">
-          <LinkIcon className="w-3.5 h-3.5" />
+          <AppIcon icon={icons.link} size={14} />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent side="bottom" align="end" sideOffset={6}>
         <DropdownMenuItem onSelect={() => setShowDirModal(true)}>
           <div className="flex items-center gap-2.5">
-            <FolderPlus className="w-3.5 h-3.5 text-text-2" />
+            <AppIcon icon={icons.folderPlus} size={14} className="text-text-2" />
             <span>目录</span>
           </div>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => openLocalTermConfig('create')}>
           <div className="flex items-center gap-2.5">
-            <Terminal className="w-3.5 h-3.5 text-text-2" />
+            <AppIcon icon={icons.localTerminal} size={14} className="text-text-2" />
             <span>本地终端</span>
           </div>
         </DropdownMenuItem>
         <DropdownMenuItem>
           <div className="flex items-center gap-2.5">
-            <Container className="w-3.5 h-3.5 text-text-2" />
+            <AppIcon icon={icons.container} size={14} className="text-text-2" />
             <span>Docker</span>
           </div>
         </DropdownMenuItem>
@@ -93,37 +91,37 @@ function NewAssetDropdown() {
         {/* 远程连接子菜单 */}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
-            <Monitor className="w-3.5 h-3.5 text-text-2" />
+            <AppIcon icon={icons.screenShare} size={14} className="text-text-2" />
             <span>远程连接</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent sideOffset={6}>
             <DropdownMenuItem onSelect={() => openSshConfig('create')}>
               <div className="flex items-center gap-2.5">
-                <Terminal className="w-3.5 h-3.5 text-text-2" />
+                <AppIcon icon={icons.terminal} size={14} className="text-text-2" />
                 <span>SSH</span>
               </div>
             </DropdownMenuItem>
             <DropdownMenuItem>
               <div className="flex items-center gap-2.5">
-                <Network className="w-3.5 h-3.5 text-text-2" />
+                <AppIcon icon={icons.network} size={14} className="text-text-2" />
                 <span>SSH隧道</span>
               </div>
             </DropdownMenuItem>
             <DropdownMenuItem>
               <div className="flex items-center gap-2.5">
-                <Monitor className="w-3.5 h-3.5 text-text-2" />
+                <AppIcon icon={icons.screenShare} size={14} className="text-text-2" />
                 <span>RDP</span>
               </div>
             </DropdownMenuItem>
             <DropdownMenuItem>
               <div className="flex items-center gap-2.5">
-                <Monitor className="w-3.5 h-3.5 text-text-2" />
+                <AppIcon icon={icons.monitor} size={14} className="text-text-2" />
                 <span>Telnet</span>
               </div>
             </DropdownMenuItem>
             <DropdownMenuItem>
               <div className="flex items-center gap-2.5">
-                <Usb className="w-3.5 h-3.5 text-text-2" />
+                <AppIcon icon={icons.usb} size={14} className="text-text-2" />
                 <span>串口</span>
               </div>
             </DropdownMenuItem>
@@ -133,14 +131,14 @@ function NewAssetDropdown() {
         {/* 数据库子菜单 */}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>
-            <Database className="w-3.5 h-3.5 text-text-2" />
+            <AppIcon icon={icons.database} size={14} className="text-text-2" />
             <span>数据库</span>
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent sideOffset={6}>
             {['Redis', 'MySQL', 'MariaDB', 'PostgreSQL', 'SqlServer', 'ClickHouse', 'SQLite', 'Oracle', '达梦'].map((db) => (
               <DropdownMenuItem key={db}>
                 <div className="flex items-center gap-2.5">
-                  <Database className="w-3.5 h-3.5 text-text-2" />
+                  <ProtocolIcon protocol={DB_LABEL_PROTOCOL[db]} size={14} mono className="text-text-1" />
                   <span>{db}</span>
                 </div>
               </DropdownMenuItem>
@@ -153,22 +151,22 @@ function NewAssetDropdown() {
 }
 
 export default function Sidebar() {
-  const activeFilter = useAppStore((s) => s.activeFilter)
-  const isSidebarOpen = useAppStore((s) => s.isSidebarOpen)
-  const assets = useAppStore((s) => s.assets)
-  const shortcuts = useAppStore((s) => s.shortcuts)
-  const toggleFolder = useAppStore((s) => s.toggleFolder)
-  const expandAllFolders = useAppStore((s) => s.expandAllFolders)
-  const collapseAllFolders = useAppStore((s) => s.collapseAllFolders)
-  const showContextMenu = useAppStore((s) => s.showContextMenu)
-  const openAssetTab = useAppStore((s) => s.openAssetTab)
-  const currentFolder = useAppStore((s) => s.currentFolder)
-  const setCurrentFolder = useAppStore((s) => s.setCurrentFolder)
-  const moveConnectionToFolder = useAppStore((s) => s.moveConnectionToFolder)
-  const selectedItemId = useAppStore((s) => s.selectedSidebarItemId)
-  const setSelectedItemId = useAppStore((s) => s.setSelectedSidebarItemId)
-  const openShortcutDialog = useAppStore((s) => s.openShortcutDialog)
-  const executeShortcut = useAppStore((s) => s.executeShortcut)
+  const activeFilter = useAssetStore((s) => s.activeFilter)
+  const isSidebarOpen = useUIStore((s) => s.isSidebarOpen)
+  const assets = useAssetStore((s) => s.assets)
+  const shortcuts = useShortcutStore((s) => s.shortcuts)
+  const toggleFolder = useAssetStore((s) => s.toggleFolder)
+  const expandAllFolders = useAssetStore((s) => s.expandAllFolders)
+  const collapseAllFolders = useAssetStore((s) => s.collapseAllFolders)
+  const showContextMenu = useUIStore((s) => s.showContextMenu)
+  const openAssetTab = useTabStore((s) => s.openAssetTab)
+  const currentFolder = useAssetStore((s) => s.currentFolder)
+  const setCurrentFolder = useAssetStore((s) => s.setCurrentFolder)
+  const moveConnectionToFolder = useAssetStore((s) => s.moveConnectionToFolder)
+  const selectedItemId = useAssetStore((s) => s.selectedSidebarItemId)
+  const setSelectedItemId = useAssetStore((s) => s.setSelectedSidebarItemId)
+  const openShortcutDialog = useShortcutStore((s) => s.openShortcutDialog)
+  const executeShortcut = useShortcutStore((s) => s.executeShortcut)
   const hideEmptyFolders = useSettingsStore((s) => s.hideEmptyFolders)
   const updateSetting = useSettingsStore((s) => s.updateSetting)
 
@@ -231,9 +229,9 @@ export default function Sidebar() {
         <div id="sidebar-header" className="h-[40px] flex items-center justify-between px-3 border-b border-border shrink-0">
           <span className="text-[13px] font-bold text-text-1 tracking-wide">{title}</span>
           <div className="flex items-center gap-0.5 text-text-1">
-            <SidebarHeaderButton icon={Search} tooltipText="搜索" />
-            <SidebarHeaderButton icon={Crosshair} tooltipText="定位到选中项" />
-            <SidebarHeaderButton icon={CopyPlus} tooltipText={allExpanded ? '折叠所有' : '展开所有'} onClick={() => allExpanded ? collapseAllFolders(target) : expandAllFolders(target)} />
+            <SidebarHeaderButton icon={icons.search} tooltipText="搜索" />
+            <SidebarHeaderButton icon={icons.crosshair} tooltipText="定位到选中项" />
+            <SidebarHeaderButton icon={icons.copyPlus} tooltipText={allExpanded ? '折叠所有' : '展开所有'} onClick={() => allExpanded ? collapseAllFolders(target) : expandAllFolders(target)} />
             <SidebarHeaderButton
               icon={FolderEyeIcon}
               tooltipText={hideEmptyFolders ? '显示空文件夹' : '隐藏空文件夹'}
@@ -242,7 +240,7 @@ export default function Sidebar() {
               className={hideEmptyFolders && !disableHideEmptyFolders ? 'bg-border text-text-1' : ''}
             />
             {isShortcuts ? (
-              <SidebarHeaderButton icon={LinkIcon} tooltipText="创建快捷命令" onClick={() => openShortcutDialog('create')} />
+              <SidebarHeaderButton icon={icons.link} tooltipText="创建快捷命令" onClick={() => openShortcutDialog('create')} />
             ) : (
               <NewAssetDropdown />
             )}
@@ -290,6 +288,7 @@ export default function Sidebar() {
                     onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', item)}
                     onDragOver={(e) => {
                       e.preventDefault()
+                      e.stopPropagation()
                       e.currentTarget.classList.add('ring-2', 'ring-primary/50')
                     }}
                     onDragLeave={(e) => {
@@ -297,6 +296,7 @@ export default function Sidebar() {
                     }}
                     onDrop={(e) => {
                       e.preventDefault()
+                      e.stopPropagation()
                       e.currentTarget.classList.remove('ring-2', 'ring-primary/50')
                       const connectionId = e.dataTransfer.getData('text/connection-id')
                       if (connectionId) {
@@ -309,11 +309,11 @@ export default function Sidebar() {
                       onClick={(e) => { e.stopPropagation(); toggleFolder(target, item.id) }}
                     >
                       {item.isOpen
-                        ? <ChevronDown className="w-3.5 h-3.5" />
-                        : <ChevronRight className="w-3.5 h-3.5" />}
+                        ? <AppIcon icon={icons.chevronDown} size={14} />
+                        : <AppIcon icon={icons.chevronRight} size={14} />}
                     </span>
                     <span className="w-5 flex justify-center mr-1">
-                      <Folder className="w-3.5 h-3.5 text-icon-folder fill-icon-folder" />
+                      <AppIcon icon={icons.folder} size={14} className="text-icon-folder" />
                     </span>
                     <span className="text-[12px] text-text-2 truncate flex-1">{item.name}</span>
                   </div>
@@ -321,7 +321,7 @@ export default function Sidebar() {
                   {item.isOpen && item.children?.filter(matchesFilter).map(child => (
                     <div
                       key={child.id}
-                      className={`flex items-center px-1 py-1.5 pl-[28px] rounded-md hover:bg-bg-hover cursor-pointer transition-colors
+                      className={`flex items-center px-1 py-1.5 pl-[36px] rounded-md hover:bg-bg-hover cursor-pointer transition-colors
                         ${selectedItemId === child.id ? 'bg-primary/10 text-primary' : ''}`}
                       draggable
                       onDragStart={(e) => { e.dataTransfer.setData('text/connection-id', child.id); e.dataTransfer.effectAllowed = 'move' }}
@@ -347,9 +347,7 @@ export default function Sidebar() {
                       }}
                     >
                       <span className="w-5 flex justify-center mr-1">
-                        <div className="bg-border/50 p-0.5 rounded text-text-3">
-                          <Terminal className="w-3 h-3" />
-                        </div>
+                        <ProtocolIcon protocol={child.protocol} size={13} />
                       </span>
                       <span className={`text-[12px] truncate flex-1 ${getColorTagTextClass(child.colorTag) || 'text-text-2'}`}>{child.name}</span>
                     </div>
@@ -385,9 +383,7 @@ export default function Sidebar() {
                 >
                   <span className="w-4 flex justify-center" />
                   <span className="w-5 flex justify-center mr-1">
-                    <div className="bg-border/50 p-0.5 rounded text-text-3">
-                      <Terminal className="w-3 h-3" />
-                    </div>
+                    <ProtocolIcon protocol={item.protocol} size={13} />
                   </span>
                   <span className={`text-[12px] truncate flex-1 ${getColorTagTextClass(item.colorTag) || 'text-text-2'}`}>{item.name}</span>
                 </div>

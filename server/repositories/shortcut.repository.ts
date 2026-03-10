@@ -1,51 +1,46 @@
 /* ── 快捷命令 Repository ── */
 
 import crypto from 'crypto'
-import { getDb } from '../db/database.js'
+import { shortcutStore } from '../db/stores.js'
+import { markDirty } from '../services/auto-sync.service.js'
 import type { Shortcut, CreateShortcutDto, UpdateShortcutDto } from '../types/index.js'
 
 export function findAll(): Shortcut[] {
-  const db = getDb()
-  return db.prepare('SELECT * FROM shortcuts ORDER BY sort_order, name').all() as Shortcut[]
+  return shortcutStore.findAll().sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
 }
 
 export function findById(id: string): Shortcut | undefined {
-  const db = getDb()
-  return db.prepare('SELECT * FROM shortcuts WHERE id = ?').get(id) as Shortcut | undefined
+  return shortcutStore.findById(id)
 }
 
 export function create(dto: CreateShortcutDto): Shortcut {
-  const db = getDb()
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
-  db.prepare(`
-    INSERT INTO shortcuts (id, name, command, remark, sort_order, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, dto.name, dto.command, dto.remark ?? '', dto.sort_order ?? 0, now, now)
-  return findById(id)!
+  const shortcut: Shortcut = {
+    id, name: dto.name, command: dto.command,
+    remark: dto.remark ?? '', sort_order: dto.sort_order ?? 0,
+    created_at: now, updated_at: now,
+  }
+  shortcutStore.insert(shortcut)
+  markDirty()
+  return shortcut
 }
 
 export function update(id: string, dto: UpdateShortcutDto): Shortcut | undefined {
-  const db = getDb()
-  const existing = findById(id)
-  if (!existing) return undefined
-
-  const name = dto.name ?? existing.name
-  const command = dto.command ?? existing.command
-  const remark = dto.remark ?? existing.remark
-  const sort_order = dto.sort_order ?? existing.sort_order
-  const now = new Date().toISOString()
-
-  db.prepare(`
-    UPDATE shortcuts SET name = ?, command = ?, remark = ?, sort_order = ?, updated_at = ?
-    WHERE id = ?
-  `).run(name, command, remark, sort_order, now, id)
-
-  return findById(id)
+  const result = shortcutStore.update(id, (existing) => ({
+    ...existing,
+    name: dto.name ?? existing.name,
+    command: dto.command ?? existing.command,
+    remark: dto.remark ?? existing.remark,
+    sort_order: dto.sort_order ?? existing.sort_order,
+    updated_at: new Date().toISOString(),
+  }))
+  if (result) markDirty()
+  return result
 }
 
 export function remove(id: string): boolean {
-  const db = getDb()
-  const result = db.prepare('DELETE FROM shortcuts WHERE id = ?').run(id)
-  return result.changes > 0
+  const ok = shortcutStore.remove(id)
+  if (ok) markDirty()
+  return ok
 }

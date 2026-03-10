@@ -1,5 +1,5 @@
-import { TerminalSquare, FolderOpen } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { useUIStore } from '../../stores/useUIStore'
 import { useMonitorStore } from '../../stores/useMonitorStore'
 
 interface Props {
@@ -90,8 +90,8 @@ function VBar({ label, display, percent, tint }: {
 }
 
 export default function ServerMonitor({ connected, tabId }: Props) {
-  const toggleServerPanel = useAppStore((s) => s.toggleServerPanel)
-  const toggleSftp = useAppStore((s) => s.toggleSftp)
+  const toggleServerPanel = useUIStore((s) => s.toggleServerPanel)
+  const toggleSftp = useUIStore((s) => s.toggleSftp)
   const snapshot = useMonitorStore((s) => s.snapshots[tabId])
 
   if (!connected || !snapshot) {
@@ -114,14 +114,14 @@ export default function ServerMonitor({ connected, tabId }: Props) {
         className="p-1.5 rounded-md text-text-2 hover:bg-bg-card/40 hover:text-text-1 transition-colors"
         onClick={toggleServerPanel}
       >
-        <TerminalSquare className="w-3.5 h-3.5" />
+        <AppIcon icon={icons.terminal} size={14} className="w-3.5 h-3.5" />
       </button>
 
       <button
         className="p-1.5 rounded-md text-text-2 hover:bg-bg-card/40 hover:text-text-1 transition-colors"
         onClick={toggleSftp}
       >
-        <FolderOpen className="w-3.5 h-3.5" />
+        <AppIcon icon={icons.folderOpen} size={14} className="w-3.5 h-3.5" />
       </button>
 
       <div className="w-6 h-px bg-border" />

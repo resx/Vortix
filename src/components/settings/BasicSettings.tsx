@@ -3,14 +3,14 @@ import { SettingRow, SettingGroup } from './SettingGroup'
 import { SToggle, SDropdown, SNumberDropdown, SFontSelect } from './SettingControls'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { Switch } from '../ui/switch'
-import { Eye, EyeOff } from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
 
 /* ── 锁屏密码行 ── */
 function LockPasswordRow() {
   const [visible, setVisible] = useState(false)
   const value = useSettingsStore((s) => s.lockPassword)
   const update = useSettingsStore((s) => s.updateSetting)
-  const Icon = visible ? EyeOff : Eye
+  const iconName = visible ? icons.eyeOff : icons.eye
   return (
     <SettingRow label="锁屏密码">
       <div className="flex items-center gap-1.5 shrink-0">
@@ -19,7 +19,7 @@ function LockPasswordRow() {
           onClick={() => setVisible(!visible)}
           className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
         >
-          <Icon size={13} className="text-text-2" />
+          <AppIcon icon={iconName} size={13} className="text-text-2" />
         </button>
         <input
           type={visible ? 'text' : 'password'}

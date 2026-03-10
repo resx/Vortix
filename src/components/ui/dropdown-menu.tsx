@@ -1,7 +1,7 @@
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { ChevronRight } from 'lucide-react'
+import { AppIcon, icons } from '../icons/AppIcon'
 import { cn } from '../../lib/utils'
 
 /* ── Variant Context ── */
@@ -97,7 +97,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
       {...props}
     >
       <div className="flex items-center gap-2.5">{children}</div>
-      <ChevronRight className="w-[14px] h-[14px] opacity-60" />
+      <AppIcon icon={icons.chevronRight} size={14} className="opacity-60" />
     </DropdownMenuPrimitive.SubTrigger>
   )
 })

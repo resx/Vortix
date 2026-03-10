@@ -1,12 +1,13 @@
 /* ── 重载确认对话框 ── */
 
-import { X, RotateCw } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { useUIStore } from '../../stores/useUIStore'
+
 import { useT } from '../../i18n'
 
 export default function ReloadConfirmDialog() {
-  const open = useAppStore((s) => s.reloadDialogOpen)
-  const toggle = useAppStore((s) => s.toggleReloadDialog)
+  const open = useUIStore((s) => s.reloadDialogOpen)
+  const toggle = useUIStore((s) => s.toggleReloadDialog)
   const t = useT()
 
   if (!open) return null
@@ -25,11 +26,11 @@ export default function ReloadConfirmDialog() {
         {/* 头部 */}
         <div className="flex items-center justify-between px-5 py-3.5">
           <h3 className="text-[14px] font-bold text-text-1 flex items-center gap-2">
-            <RotateCw size={15} className="text-primary" />
+            <AppIcon icon={icons.rotateCw} size={15} className="text-primary" />
             {t('dialog.reload.title')}
           </h3>
           <button onClick={toggle} className="p-1.5 hover:bg-bg-hover rounded-md text-text-3 transition-colors">
-            <X size={16} />
+            <AppIcon icon={icons.close} size={16} />
           </button>
         </div>
 

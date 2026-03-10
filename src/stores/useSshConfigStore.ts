@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import * as api from '../api/client'
-import { useAppStore } from './useAppStore'
+import { useUIStore } from './useUIStore'
+import { useAssetStore } from './useAssetStore'
 
 /* ── 类型定义 ── */
 
@@ -269,7 +270,8 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
     if (!s.validate()) return
     set({ saving: true })
     try {
-      const appStore = useAppStore.getState()
+      const appStore = useUIStore.getState()
+      const assetStore = useAssetStore.getState()
       const isEdit = appStore.sshConfigMode === 'edit' && !!s.editingId
 
       const payload = {
@@ -292,7 +294,7 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
         tunnels: JSON.stringify(s.tunnels),
         env_vars: JSON.stringify(s.envVars),
         advanced: JSON.stringify(s.advanced),
-        folder_id: appStore.currentFolder,
+        folder_id: assetStore.currentFolder,
       }
 
       if (isEdit) {
@@ -301,7 +303,7 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
         await api.createConnection(payload)
       }
 
-      await appStore.fetchAssets()
+      await assetStore.fetchAssets()
       appStore.closeSshConfig()
       get().reset()
     } catch {

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
-import { X, Terminal, Eye, EyeOff, FolderOpen } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { ProtocolIcon } from '../icons/ProtocolIcons'
+import { useAssetStore } from '../../stores/useAssetStore'
+import { useTabStore } from '../../stores/useTabStore'
 import * as api from '../../api/client'
 import type { Folder } from '../../api/types'
 
@@ -24,9 +26,9 @@ interface SshConnectDialogProps {
 }
 
 export default function SshConnectDialog({ open, mode, onClose, initialData }: SshConnectDialogProps) {
-  const openQuickConnect = useAppStore((s) => s.openQuickConnect)
-  const createConnectionAction = useAppStore((s) => s.createConnectionAction)
-  const fetchAssets = useAppStore((s) => s.fetchAssets)
+  const openQuickConnect = useTabStore((s) => s.openQuickConnect)
+  const createConnectionAction = useAssetStore((s) => s.createConnectionAction)
+  const fetchAssets = useAssetStore((s) => s.fetchAssets)
 
   const [name, setName] = useState('')
   const [folderId, setFolderId] = useState<string | null>(null)
@@ -161,11 +163,11 @@ export default function SshConnectDialog({ open, mode, onClose, initialData }: S
         {/* 头部 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2 text-text-1">
-            <Terminal className="w-5 h-5" />
+            <ProtocolIcon protocol="ssh" size={20} />
             <span className="font-medium text-[15px]">{title}</span>
           </div>
           <button onClick={onClose} className="text-text-3 hover:text-text-1 transition-colors">
-            <X className="w-5 h-5" />
+            <AppIcon icon={icons.close} size={20} />
           </button>
         </div>
 
@@ -190,7 +192,7 @@ export default function SshConnectDialog({ open, mode, onClose, initialData }: S
             <div>
               <label className="block text-[13px] text-text-2 mb-1">所属文件夹</label>
               <div className="relative">
-                <FolderOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-3" />
+                <AppIcon icon={icons.folderOpen} size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-3" />
                 <select
                   value={folderId || ''}
                   onChange={(e) => setFolderId(e.target.value || null)}
@@ -291,7 +293,7 @@ export default function SshConnectDialog({ open, mode, onClose, initialData }: S
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-text-3 hover:text-text-1"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <AppIcon icon={icons.eyeOff} size={16} /> : <AppIcon icon={icons.eye} size={16} />}
                 </button>
               </div>
             </div>

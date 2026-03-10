@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import type { AssetRow } from '../../types'
-import { useAppStore } from '../../stores/useAppStore'
+import { useUIStore } from '../../stores/useUIStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 
 interface Props {
@@ -16,7 +16,7 @@ export default function TerminalSimulation({ asset, onExit, setConnected }: Prop
   const [shellStack, setShellStack] = useState<string[]>(['bash'])
   const inputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const showContextMenu = useAppStore((s) => s.showContextMenu)
+  const showContextMenu = useUIStore((s) => s.showContextMenu)
   const baseFontSize = useSettingsStore((s) => s.termFontSize)
   const termLineHeight = useSettingsStore((s) => s.termLineHeight)
   const zoomEnabled = useSettingsStore((s) => s.termZoomEnabled)

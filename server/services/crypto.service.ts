@@ -1,25 +1,31 @@
 /* ── AES-256-GCM 加密/解密服务 ── */
 
 import crypto from 'crypto'
-import { getDb } from '../db/database.js'
+import fs from 'fs'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ENCRYPTION_KEY_PATH = path.resolve(__dirname, '../../data/encryption.key')
 
 const ALGORITHM = 'aes-256-gcm'
 const IV_LENGTH = 12
 const TAG_LENGTH = 16
-const META_KEY = 'encryption_key'
 
 /** 获取或自动生成加密密钥 */
 function getEncryptionKey(): Buffer {
-  const db = getDb()
-  const row = db.prepare('SELECT value FROM encryption_meta WHERE key = ?').get(META_KEY) as { value: string } | undefined
-
-  if (row) {
-    return Buffer.from(row.value, 'hex')
-  }
+  try {
+    if (fs.existsSync(ENCRYPTION_KEY_PATH)) {
+      const hex = fs.readFileSync(ENCRYPTION_KEY_PATH, 'utf8').trim()
+      return Buffer.from(hex, 'hex')
+    }
+  } catch { /* 文件损坏则重新生成 */ }
 
   // 首次运行：生成 256 位随机密钥
   const key = crypto.randomBytes(32)
-  db.prepare('INSERT INTO encryption_meta (key, value) VALUES (?, ?)').run(META_KEY, key.toString('hex'))
+  const dir = path.dirname(ENCRYPTION_KEY_PATH)
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(ENCRYPTION_KEY_PATH, key.toString('hex'), 'utf8')
   console.log('[Vortix] 已自动生成加密密钥')
   return key
 }

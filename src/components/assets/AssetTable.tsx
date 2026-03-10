@@ -1,6 +1,9 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { Folder, Terminal, ChevronDown, ChevronUp } from 'lucide-react'
-import { useAppStore } from '../../stores/useAppStore'
+import { AppIcon, icons } from '../icons/AppIcon'
+import { ProtocolIcon } from '../icons/ProtocolIcons'
+import { useUIStore } from '../../stores/useUIStore'
+import { useAssetStore } from '../../stores/useAssetStore'
+import { useTabStore } from '../../stores/useTabStore'
 import { getColorTagTextClass } from '../../lib/color-tag'
 import type { AssetRow } from '../../types'
 
@@ -44,19 +47,19 @@ function sortData(data: AssetRow[], key: SortKey, dir: SortDir): AssetRow[] {
 }
 
 export default function AssetTable() {
-  const showContextMenu = useAppStore((s) => s.showContextMenu)
-  const currentFolder = useAppStore((s) => s.currentFolder)
-  const setCurrentFolder = useAppStore((s) => s.setCurrentFolder)
-  const isAnonymized = useAppStore((s) => s.isAnonymized)
-  const showPing = useAppStore((s) => s.showPing)
-  const pings = useAppStore((s) => s.pings)
-  const openAssetTab = useAppStore((s) => s.openAssetTab)
-  const tableData = useAppStore((s) => s.tableData)
-  const moveConnectionToFolder = useAppStore((s) => s.moveConnectionToFolder)
-  const selectedRowIds = useAppStore((s) => s.selectedRowIds)
-  const setSelectedRowIds = useAppStore((s) => s.setSelectedRowIds)
-  const toggleRowSelection = useAppStore((s) => s.toggleRowSelection)
-  const clearRowSelection = useAppStore((s) => s.clearRowSelection)
+  const showContextMenu = useUIStore((s) => s.showContextMenu)
+  const currentFolder = useAssetStore((s) => s.currentFolder)
+  const setCurrentFolder = useAssetStore((s) => s.setCurrentFolder)
+  const isAnonymized = useAssetStore((s) => s.isAnonymized)
+  const showPing = useAssetStore((s) => s.showPing)
+  const pings = useAssetStore((s) => s.pings)
+  const openAssetTab = useTabStore((s) => s.openAssetTab)
+  const tableData = useAssetStore((s) => s.tableData)
+  const moveConnectionToFolder = useAssetStore((s) => s.moveConnectionToFolder)
+  const selectedRowIds = useAssetStore((s) => s.selectedRowIds)
+  const setSelectedRowIds = useAssetStore((s) => s.setSelectedRowIds)
+  const toggleRowSelection = useAssetStore((s) => s.toggleRowSelection)
+  const clearRowSelection = useAssetStore((s) => s.clearRowSelection)
 
   const [sortKey, setSortKey] = useState<SortKey | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>(null)
@@ -183,7 +186,7 @@ export default function AssetTable() {
       onContextMenu={(e) => {
         e.preventDefault()
         clearRowSelection()
-        showContextMenu(e.clientX, e.clientY, 'table-context', { targetContext: 'blank' })
+        showContextMenu(e.clientX, e.clientY, 'table-context', { targetContext: 'blank', currentFolderId: currentFolder })
       }}
       onClick={() => { if (!justFinishedLasso.current) clearRowSelection() }}
       onMouseDown={handleLassoStart}
@@ -200,11 +203,11 @@ export default function AssetTable() {
                 <div className="flex items-center gap-1">
                   {col.label}
                   {sortKey === col.key && sortDir === 'asc' ? (
-                    <ChevronUp className="w-3.5 h-3.5 text-primary" />
+                    <AppIcon icon={icons.chevronUp} size={14} className="text-primary" />
                   ) : sortKey === col.key && sortDir === 'desc' ? (
-                    <ChevronDown className="w-3.5 h-3.5 text-primary" />
+                    <AppIcon icon={icons.chevronDown} size={14} className="text-primary" />
                   ) : (
-                    <ChevronDown className="w-3.5 h-3.5 opacity-30" />
+                    <AppIcon icon={icons.chevronDown} size={14} className="opacity-30" />
                   )}
                 </div>
               </th>
@@ -232,7 +235,7 @@ export default function AssetTable() {
               }}
             >
               <td className="px-5 py-3 text-[13px] text-text-1 flex items-center gap-1.5">
-                <Folder className="w-3.5 h-3.5 text-icon-folder fill-icon-folder" />
+                <AppIcon icon={icons.folder} size={14} className="text-icon-folder" />
                 ..
               </td>
               <td className="px-4 py-3 text-[13px] text-text-2">-</td>
@@ -286,14 +289,15 @@ export default function AssetTable() {
                 showContextMenu(e.clientX, e.clientY, 'table-context', {
                   targetContext: row.type === 'folder' ? 'folder' : 'asset',
                   rowData: row,
+                  currentFolderId: currentFolder,
                 })
               }}
             >
               <td className="px-5 py-3 text-[13px] text-text-1 flex items-center gap-1.5">
                 {row.type === 'folder' ? (
-                  <Folder className="w-3.5 h-3.5 text-icon-folder fill-icon-folder" />
+                  <AppIcon icon={icons.folder} size={14} className="text-icon-folder" />
                 ) : (
-                  <Terminal className="w-3.5 h-3.5 text-icon-terminal" />
+                  <ProtocolIcon protocol={row.protocol} size={14} />
                 )}
                 <span className={getColorTagTextClass(row.colorTag)}>{maskText(row.name, isAnonymized)}</span>
               </td>
