@@ -1,7 +1,7 @@
 /* ── 历史命令弹出层 ── */
 
 import { useState, useEffect } from 'react'
-import { AppIcon, icons } from '../../icons/AppIcon'
+import { AppIcon, icons } from '../../../components/icons/AppIcon'
 import { useShortcutStore } from '../../../stores/useShortcutStore'
 import * as api from '../../../api/client'
 

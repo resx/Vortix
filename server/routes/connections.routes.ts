@@ -118,6 +118,55 @@ router.post('/connections', (req, res) => {
   res.status(201).json({ success: true, data: connection })
 })
 
+// 批量更新连接
+router.patch('/connections/batch', (req, res) => {
+  const { ids, updates } = req.body as { ids?: string[]; updates?: Record<string, unknown> }
+  if (!Array.isArray(ids) || ids.length === 0) {
+    res.status(400).json({ success: false, error: 'ids 不能为空' })
+    return
+  }
+  if (ids.length > 100) {
+    res.status(400).json({ success: false, error: '批量操作不能超过 100 条' })
+    return
+  }
+  if (!updates || typeof updates !== 'object') {
+    res.status(400).json({ success: false, error: 'updates 不能为空' })
+    return
+  }
+
+  // 白名单字段（非凭据）
+  const plainFields = [
+    'folder_id', 'color_tag', 'remark', 'environment', 'port', 'username',
+    'auth_type', 'proxy_type', 'proxy_host', 'proxy_port', 'proxy_username',
+    'proxy_timeout', 'jump_server_id', 'env_vars', 'advanced',
+  ] as const
+  const allowed: Record<string, unknown> = {}
+  for (const key of plainFields) {
+    if (key in updates) allowed[key] = updates[key]
+  }
+
+  // 凭据字段需要加密
+  const hasPassword = 'password' in updates && updates.password
+  const hasProxyPassword = 'proxy_password' in updates && updates.proxy_password
+
+  if (Object.keys(allowed).length === 0 && !hasPassword && !hasProxyPassword) {
+    res.status(400).json({ success: false, error: '没有可更新的字段' })
+    return
+  }
+
+  // 预加密凭据（所有连接共用同一密文）
+  const encPwd = hasPassword ? encrypt(updates.password as string) : undefined
+  const encProxyPwd = hasProxyPassword ? encrypt(updates.proxy_password as string) : undefined
+
+  const results: ReturnType<typeof connectionRepo.update>[] = []
+  for (const id of ids) {
+    const updated = connectionRepo.update(id, allowed, encPwd ?? undefined, undefined, encProxyPwd ?? undefined)
+    if (updated) results.push(updated)
+  }
+
+  res.json({ success: true, data: results })
+})
+
 // 更新连接
 router.put('/connections/:id', (req, res) => {
   const { id } = req.params

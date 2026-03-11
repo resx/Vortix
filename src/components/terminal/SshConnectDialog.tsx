@@ -3,6 +3,8 @@ import { AppIcon, icons } from '../icons/AppIcon'
 import { ProtocolIcon } from '../icons/ProtocolIcons'
 import { useAssetStore } from '../../stores/useAssetStore'
 import { useTabStore } from '../../stores/useTabStore'
+import { useUIStore } from '../../stores/useUIStore'
+import { useSshConfigStore } from '../../stores/useSshConfigStore'
 import * as api from '../../api/client'
 import type { Folder } from '../../api/types'
 
@@ -327,7 +329,21 @@ export default function SshConnectDialog({ open, mode, onClose, initialData }: S
           )}
 
           {/* 操作按钮 */}
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex justify-between pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                const { prefillFromQuickConnect } = useSshConfigStore.getState()
+                prefillFromQuickConnect({ host, port, user: username, password, authType })
+                onClose()
+                useUIStore.getState().openSshConfig('create', undefined, true)
+              }}
+              className="px-3 py-2 rounded text-[13px] text-text-2 hover:text-primary hover:bg-primary/5 transition-colors flex items-center gap-1.5"
+            >
+              <AppIcon icon={icons.settings} size={14} />
+              高级配置
+            </button>
+            <div className="flex gap-3">
             <button
               type="button"
               onClick={onClose}
@@ -375,6 +391,7 @@ export default function SshConnectDialog({ open, mode, onClose, initialData }: S
                 保存
               </button>
             )}
+            </div>
           </div>
         </form>
       </div>

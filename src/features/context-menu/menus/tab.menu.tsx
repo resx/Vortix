@@ -1,6 +1,6 @@
 import { registerMenu } from '../../../registries/context-menu.registry'
 import { MenuItem, MenuDivider } from '../components/MenuParts'
-import { icons } from '../../icons/AppIcon'
+import { icons } from '../../../components/icons/AppIcon'
 import { useTabStore } from '../../../stores/useTabStore'
 import { useUIStore } from '../../../stores/useUIStore'
 import type { TabContextData } from '../../../types'

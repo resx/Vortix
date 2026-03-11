@@ -4,7 +4,7 @@ import { useTabStore } from '../../../stores/useTabStore'
 import { useWorkspaceStore, collectLeafIds } from '../../../stores/useWorkspaceStore'
 import { useToastStore } from '../../../stores/useToastStore'
 import { getSession } from '../../../stores/terminalSessionRegistry'
-import { icons } from '../../icons/AppIcon'
+import { icons } from '../../../components/icons/AppIcon'
 import type { TerminalContextData } from '../../../types'
 
 /* ---- 模块级状态：记录中的面板 ---- */

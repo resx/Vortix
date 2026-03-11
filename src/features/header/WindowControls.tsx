@@ -1,6 +1,6 @@
 /* ── 窗口控制按钮 ── */
 
-import { AppIcon, icons } from '../icons/AppIcon'
+import { AppIcon, icons } from '../../components/icons/AppIcon'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../components/ui/tooltip'
 
 const windowIcons: { icon: string; label: string; small?: boolean }[] = [

@@ -1,6 +1,7 @@
 /* ── 统一注册入口 ── */
 /* 在 App 初始化时调用，注册所有插槽模块 */
 
+import { registerConnectionTypes } from './features/connection-types/register'
 import { registerShortcutMenu } from './features/context-menu/menus/shortcut.menu'
 import { registerSidebarAssetMenu } from './features/context-menu/menus/sidebar-asset.menu'
 import { registerTableMenu } from './features/context-menu/menus/table.menu'
@@ -14,6 +15,9 @@ let initialized = false
 export function bootstrap() {
   if (initialized) return
   initialized = true
+
+  // 连接类型注册
+  registerConnectionTypes()
 
   // 右键菜单注册
   registerShortcutMenu()

@@ -1,7 +1,7 @@
 import { registerMenu } from '../../../registries/context-menu.registry'
 import { MenuItem, MenuDivider, ActionButton } from '../components/MenuParts'
-import { AppIcon, icons } from '../../icons/AppIcon'
-import { ProtocolIcon } from '../../icons/ProtocolIcons'
+import { NewConnectionSubmenu } from '../components/NewConnectionSubmenu'
+import { icons } from '../../../components/icons/AppIcon'
 import { useAssetStore } from '../../../stores/useAssetStore'
 import { useTabStore } from '../../../stores/useTabStore'
 import { useUIStore } from '../../../stores/useUIStore'
@@ -9,44 +9,6 @@ import { useToastStore } from '../../../stores/useToastStore'
 import * as api from '../../../api/client'
 import type { TableContextData, AssetRow } from '../../../types'
 import { downloadJson, pickJsonFile, connClipboard, setConnClipboard } from '../menu-utils'
-
-/* ---- 新建连接子菜单数据 ---- */
-const newConnectionItems: { icon?: string; protocol?: string; label: string }[] = [
-  { protocol: 'local', label: '本地终端' },
-  { protocol: 'ssh', label: 'SSH' },
-  { icon: icons.network, label: 'SSH隧道' },
-  { icon: icons.monitor, label: 'Telnet' },
-  { icon: icons.usb, label: '串口' },
-  { protocol: 'rdp', label: 'RDP' },
-  { protocol: 'docker', label: 'Docker' },
-  { protocol: 'redis', label: 'Redis' },
-  { protocol: 'mysql', label: 'MySQL' },
-  { protocol: 'mariadb', label: 'MariaDB' },
-  { protocol: 'postgresql', label: 'PostgreSQL' },
-  { protocol: 'sqlserver', label: 'SqlServer' },
-  { protocol: 'clickhouse', label: 'ClickHouse' },
-  { protocol: 'sqlite', label: 'SQLite' },
-  { protocol: 'oracle', label: 'Oracle' },
-  { protocol: 'dameng', label: '达梦' },
-]
-
-/* ---- 新建连接子菜单组件 ---- */
-function NewConnectionSubmenu({ onSelectSsh, onSelectLocalTerm }: { onSelectSsh: () => void; onSelectLocalTerm: () => void }) {
-  return (
-    <>
-      {newConnectionItems.map((item) => (
-        <MenuItem
-          key={item.label}
-          iconNode={item.protocol
-            ? <ProtocolIcon protocol={item.protocol} size={12} mono className="text-text-1" />
-            : <AppIcon icon={item.icon!} size={12} className="text-text-1" />}
-          label={item.label}
-          onClick={item.label === 'SSH' ? onSelectSsh : item.label === '本地终端' ? onSelectLocalTerm : undefined}
-        />
-      ))}
-    </>
-  )
-}
 
 export function registerTableMenu(): () => void {
   return registerMenu({
@@ -62,7 +24,7 @@ export function registerTableMenu(): () => void {
 
       const { fetchAssets, deleteFolderAction, deleteConnectionAction, renameFolderAction, renameConnectionAction, cloneConnectionAction, batchOpenSelected, selectedRowIds, tableData } = useAssetStore.getState()
       const { openAssetTab, openSplitTab } = useTabStore.getState()
-      const { hideContextMenu, setShowDirModal, openSshConfig, openLocalTermConfig } = useUIStore.getState()
+      const { hideContextMenu, setShowDirModal, openSshConfig, openLocalTermConfig, openBatchEdit } = useUIStore.getState()
       const { addToast } = useToastStore.getState()
 
       const handleDelete = (id: string, type: 'folder' | 'connection' | 'asset') => {
@@ -108,10 +70,10 @@ export function registerTableMenu(): () => void {
           <MenuItem icon={icons.folderPlus} label="新建目录" onClick={() => { ctx.close(); setShowDirModal(true) }} />
           <MenuItem icon={icons.link} label="新建连接" hasSubmenu>
             <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">新建连接</div>
-            <NewConnectionSubmenu onSelectSsh={() => { ctx.close(); openSshConfig('create') }} onSelectLocalTerm={() => { ctx.close(); openLocalTermConfig('create') }} />
+            <NewConnectionSubmenu onClose={() => ctx.close()} />
           </MenuItem>
           <MenuItem icon={icons.edit} label="编辑" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? () => { ctx.close(); if (rowData.protocol === 'local') { openLocalTermConfig('edit', rowData.id) } else { openSshConfig('edit', rowData.id) } } : undefined} />
-          <MenuItem icon={icons.copyPlus} label="批量编辑" disabled={isBlank || isFolder} />
+          <MenuItem icon={icons.copyPlus} label="批量编辑" disabled={isBlank || isFolder} onClick={!isBlank && !isFolder ? () => { ctx.close(); const ids = selectedRowIds.size > 0 ? [...selectedRowIds] : rowData ? [rowData.id] : []; if (ids.length > 0) openBatchEdit(ids) } : undefined} />
           <MenuItem icon={icons.fileX} label="删除" shortcut="Backspace" disabled={isBlank} onClick={rowData && !isBlank ? () => handleDelete(rowData.id, rowData.type === 'folder' ? 'folder' : 'asset') : undefined} />
           <MenuItem icon={icons.edit} label="重命名" shortcut="F2" disabled={isBlank} onClick={rowData && !isBlank ? () => handleRename(rowData.id, rowData.type === 'folder' ? 'folder' : 'asset', rowData.name) : undefined} />
           <MenuDivider />

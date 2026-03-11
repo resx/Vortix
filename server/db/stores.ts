@@ -4,7 +4,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { JsonStore, SettingsJsonStore } from './json-store.js'
 import { JsonlStore } from './jsonl-store.js'
-import type { Folder, ConnectionRow, Shortcut, SshKeyRow, CommandHistory, ConnectionLog } from '../types/index.js'
+import type { Folder, ConnectionRow, Shortcut, SshKeyRow, CommandHistory, ConnectionLog, Preset } from '../types/index.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = path.resolve(__dirname, '../../data')
@@ -17,6 +17,7 @@ export const connectionStore = new JsonStore<ConnectionRow>(path.join(CONFIG_DIR
 export const settingsStore = new SettingsJsonStore(path.join(CONFIG_DIR, 'settings.json'))
 export const shortcutStore = new JsonStore<Shortcut>(path.join(CONFIG_DIR, 'shortcuts.json'))
 export const sshKeyStore = new JsonStore<SshKeyRow>(path.join(CONFIG_DIR, 'ssh-keys.json'))
+export const presetStore = new JsonStore<Preset>(path.join(CONFIG_DIR, 'presets.json'))
 
 // ── 运行时日志存储 ──
 export const historyStore = new JsonlStore<CommandHistory>(path.join(LOGS_DIR, 'command-history.jsonl'))
@@ -29,6 +30,7 @@ export function initStores(): void {
   settingsStore.load()
   shortcutStore.load()
   sshKeyStore.load()
+  presetStore.load()
   historyStore.load()
   logStore.load()
 

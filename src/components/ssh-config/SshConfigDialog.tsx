@@ -20,6 +20,7 @@ export default function SshConfigDialog() {
   const closeSshConfig = useUIStore((s) => s.closeSshConfig)
   const sshConfigMode = useUIStore((s) => s.sshConfigMode)
   const sshConfigInitialId = useUIStore((s) => s.sshConfigInitialId)
+  const sshConfigFromQuickConnect = useUIStore((s) => s.sshConfigFromQuickConnect)
   const activeTab = useSshConfigStore((s) => s.activeTab)
   const setActiveTab = useSshConfigStore((s) => s.setActiveTab)
   const subModals = useSshConfigStore((s) => s.subModals)
@@ -33,12 +34,13 @@ export default function SshConfigDialog() {
   const loadFromConnection = useSshConfigStore((s) => s.loadFromConnection)
 
   // mount 时加载编辑数据 / unmount 时重置
+  // fromQuickConnect 时数据已由 prefillFromQuickConnect 预填充，跳过 API 加载
   useEffect(() => {
-    if (sshConfigMode === 'edit' && sshConfigInitialId) {
+    if (!sshConfigFromQuickConnect && sshConfigMode === 'edit' && sshConfigInitialId) {
       loadFromConnection(sshConfigInitialId)
     }
     return () => { reset() }
-  }, [sshConfigMode, sshConfigInitialId, loadFromConnection, reset])
+  }, [sshConfigMode, sshConfigInitialId, sshConfigFromQuickConnect, loadFromConnection, reset])
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-[1px]">

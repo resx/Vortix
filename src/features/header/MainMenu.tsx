@@ -1,7 +1,7 @@
 /* ── 主菜单 ── */
 
-import { AppIcon, icons } from '../icons/AppIcon'
-import { ProtocolIcon } from '../icons/ProtocolIcons'
+import { AppIcon, icons } from '../../components/icons/AppIcon'
+import { ProtocolIcon } from '../../components/icons/ProtocolIcons'
 import { useAssetStore } from '../../stores/useAssetStore'
 import { useTabStore } from '../../stores/useTabStore'
 import { useUIStore } from '../../stores/useUIStore'

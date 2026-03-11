@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { AppIcon, icons } from '../../icons/AppIcon'
+import { AppIcon, icons } from '../../../components/icons/AppIcon'
 
 /* ---- MenuItem ---- */
 export function MenuItem({

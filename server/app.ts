@@ -13,6 +13,7 @@ import logsRoutes from './routes/logs.routes.js'
 import shortcutsRoutes from './routes/shortcuts.routes.js'
 import syncRoutes from './routes/sync.routes.js'
 import sshKeysRoutes from './routes/sshkeys.routes.js'
+import presetsRoutes from './routes/presets.routes.js'
 
 const app = express()
 
@@ -33,6 +34,7 @@ app.use('/api', logsRoutes)
 app.use('/api', shortcutsRoutes)
 app.use('/api', syncRoutes)
 app.use('/api', sshKeysRoutes)
+app.use('/api', presetsRoutes)
 
 // 统一错误处理
 app.use(errorHandler)

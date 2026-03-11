@@ -142,6 +142,30 @@ export interface UpdateConnectionDto {
   advanced?: string
 }
 
+// 批量编辑
+export interface BatchUpdateConnectionDto {
+  ids: string[]
+  updates: {
+    folder_id?: string | null
+    color_tag?: string | null
+    remark?: string
+    environment?: string
+    port?: number
+    username?: string
+    auth_type?: string
+    password?: string
+    proxy_type?: string
+    proxy_host?: string
+    proxy_port?: number
+    proxy_username?: string
+    proxy_password?: string
+    proxy_timeout?: number
+    jump_server_id?: string | null
+    env_vars?: string
+    advanced?: string
+  }
+}
+
 // 解密后的凭据
 export interface ConnectionCredential {
   host: string
@@ -304,6 +328,48 @@ export interface SyncConflictInfo {
 
 /** 兼容新旧格式的统一 payload（内部使用） */
 export type SyncPayload = SyncPayloadLegacy | SyncPayloadV3
+
+// ── SSH 密钥库 ──
+
+// ── 连接预设 ──
+
+export interface Preset {
+  id: string
+  name: string
+  username: string
+  encrypted_password: string
+  remark: string
+  created_at: string
+  updated_at: string
+}
+
+export interface PresetPublic {
+  id: string
+  name: string
+  username: string
+  remark: string
+  created_at: string
+  updated_at: string
+}
+
+export interface CreatePresetDto {
+  name: string
+  username: string
+  password: string
+  remark?: string
+}
+
+export interface UpdatePresetDto {
+  name?: string
+  username?: string
+  password?: string
+  remark?: string
+}
+
+export interface PresetCredential {
+  username: string
+  password: string
+}
 
 // ── SSH 密钥库 ──
 

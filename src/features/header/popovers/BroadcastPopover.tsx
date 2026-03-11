@@ -1,6 +1,6 @@
 /* ── 命令输入广播弹出层 ── */
 
-import { AppIcon, icons } from '../../icons/AppIcon'
+import { AppIcon, icons } from '../../../components/icons/AppIcon'
 
 export default function BroadcastPopover({ assetName }: { assetName: string }) {
   return (

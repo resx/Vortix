@@ -8,13 +8,6 @@ export interface MockPrivateKey {
   updatedAt: string
 }
 
-export interface MockPresetAccount {
-  id: string
-  name: string
-  username: string
-  updatedAt: string
-}
-
 export interface MockAssetNode {
   name: string
   type: 'folder' | 'server'
@@ -29,8 +22,6 @@ export const MOCK_PRIVATE_KEYS: MockPrivateKey[] = [
   { id: 'key-3', name: 'Netify', fileName: '-', type: 'ssh-ed25519', updatedAt: '12-19 23:41' },
   { id: 'key-4', name: 'DMIT CORONA', fileName: 'id_rsa.pem', type: 'ssh-rsa', updatedAt: '12-22 17:01' },
 ]
-
-export const MOCK_PRESET_ACCOUNTS: MockPresetAccount[] = []
 
 export const MOCK_ASSET_TREE: MockAssetNode[] = [
   { name: 'Docker', type: 'folder', open: false, children: [] },

@@ -8,6 +8,7 @@ import type {
   Connection,
   CreateConnectionDto,
   UpdateConnectionDto,
+  BatchUpdateConnectionDto,
   ConnectionCredential,
   Settings,
   CommandHistory,
@@ -102,6 +103,13 @@ export async function deleteConnection(id: string): Promise<void> {
   return request<void>(`/connections/${id}`, { method: 'DELETE' })
 }
 
+export async function batchUpdateConnections(dto: BatchUpdateConnectionDto): Promise<Connection[]> {
+  return request<Connection[]>('/connections/batch', {
+    method: 'PATCH',
+    body: JSON.stringify(dto),
+  })
+}
+
 /* ── 设置 API ── */
 
 export async function getSettings(): Promise<Settings> {
@@ -163,6 +171,36 @@ export async function pickFile(title?: string, filters?: string): Promise<{ path
     method: 'POST',
     body: JSON.stringify({ title, filters }),
   })
+}
+
+/* ── SSH 密钥库 API ── */
+
+/* ── 连接预设 API ── */
+
+export async function getPresets(): Promise<import('./types').PresetPublic[]> {
+  return request<import('./types').PresetPublic[]>('/presets')
+}
+
+export async function getPresetCredential(id: string): Promise<import('./types').PresetCredential> {
+  return request<import('./types').PresetCredential>(`/presets/${id}/credential`)
+}
+
+export async function createPreset(dto: import('./types').CreatePresetDto): Promise<import('./types').PresetPublic> {
+  return request<import('./types').PresetPublic>('/presets', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  })
+}
+
+export async function updatePreset(id: string, dto: import('./types').UpdatePresetDto): Promise<import('./types').PresetPublic> {
+  return request<import('./types').UpdatePresetDto>(`/presets/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
+  }) as Promise<import('./types').PresetPublic>
+}
+
+export async function deletePreset(id: string): Promise<void> {
+  return request<void>(`/presets/${id}`, { method: 'DELETE' })
 }
 
 /* ── SSH 密钥库 API ── */

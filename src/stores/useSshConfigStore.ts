@@ -134,6 +134,9 @@ interface SshConfigState {
   save: () => Promise<void>
   loadFromConnection: (id: string) => Promise<void>
   testConnection: () => Promise<void>
+
+  // 从快速连接预填充
+  prefillFromQuickConnect: (data: { host: string; port: string; user: string; password: string; authType: 'password' | 'key' }) => void
 }
 
 const defaultAdvanced: AdvancedSettings = {
@@ -377,5 +380,20 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
     } catch {
       set({ loading: false })
     }
+  },
+
+  prefillFromQuickConnect: (data) => {
+    set({
+      ...initialState,
+      advanced: { ...defaultAdvanced },
+      subModals: { ...defaultSubModals },
+      errors: {},
+      host: data.host,
+      port: data.port,
+      user: data.user,
+      password: data.password,
+      authType: data.authType === 'key' ? 'privateKey' as AuthType : 'password' as AuthType,
+      name: `${data.host}:${data.port}`,
+    })
   },
 }))

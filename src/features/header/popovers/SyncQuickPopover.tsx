@@ -1,7 +1,7 @@
 /* ── 同步快捷操作 Popover ── */
 
 import { useState, useEffect } from 'react'
-import { AppIcon, icons } from '../../icons/AppIcon'
+import { AppIcon, icons } from '../../../components/icons/AppIcon'
 import { useSettingsStore, buildSyncBody } from '../../../stores/useSettingsStore'
 import { useAssetStore } from '../../../stores/useAssetStore'
 import { useShortcutStore } from '../../../stores/useShortcutStore'

@@ -45,7 +45,8 @@ interface UIState {
   sshConfigOpen: boolean
   sshConfigMode: 'create' | 'edit'
   sshConfigInitialId: string | null
-  openSshConfig: (mode: 'create' | 'edit', id?: string) => void
+  sshConfigFromQuickConnect: boolean
+  openSshConfig: (mode: 'create' | 'edit', id?: string, fromQuickConnect?: boolean) => void
   closeSshConfig: () => void
 
   // 本地终端配置编辑器
@@ -64,6 +65,12 @@ interface UIState {
   toggleClearDataDialog: () => void
   reloadDialogOpen: boolean
   toggleReloadDialog: () => void
+
+  // 批量编辑
+  batchEditOpen: boolean
+  batchEditIds: string[]
+  openBatchEdit: (ids: string[]) => void
+  closeBatchEdit: () => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -113,8 +120,9 @@ export const useUIStore = create<UIState>((set) => ({
   sshConfigOpen: false,
   sshConfigMode: 'create',
   sshConfigInitialId: null,
-  openSshConfig: (mode, id) => set({ sshConfigOpen: true, sshConfigMode: mode, sshConfigInitialId: id ?? null }),
-  closeSshConfig: () => set({ sshConfigOpen: false, sshConfigInitialId: null }),
+  sshConfigFromQuickConnect: false,
+  openSshConfig: (mode, id, fromQuickConnect) => set({ sshConfigOpen: true, sshConfigMode: mode, sshConfigInitialId: id ?? null, sshConfigFromQuickConnect: !!fromQuickConnect }),
+  closeSshConfig: () => set({ sshConfigOpen: false, sshConfigInitialId: null, sshConfigFromQuickConnect: false }),
 
   // 本地终端配置编辑器
   localTermConfigOpen: false,
@@ -132,4 +140,10 @@ export const useUIStore = create<UIState>((set) => ({
   toggleClearDataDialog: () => set((s) => ({ clearDataDialogOpen: !s.clearDataDialogOpen })),
   reloadDialogOpen: false,
   toggleReloadDialog: () => set((s) => ({ reloadDialogOpen: !s.reloadDialogOpen })),
+
+  // 批量编辑
+  batchEditOpen: false,
+  batchEditIds: [],
+  openBatchEdit: (ids) => set({ batchEditOpen: true, batchEditIds: ids }),
+  closeBatchEdit: () => set({ batchEditOpen: false, batchEditIds: [] }),
 }))
