@@ -2,6 +2,7 @@ import { useEffect, useRef, useCallback, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
+import { WebglAddon } from '@xterm/addon-webgl'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
@@ -45,6 +46,18 @@ interface SshTerminalProps {
   onContextMenu?: (x: number, y: number, hasSelection: boolean) => void
 }
 
+interface XtermInternalCore {
+  _renderService?: {
+    dimensions?: {
+      css?: {
+        cell?: {
+          height?: number
+        }
+      }
+    }
+  }
+}
+
 export default function SshTerminal({ paneId, tabId, wsUrl, connection, connectionId, profileId, onStatusChange, onContextMenu }: SshTerminalProps) {
   const resolvedWsUrl = wsUrl || `${getWsBaseUrl()}/ws/ssh`
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -52,6 +65,9 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
   const fitAddonRef = useRef<FitAddon | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const [cellHeight, setCellHeight] = useState(0)
+  const [isDarkMode, setIsDarkMode] = useState(() =>
+    document.documentElement.classList.contains('dark'),
+  )
 
   // 用 ref 保持回调最新引用，避免闭包陈旧
   const onStatusChangeRef = useRef(onStatusChange)
@@ -64,15 +80,51 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     try { fitAddon.fit() } catch { /* 静默 */ }
   }, [])
 
+  /** 安全获取建议尺寸，避免隐藏状态下拿到错误结果 */
+  const getProposedDimensions = useCallback((fitAddon: FitAddon) => {
+    const container = wrapperRef.current
+    if (!container || container.clientWidth <= 0 || container.clientHeight <= 0) return undefined
+    try { return fitAddon.proposeDimensions() ?? undefined } catch { return undefined }
+  }, [])
+
   /** 从 xterm 内部获取实际 cell height，用于条纹对齐 */
   const updateCellHeight = useCallback(() => {
     const s = getSession(paneId)
     if (!s) return
     try {
-      const h = (s.term as any)._core._renderService.dimensions.css.cell.height
+      const h = ((s.term as Terminal & { _core?: XtermInternalCore })._core?._renderService?.dimensions?.css?.cell?.height) ?? 0
       if (h > 0) setCellHeight(h)
     } catch { /* 静默 */ }
   }, [paneId])
+
+  /** 同步渲染模式：普通模式 / WebGL 高性能模式 */
+  const applyPerformanceMode = useCallback((session: TerminalSession, enabled: boolean) => {
+    if (enabled) {
+      if (session.webglAddon) return
+      try {
+        const addon = new WebglAddon()
+        addon.onContextLoss(() => {
+          if (session.webglAddon === addon) {
+            session.webglAddon = null
+          }
+          addon.dispose()
+          requestAnimationFrame(() => session.term.refresh(0, session.term.rows - 1))
+        })
+        session.term.loadAddon(addon)
+        session.webglAddon = addon
+        session.term.refresh(0, session.term.rows - 1)
+      } catch {
+        session.webglAddon = null
+      }
+      return
+    }
+
+    if (session.webglAddon) {
+      session.webglAddon.dispose()
+      session.webglAddon = null
+      session.term.refresh(0, session.term.rows - 1)
+    }
+  }, [])
 
   /** 发送高亮配置到后端 */
   const sendHighlightConfig = useCallback((ws: WebSocket) => {
@@ -96,6 +148,13 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     const { term, fitAddon } = session
     const isLocal = 'type' in conn && conn.type === 'local'
 
+    if (session.reconnectTimer) {
+      clearTimeout(session.reconnectTimer)
+      session.reconnectTimer = null
+    }
+    session.reconnectInputDisposable?.dispose()
+    session.reconnectInputDisposable = null
+
     const ws = new WebSocket(resolvedWsUrl)
     session.ws = ws
     wsRef.current = ws
@@ -106,7 +165,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       sendHighlightConfig(ws)
       // 安全 fit 后再取尺寸
       safeFit(fitAddon)
-      const dims = fitAddon.proposeDimensions()
+      const dims = getProposedDimensions(fitAddon)
       if (isLocal) {
         ws.send(JSON.stringify({
           type: 'connect',
@@ -120,7 +179,10 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           },
         }))
       } else {
-        ws.send(JSON.stringify({ type: 'connect', data: { ...conn, connectionId } }))
+        ws.send(JSON.stringify({
+          type: 'connect',
+          data: { ...conn, connectionId, cols: dims?.cols, rows: dims?.rows },
+        }))
       }
     }
 
@@ -143,7 +205,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
               safeFit(fitAddon)
               // fit() 触发 term.onResize → 自动同步后端
               // 额外显式发送，防止尺寸未变时 onResize 不触发
-              const dims = fitAddon.proposeDimensions()
+              const dims = getProposedDimensions(fitAddon)
               if (dims && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
               }
@@ -189,13 +251,16 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         term.writeln(`\x1b[36m[Vortix]\x1b[0m 正在尝试重连 (${session.reconnectCount}/${maxRetries})...`)
         onStatusChangeRef.current?.('connecting')
         session.reconnectTimer = setTimeout(() => {
+          session.reconnectTimer = null
           if (session.ws === ws) connectWs(session, conn)
         }, interval)
       } else {
         // 自动重连耗尽，提示按任意键手动重连
         term.writeln('\r\n\x1b[36m[Vortix]\x1b[0m 按任意键重新连接...')
-        const disposable = term.onData(() => {
-          disposable.dispose()
+        session.reconnectInputDisposable?.dispose()
+        session.reconnectInputDisposable = term.onData(() => {
+          session.reconnectInputDisposable?.dispose()
+          session.reconnectInputDisposable = null
           session.reconnectCount = 0
           onStatusChangeRef.current?.('connecting')
           connectWs(session, conn)
@@ -208,12 +273,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       onStatusChangeRef.current?.('error')
     }
 
-    term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'input', data }))
-      }
-    })
-  }, [resolvedWsUrl, sendHighlightConfig])
+  }, [connectionId, getProposedDimensions, resolvedWsUrl, safeFit, sendHighlightConfig, tabId])
 
   // 主 effect：挂载恢复 / 首次创建
   useEffect(() => {
@@ -228,6 +288,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       termRef.current = existing.term
       fitAddonRef.current = existing.fitAddon
       wsRef.current = existing.ws
+      applyPerformanceMode(existing, useSettingsStore.getState().termHighPerformance)
 
       // 延迟确保 DOM 完全显示后再刷新尺寸
       setTimeout(() => {
@@ -238,7 +299,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         safeFit(s.fitAddon)
         // fit() 会触发 term.onResize → 自动同步后端
         // 额外显式发送一次，防止尺寸未变时 onResize 不触发
-        const dims = s.fitAddon.proposeDimensions()
+        const dims = getProposedDimensions(s.fitAddon)
         if (dims && s.ws?.readyState === WebSocket.OPEN) {
           s.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
         }
@@ -256,13 +317,13 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         cursorStyle: resolved.profile.cursorStyle,
         fontSize: resolved.profile.fontSize,
         fontFamily: resolved.fontFamily,
-        fontLigatures: settings.fontLigatures,
         lineHeight: resolved.profile.lineHeight || 1.6,
         letterSpacing: resolved.profile.letterSpacing || 0,
         theme: resolved.theme,
         scrollback: resolved.profile.scrollback || 1000,
         allowProposedApi: true,
       })
+      ;(term.options as typeof term.options & { fontLigatures?: boolean }).fontLigatures = settings.fontLigatures
 
       const fitAddon = new FitAddon()
       const searchAddon = new SearchAddon()
@@ -279,9 +340,12 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
 
       const session: TerminalSession = {
         containerEl, term, fitAddon, searchAddon,
+        webglAddon: null,
         ws: null, reconnectTimer: null, reconnectCount: 0, isManualDisconnect: false,
+        inputDisposable: null, reconnectInputDisposable: null,
       }
       setSession(paneId, session)
+      applyPerformanceMode(session, settings.termHighPerformance)
 
       termRef.current = term
       fitAddonRef.current = fitAddon
@@ -291,6 +355,12 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         const s = getSession(paneId)
         if (s?.ws?.readyState === WebSocket.OPEN) {
           s.ws.send(JSON.stringify({ type: 'resize', data: { cols, rows } }))
+        }
+      })
+      session.inputDisposable = term.onData((data) => {
+        const current = getSession(paneId)
+        if (current?.ws?.readyState === WebSocket.OPEN) {
+          current.ws.send(JSON.stringify({ type: 'input', data }))
         }
       })
 
@@ -326,7 +396,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         const container = wrapperRef.current
         if (!container || container.clientWidth <= 0 || container.clientHeight <= 0) return
         safeFit(s.fitAddon)
-        const dims = s.fitAddon.proposeDimensions()
+        const dims = getProposedDimensions(s.fitAddon)
         if (dims && s.ws?.readyState === WebSocket.OPEN) {
           s.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
         }
@@ -343,7 +413,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           s.term.refresh(0, s.term.rows - 1)
           safeFit(s.fitAddon)
           // fit() 触发 onResize 自动同步，额外显式发送防止尺寸未变
-          const dims = s.fitAddon.proposeDimensions()
+          const dims = getProposedDimensions(s.fitAddon)
           if (dims && s.ws?.readyState === WebSocket.OPEN) {
             s.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
           }
@@ -366,7 +436,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       wsRef.current = null
       // 不销毁会话！会话保留在注册表中
     }
-  }, [paneId, connection, connectWs, profileId])
+  }, [applyPerformanceMode, connection, connectWs, getProposedDimensions, paneId, profileId, safeFit, updateCellHeight])
 
   // 统一监听 Profile / Settings / dark mode 变化
   useEffect(() => {
@@ -381,13 +451,15 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       s.term.options.theme = r.theme
       s.term.options.fontFamily = r.fontFamily
       s.term.options.fontSize = r.profile.fontSize
-      s.term.options.lineHeight = r.profile.lineHeight || 1
+      s.term.options.lineHeight = r.profile.lineHeight || 1.6
       s.term.options.letterSpacing = r.profile.letterSpacing || 0
       s.term.options.scrollback = r.profile.scrollback || 1000
       s.term.options.cursorStyle = r.profile.cursorStyle
       s.term.options.cursorBlink = r.profile.cursorBlink
-      s.term.options.fontLigatures = settings.fontLigatures
+      ;(s.term.options as typeof s.term.options & { fontLigatures?: boolean }).fontLigatures = settings.fontLigatures
+      applyPerformanceMode(s, settings.termHighPerformance)
       s.containerEl.style.backgroundColor = r.theme.background ?? ''
+      setIsDarkMode(isDark)
       safeFit(s.fitAddon)
       setTimeout(updateCellHeight, 50)
     }
@@ -404,7 +476,8 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         s.termLetterSpacing !== prev.termLetterSpacing ||
         s.termScrollback !== prev.termScrollback ||
         s.termCursorStyle !== prev.termCursorStyle ||
-        s.termCursorBlink !== prev.termCursorBlink
+        s.termCursorBlink !== prev.termCursorBlink ||
+        s.termHighPerformance !== prev.termHighPerformance
       ) {
         applyProfile()
       }
@@ -413,7 +486,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 
     return () => { unsub1(); unsub2(); observer.disconnect() }
-  }, [paneId, profileId])
+  }, [applyPerformanceMode, paneId, profileId, safeFit, updateCellHeight])
 
   // 鼠标选中自动复制
   useEffect(() => {
@@ -543,19 +616,19 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     return () => { unsub1(); unsub2() }
   }, [sendHighlightConfig])
 
-  const isDark = document.documentElement.classList.contains('dark')
-  const settings = useSettingsStore.getState()
-  const resolved = useTerminalProfileStore.getState()
-    .resolveProfile(profileId ?? settings.activeProfileId, isDark)
-  const containerBg = resolved.theme.background ?? (isDark ? '#1E1E1E' : '#FFFFFF')
   const termStripeEnabled = useSettingsStore((s) => s.termStripeEnabled)
+  const stripeBackgroundImage = termStripeEnabled && cellHeight > 0
+    ? `repeating-linear-gradient(to bottom,
+      transparent 0px, transparent ${cellHeight}px,
+      ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${cellHeight}px,
+      ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${cellHeight * 2}px)`
+    : undefined
 
   return (
     <div className="w-full h-full relative">
       <div
         ref={wrapperRef}
         className="w-full h-full terminal-container transition-colors duration-300"
-        style={{ backgroundColor: containerBg }}
         onContextMenu={(e) => {
           e.preventDefault()
           const action = useSettingsStore.getState().termRightClickAction
@@ -574,15 +647,11 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           }
         }}
       />
-      {termStripeEnabled && cellHeight > 0 && (
+      {/* 条纹覆盖层：pointer-events: none 不影响终端交互/选择 */}
+      {stripeBackgroundImage && (
         <div
-          className="absolute inset-0 pointer-events-none z-[1]"
-          style={{
-            backgroundImage: `repeating-linear-gradient(to bottom,
-              transparent 0px, transparent ${cellHeight}px,
-              ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'} ${cellHeight}px,
-              ${isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)'} ${cellHeight * 2}px)`,
-          }}
+          className="absolute inset-0 pointer-events-none"
+          style={{ backgroundImage: stripeBackgroundImage }}
         />
       )}
     </div>

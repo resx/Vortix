@@ -1,9 +1,10 @@
 /* ── 终端会话注册表 ── */
 /* 模块级 Map，不依赖 React 生命周期，跨组件挂载/卸载持久存在 */
 
-import type { Terminal } from '@xterm/xterm'
+import type { IDisposable, Terminal } from '@xterm/xterm'
 import type { FitAddon } from '@xterm/addon-fit'
 import type { SearchAddon } from '@xterm/addon-search'
+import type { WebglAddon } from '@xterm/addon-webgl'
 
 export interface TerminalSession {
   /** xterm 渲染的 DOM 容器（保留滚动历史） */
@@ -11,10 +12,13 @@ export interface TerminalSession {
   term: Terminal
   fitAddon: FitAddon
   searchAddon: SearchAddon
+  webglAddon: WebglAddon | null
   ws: WebSocket | null
   reconnectTimer: ReturnType<typeof setTimeout> | null
   reconnectCount: number
   isManualDisconnect: boolean
+  inputDisposable: IDisposable | null
+  reconnectInputDisposable: IDisposable | null
 }
 
 const sessions = new Map<string, TerminalSession>()
@@ -56,6 +60,12 @@ export function destroySession(paneId: string): void {
     session.reconnectTimer = null
   }
   session.isManualDisconnect = true
+  session.reconnectInputDisposable?.dispose()
+  session.reconnectInputDisposable = null
+  session.inputDisposable?.dispose()
+  session.inputDisposable = null
+  session.webglAddon?.dispose()
+  session.webglAddon = null
   session.ws?.close()
   session.ws = null
   session.term.dispose()

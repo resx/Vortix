@@ -10,6 +10,30 @@ import * as api from '../../../api/client'
 import type { TreeItem } from '../../../types'
 import { downloadJson, pickJsonFile, connClipboard, setConnClipboard } from '../menu-utils'
 
+type ImportedConnection = {
+  name?: string
+  host?: string
+  port?: number
+  username?: string
+  protocol?: string
+  auth_method?: string
+  remark?: string
+  color_tag?: string
+  folder_id?: string | null
+}
+
+function parseImportedConnections(data: unknown): ImportedConnection[] {
+  const payload: unknown[] = Array.isArray(data)
+    ? data
+    : typeof data === 'object' && data !== null && 'connections' in data
+      ? Array.isArray((data as { connections?: unknown }).connections)
+        ? (data as { connections: unknown[] }).connections
+        : [data]
+      : [data]
+
+  return payload.filter((item): item is ImportedConnection => typeof item === 'object' && item !== null)
+}
+
 /* ---- 注册资产侧边栏右键菜单 ---- */
 export function registerSidebarAssetMenu(): () => void {
   return registerMenu({
@@ -105,7 +129,7 @@ export function registerSidebarAssetMenu(): () => void {
             <MenuItem icon={icons.edit} label="重命名" onClick={() => handleRename(item!.id, 'connection', item!.name)} />
             {refreshItem}
             <MenuDivider />
-            <MenuItem icon={icons.fileDown} label="导入" onClick={() => { hideContextMenu(); pickJsonFile().then(async (data: any) => { const conns = Array.isArray(data) ? data : data.connections ?? [data]; let count = 0; for (const c of conns) { if (c.name && c.host) { await api.createConnection({ name: c.name, host: c.host, port: c.port, username: c.username ?? '', protocol: c.protocol, auth_method: c.auth_method, remark: c.remark, color_tag: c.color_tag, folder_id: c.folder_id }); count++ } } fetchAssets(); addToast('success', `成功导入 ${count} 条连接`) }).catch(() => {}) }} />
+            <MenuItem icon={icons.fileDown} label="导入" onClick={() => { hideContextMenu(); pickJsonFile().then(async (data) => { const conns = parseImportedConnections(data); let count = 0; for (const c of conns) { if (c.name && c.host) { await api.createConnection({ name: c.name, host: c.host, port: c.port, username: c.username ?? '', protocol: c.protocol, auth_method: c.auth_method, remark: c.remark, color_tag: c.color_tag, folder_id: c.folder_id }); count++ } } fetchAssets(); addToast('success', `成功导入 ${count} 条连接`) }).catch(() => {}) }} />
             <MenuItem icon={icons.fileUp} label="导出" onClick={() => { hideContextMenu(); api.getConnection(item!.id).then(conn => downloadJson({ connections: [conn] }, `connection-${conn.name}.json`)) }} />
           </>
         )
@@ -126,7 +150,7 @@ export function registerSidebarAssetMenu(): () => void {
           <MenuItem icon={icons.clipboard} label="粘贴" disabled={!connClipboard} onClick={connClipboard ? () => { hideContextMenu(); const cb = connClipboard!; const targetFolderId = isFolder ? item!.id : null; setConnClipboard(null); ;(async () => { for (const id of cb.ids) { if (cb.op === 'cut') { await api.updateConnection(id, { folder_id: targetFolderId }) } else { const conn = await api.getConnection(id); await api.createConnection({ name: conn.name + ' (副本)', host: conn.host, port: conn.port, username: conn.username, protocol: conn.protocol, auth_method: conn.auth_method, remark: conn.remark, color_tag: conn.color_tag, folder_id: targetFolderId }) } } fetchAssets(); addToast('success', cb.op === 'cut' ? '已移动' : '已粘贴') })() } : undefined} />
           {refreshItem}
           <MenuDivider />
-          <MenuItem icon={icons.fileDown} label="导入" onClick={() => { hideContextMenu(); pickJsonFile().then(async (data: any) => { const conns = Array.isArray(data) ? data : data.connections ?? [data]; let count = 0; for (const c of conns) { if (c.name && c.host) { await api.createConnection({ name: c.name, host: c.host, port: c.port, username: c.username ?? '', protocol: c.protocol, auth_method: c.auth_method, remark: c.remark, color_tag: c.color_tag, folder_id: isFolder ? item!.id : null }); count++ } } fetchAssets(); addToast('success', `成功导入 ${count} 条连接`) }).catch(() => {}) }} />
+          <MenuItem icon={icons.fileDown} label="导入" onClick={() => { hideContextMenu(); pickJsonFile().then(async (data) => { const conns = parseImportedConnections(data); let count = 0; for (const c of conns) { if (c.name && c.host) { await api.createConnection({ name: c.name, host: c.host, port: c.port, username: c.username ?? '', protocol: c.protocol, auth_method: c.auth_method, remark: c.remark, color_tag: c.color_tag, folder_id: isFolder ? item!.id : null }); count++ } } fetchAssets(); addToast('success', `成功导入 ${count} 条连接`) }).catch(() => {}) }} />
           <MenuItem icon={icons.fileUp} label="导出" disabled={!isItem} onClick={isItem ? () => { hideContextMenu(); if (isFolder) { const children = item!.children ?? []; const connIds = children.filter(c => c.type === 'connection').map(c => c.id); Promise.all(connIds.map(id => api.getConnection(id))).then(conns => downloadJson({ connections: conns }, `folder-${item!.name}.json`)) } else { api.getConnection(item!.id).then(conn => downloadJson({ connections: [conn] }, `connection-${conn.name}.json`)) } } : undefined} />
         </>
       )

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { AppIcon, icons } from '../icons/AppIcon'
-import { ProtocolIcon, DB_LABEL_PROTOCOL } from '../icons/ProtocolIcons'
+import { ProtocolIcon } from '../icons/ProtocolIcons'
 import { useAssetStore } from '../../stores/useAssetStore'
 import { useTabStore } from '../../stores/useTabStore'
 import { useUIStore } from '../../stores/useUIStore'
@@ -166,7 +166,7 @@ function NewConnectionSubmenu({ onSelectSsh, onSelectLocalTerm }: { onSelectSsh:
         <MenuItem
           key={item.label}
           iconNode={item.protocol
-            ? <ProtocolIcon protocol={item.protocol} size={12} mono className="text-text-1" />
+            ? <ProtocolIcon protocol={item.protocol} variant="menu" size={12} mono className="text-text-1" />
             : <AppIcon icon={item.icon!} size={12} className="text-text-1" />}
           label={item.label}
           onClick={item.label === 'SSH' ? onSelectSsh : item.label === '本地终端' ? onSelectLocalTerm : undefined}
@@ -243,7 +243,6 @@ export default function ContextMenu() {
   const openSplitTab = useTabStore((s) => s.openSplitTab)
   const fetchShortcuts = useShortcutStore((s) => s.fetchShortcuts)
   const addToast = useToastStore((s) => s.addToast)
-  const assets = useAssetStore((s) => s.assets)
   const selectedRowIds = useAssetStore((s) => s.selectedRowIds)
   const menuRef = useRef<HTMLDivElement>(null)
   const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 })

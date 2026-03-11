@@ -210,7 +210,7 @@ const DEFAULTS: SettingsState = {
   sshHistoryEnabled: true,
   sshHistoryStorage: "local",
   sshHistoryLoadCount: 100,
-  termHighPerformance: false,
+  termHighPerformance: true,
   termMiddleClickAction: "none",
   termRightClickAction: "menu",
   termSound: false,

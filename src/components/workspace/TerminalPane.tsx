@@ -101,7 +101,6 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
   const movePane = useWorkspaceStore(s => s.movePane)
   const paneMeta = useWorkspaceStore(s => s.getPaneMeta(tabId, paneId))
 
-  const insertPaneAt = useWorkspaceStore(s => s.insertPaneAt)
   const closeTab = useTabStore(s => s.closeTab)
 
   const [dropZone, setDropZone] = useState<DropZone | null>(null)
@@ -145,8 +144,12 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
     }
   }, [tab, paneMeta, updateTabStatus])
 
-  // 首次渲染加载
-  useState(() => { loadCredential() })
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadCredential()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadCredential])
 
   // 智能卸载：pane 被关闭时销毁会话，树结构重组（分屏）或跨标签页转移时保留
   useEffect(() => {
@@ -260,7 +263,7 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
     }
 
     setDropZone(null)
-  }, [tabId, paneId, dropZone, movePane, insertPaneAt, closeTab])
+  }, [tabId, paneId, dropZone, movePane, closeTab])
 
   return (
     <div

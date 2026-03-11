@@ -32,6 +32,17 @@ function LockPasswordRow() {
   )
 }
 
+function TabCloseButtonSideRow() {
+  const value = useSettingsStore((s) => s.tabCloseButtonLeft)
+  const update = useSettingsStore((s) => s.updateSetting)
+
+  return (
+    <SettingRow label="Tab 栏关闭按钮位置" desc={value ? '靠右' : '靠左'}>
+      <Switch checked={value} onCheckedChange={() => update('tabCloseButtonLeft', !value)} />
+    </SettingRow>
+  )
+}
+
 /* ── 基础设置 ── */
 export default function BasicSettings() {
   return (
@@ -61,15 +72,7 @@ export default function BasicSettings() {
           />
           <SToggle k="enableAnimation" label="是否开启动画" />
           <SToggle k="showRealtimeInfo" label="显示右侧实时信息" desc="关闭后将隐藏服务器实时指标" />
-          {(() => {
-            const v = useSettingsStore((s) => s.tabCloseButtonLeft)
-            const update = useSettingsStore((s) => s.updateSetting)
-            return (
-              <SettingRow label="Tab 栏关闭按钮位置" desc={v ? '靠右' : '靠左'}>
-                <Switch checked={v} onCheckedChange={() => update('tabCloseButtonLeft', !v)} />
-              </SettingRow>
-            )
-          })()}
+          <TabCloseButtonSideRow />
           <SToggle k="fontLigatures" label="连体字效果" />
           <SToggle k="termZoomEnabled" label="鼠标滚轮缩放" />
           <SToggle k="tabCloseConfirm" label="标签关闭确认" desc="关闭后 SSH、终端等标签关闭时不显示确认提示弹窗" />

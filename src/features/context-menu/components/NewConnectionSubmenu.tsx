@@ -20,9 +20,9 @@ export function NewConnectionSubmenu({ onClose }: NewConnectionSubmenuProps) {
           key={t.protocol}
           iconNode={
             t.useProtocolIcon
-              ? <ProtocolIcon protocol={t.protocol} size={12} mono className="text-text-1" />
+              ? <ProtocolIcon protocol={t.protocol} variant="menu" size={16} mono className="text-text-1" />
               : t.icon
-                ? <AppIcon icon={t.icon} size={12} className="text-text-1" />
+                ? <AppIcon icon={t.icon} size={16} className="text-text-1" />
                 : undefined
           }
           label={t.label}

@@ -1,3 +1,6 @@
+import type { ComponentType } from 'react'
+import { AppIcon } from './AppIcon'
+
 /* ── 协议图标系统 ── */
 /* 品牌图标来源：simple-icons (MIT License) */
 /* 非品牌图标：自定义 SVG */
@@ -7,30 +10,91 @@ interface IconProps {
   size?: number
 }
 
-/* ── 非品牌协议图标（使用 currentColor） ── */
+export type ProtocolIconVariant = 'asset' | 'menu'
 
-/** SSH 终端 — 圆角终端窗口 + >_ 提示符 */
-export function SshIcon({ className, size = 14 }: IconProps) {
+interface ProtocolIconEntry {
+  assetIcon: ComponentType<IconProps>
+  menuIcon?: ComponentType<IconProps>
+  color: string
+}
+
+function MenuGlyph({
+  icon,
+  className,
+  size = 14,
+  scale = 1,
+  offsetY = 0,
+}: IconProps & {
+  icon: string
+  scale?: number
+  offsetY?: number
+}) {
   return (
-    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <rect x="2" y="4" width="20" height="16" rx="3" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M7 10l3 2-3 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M13 14h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
+    <span
+      className={className}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transform: `translateY(${offsetY}px) scale(${scale})`,
+        transformOrigin: 'center',
+      }}
+    >
+      <AppIcon icon={icon} size={size} />
+    </span>
   )
 }
 
-/** 本地终端 — 带标题栏的终端窗口 */
-export function LocalTermIcon({ className, size = 14 }: IconProps) {
-  return (
-    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <rect x="2" y="4" width="20" height="16" rx="3" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" />
-      <rect x="2" y="4" width="20" height="5" rx="3" fill="currentColor" opacity="0.25" />
-      <circle cx="5.5" cy="6.5" r="1" fill="currentColor" opacity="0.6" />
-      <circle cx="8.5" cy="6.5" r="1" fill="currentColor" opacity="0.6" />
-      <path d="M7 13l2.5 2L7 17" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
+/* ── 非品牌协议图标（使用 currentColor） ── */
+
+/** SSH 资产图标 — 更克制的终端窗口 */
+export function SshAssetIcon({ className, size = 14 }: IconProps) {
+  return <AppIcon icon="ph:terminal-window-fill" size={size} className={className} />
+}
+
+/** SSH 菜单图标 — 识别度更强的命令终端 */
+export function SshMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="ph:terminal-window-light" size={size} className={className} scale={1.08} />
+}
+
+/** 本地终端资产图标 — 与 SSH 同家族，依靠颜色补充区分 */
+export function LocalTermAssetIcon({ className, size = 14 }: IconProps) {
+  return <AppIcon icon="ph:terminal-fill" size={size} className={className} />
+}
+
+/** 本地终端菜单图标 — 更像常见控制台入口 */
+export function LocalTermMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="ph:terminal-window-fill" size={size} className={className} scale={1.08} />
+}
+
+/** SSH Tunnel 资产图标 — 使用填充网络节点强化可见性 */
+export function SshTunnelAssetIcon({ className, size = 14 }: IconProps) {
+  return <AppIcon icon="ph:network-fill" size={size} className={className} />
+}
+
+/** SSH Tunnel 菜单图标 — 保持轻线性网络语义 */
+export function SshTunnelMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="ph:network-light" size={size} className={className} scale={1.04} />
+}
+
+/** Telnet 资产图标 — 沿用局域网连接语义，依赖颜色区分 */
+export function TelnetAssetIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="mdi:local-area-network-connect" size={size} className={className} scale={1.03} />
+}
+
+/** Telnet 菜单图标 — 使用指定的网络连接图标 */
+export function TelnetMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="mdi:local-area-network-connect" size={size} className={className} scale={1.03} />
+}
+
+/** 串口 资产图标 — 稍微放大以贴近列表中其他协议图标的体量 */
+export function SerialAssetIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="mdi:serial-port" size={size} className={className} scale={1.08} />
+}
+
+/** 串口 菜单图标 */
+export function SerialMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="mdi:serial-port" size={size} className={className} scale={1.08} />
 }
 
 /** SFTP — 文件 + 双向箭头 */
@@ -45,16 +109,14 @@ export function SftpIcon({ className, size = 14 }: IconProps) {
   )
 }
 
-/** RDP — 显示器 + 远程桌面 */
-export function RdpIcon({ className, size = 14 }: IconProps) {
-  return (
-    <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <rect x="2" y="3" width="20" height="14" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M8 21h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M12 17v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <circle cx="12" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" fill="currentColor" opacity="0.2" />
-    </svg>
-  )
+/** RDP 资产图标 — 更统一的远程桌面符号 */
+export function RdpAssetIcon({ className, size = 14 }: IconProps) {
+  return <AppIcon icon="ph:desktop-fill" size={size} className={className} />
+}
+
+/** RDP 菜单图标 — 更强调远程桌面语义 */
+export function RdpMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="mdi:remote-desktop" size={size} className={className} scale={1.04} offsetY={0.2} />
 }
 
 /* ── 品牌图标（使用品牌色） ── */
@@ -68,6 +130,10 @@ export function DockerIcon({ className, size = 14 }: IconProps) {
   )
 }
 
+export function DockerMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="la:docker" size={size} className={className} scale={1.15} offsetY={0.2} />
+}
+
 /** Redis (simple-icons, #DC382D) */
 export function RedisIcon({ className, size = 14 }: IconProps) {
   return (
@@ -75,6 +141,10 @@ export function RedisIcon({ className, size = 14 }: IconProps) {
       <path d="M22.71 13.145c-1.66 2.092-3.452 4.483-7.038 4.483-3.203 0-4.397-2.825-4.48-5.12.701 1.484 2.073 2.685 4.214 2.63 4.117-.133 6.94-3.852 6.94-7.239 0-4.05-3.022-6.972-8.268-6.972-3.752 0-8.4 1.428-11.455 3.685C2.59 6.937 3.885 9.958 4.35 9.626c2.648-1.904 4.748-3.13 6.784-3.744C8.12 9.244.886 17.05 0 18.425c.1 1.261 1.66 4.648 2.424 4.648.232 0 .431-.133.664-.365a100.49 100.49 0 005.54-6.765c.222 3.104 1.748 6.898 6.014 6.898 3.819 0 7.604-2.756 9.33-8.965.2-.764-.73-1.361-1.261-.73zm-4.349-5.013c0 1.959-1.926 2.922-3.685 2.922-.941 0-1.664-.247-2.235-.568 1.051-1.592 2.092-3.225 3.21-4.973 1.972.334 2.71 1.43 2.71 2.619z" />
     </svg>
   )
+}
+
+export function RedisMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="devicon-plain:redis" size={size} className={className} scale={1.08} />
 }
 
 /** MySQL (simple-icons, #4479A1) */
@@ -95,6 +165,10 @@ export function MariadbIcon({ className, size = 14 }: IconProps) {
   )
 }
 
+export function MariadbMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="simple-icons:mariadbfoundation" size={size} className={className} scale={1.04} />
+}
+
 /** PostgreSQL (simple-icons, #4169E1) */
 export function PostgresqlIcon({ className, size = 14 }: IconProps) {
   return (
@@ -102,6 +176,10 @@ export function PostgresqlIcon({ className, size = 14 }: IconProps) {
       <path d="M23.5594 14.7228a.5269.5269 0 00-.0563-.1191c-.139-.2632-.4768-.3418-1.0074-.2321-1.6533.3411-2.2935.1312-2.5256-.0191 1.342-2.0482 2.445-4.522 3.0411-6.8297.2714-1.0507.7982-3.5237.1222-4.7316a1.5641 1.5641 0 00-.1509-.235C21.6931.9086 19.8007.0248 17.5099.0005c-1.4947-.0158-2.7705.3461-3.1161.4794a9.449 9.449 0 00-.5159-.0816 8.044 8.044 0 00-1.3114-.1278c-1.1822-.0184-2.2038.2642-3.0498.8406-.8573-.3211-4.7888-1.645-7.2219.0788C.9359 2.1526.3086 3.8733.4302 6.3043c.0409.818.5069 3.334 1.2423 5.7436.4598 1.5065.9387 2.7019 1.4334 3.582.553.9942 1.1259 1.5933 1.7143 1.7895.4474.1491 1.1327.1441 1.8581-.7279.8012-.9635 1.5903-1.8258 1.9446-2.2069.4351.2355.9064.3625 1.39.3772a.0569.0569 0 00.0004.0041 11.0312 11.0312 0 00-.2472.3054c-.3389.4302-.4094.5197-1.5002.7443-.3102.064-1.1344.2339-1.1464.8115-.0025.1224.0329.2309.0919.3268.2269.4231.9216.6097 1.015.6331 1.3345.3335 2.5044.092 3.3714-.6787-.017 2.231.0775 4.4174.3454 5.0874.2212.5529.7618 1.9045 2.4692 1.9043.2505 0 .5263-.0291.8296-.0941 1.7819-.3821 2.5557-1.1696 2.855-2.9059.1503-.8707.4016-2.8753.5388-4.1012.0169-.0703.0357-.1207.057-.1362.0007-.0005.0697-.0471.4272.0307a.3673.3673 0 00.0443.0068l.2539.0223.0149.001c.8468.0384 1.9114-.1426 2.5312-.4308.6438-.2988 1.8057-1.0323 1.5951-1.6698z" />
     </svg>
   )
+}
+
+export function PostgresqlMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="simple-icons:postgresql" size={size} className={className} scale={1.02} />
 }
 
 /** ClickHouse (simple-icons, #FFCC01) */
@@ -113,6 +191,10 @@ export function ClickhouseIcon({ className, size = 14 }: IconProps) {
   )
 }
 
+export function ClickhouseMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="devicon-plain:clickhouse" size={size} className={className} scale={1.08} />
+}
+
 /** SQLite (simple-icons, #003B57) */
 export function SqliteIcon({ className, size = 14 }: IconProps) {
   return (
@@ -120,6 +202,10 @@ export function SqliteIcon({ className, size = 14 }: IconProps) {
       <path d="M21.678.521c-1.032-.92-2.28-.55-3.513.544a8.71 8.71 0 00-.547.535c-2.109 2.237-4.066 6.38-4.674 9.544.237.48.422 1.093.544 1.561a13.044 13.044 0 01.164.703s-.019-.071-.096-.296l-.05-.146a1.689 1.689 0 00-.033-.08c-.138-.32-.518-.995-.686-1.289-.143.423-.27.818-.376 1.176.484.884.778 2.4.778 2.4s-.025-.099-.147-.442c-.107-.303-.644-1.244-.772-1.464-.217.804-.304 1.346-.226 1.478.152.256.296.698.422 1.186.286 1.1.485 2.44.485 2.44l.017.224a22.41 22.41 0 00.056 2.748c.095 1.146.273 2.13.5 2.657l.155-.084c-.334-1.038-.47-2.399-.41-3.967.09-2.398.642-5.29 1.661-8.304 1.723-4.55 4.113-8.201 6.3-9.945-1.993 1.8-4.692 7.63-5.5 9.788-.904 2.416-1.545 4.684-1.931 6.857.666-2.037 2.821-2.912 2.821-2.912s1.057-1.304 2.292-3.166c-.74.169-1.955.458-2.362.629-.6.251-.762.337-.762.337s1.945-1.184 3.613-1.72C21.695 7.9 24.195 2.767 21.678.521m-18.573.543A1.842 1.842 0 001.27 2.9v16.608a1.84 1.84 0 001.835 1.834h9.418a22.953 22.953 0 01-.052-2.707c-.006-.062-.011-.141-.016-.2a27.01 27.01 0 00-.473-2.378c-.121-.47-.275-.898-.369-1.057-.116-.197-.098-.31-.097-.432 0-.12.015-.245.037-.386a9.98 9.98 0 01.234-1.045l.217-.028c-.017-.035-.014-.065-.031-.097l-.041-.381a32.8 32.8 0 01.382-1.194l.2-.019c-.008-.016-.01-.038-.018-.053l-.043-.316c.63-3.28 2.587-7.443 4.8-9.791.066-.069.133-.128.198-.194Z" />
     </svg>
   )
+}
+
+export function SqliteMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="devicon-plain:sqlite" size={size} className={className} scale={1.04} />
 }
 
 /** Oracle — 椭圆环 (品牌色 #F80000) */
@@ -131,67 +217,118 @@ export function OracleIcon({ className, size = 14 }: IconProps) {
   )
 }
 
-/** SQL Server — 数据库圆柱 + 钥匙标记 (品牌色 #CC2927) */
+export function OracleMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="streamline-logos:oracle-logo-solid" size={size} className={className} scale={1.12} />
+}
+
+/** SQL Server — 更接近官方常见的红色飘带标识 */
 export function SqlServerIcon({ className, size = 14 }: IconProps) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <ellipse cx="12" cy="5.5" rx="8" ry="3" fill="currentColor" opacity="0.25" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M4 5.5v13c0 1.66 3.58 3 8 3s8-1.34 8-3v-13" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M4 11.5c0 1.66 3.58 3 8 3s8-1.34 8-3" stroke="currentColor" strokeWidth="1.2" opacity="0.5" />
-      <circle cx="17" cy="15" r="3.5" fill="currentColor" opacity="0.2" stroke="currentColor" strokeWidth="1.2" />
-      <path d="M16 14.5l1 1 2-2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M11.8 2.8c2.18.72 4.4 1.97 6.33 3.66-1.38 1.35-3.48 2.77-6.09 3.64-2.07.7-4.11.95-5.82.83 1.24-1.2 3.22-2.82 5.58-4.11Z" fill="currentColor" />
+      <path d="M6.1 11.79c1.77.2 3.86-.02 6-.74 2.82-.95 5.09-2.49 6.59-3.96.9 1.14 1.63 2.39 2.12 3.72-1.4 1.49-3.73 3.1-6.74 4.11-2.52.85-4.94 1.08-6.88.82-.57-.8-.94-1.82-1.09-2.95Z" fill="currentColor" opacity="0.78" />
+      <path d="M7.27 16.44c1.95.15 4.22-.14 6.5-.91 2.85-.96 5.3-2.52 7-4.17.16 2.03-.4 4.05-1.73 5.9-1.84 1.04-3.84 1.95-5.76 2.59-2.43.82-4.58 1.18-6.24 1.17-.95-1.16-1.56-2.77-1.77-4.58Z" fill="currentColor" opacity="0.52" />
     </svg>
   )
 }
 
-/** 达梦数据库 — DM 标识 (品牌色 #D4001A) */
+export function MysqlMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="fontisto:mysql" size={size} className={className} scale={1.08} />
+}
+
+export function SqlServerMenuIcon({ className, size = 14 }: IconProps) {
+  return <MenuGlyph icon="devicon-plain:microsoftsqlserver" size={size} className={className} scale={1.06} />
+}
+
+/** 达梦数据库 — 更贴近官方常见的 DM 字标 */
 export function DamengIcon({ className, size = 14 }: IconProps) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <rect x="1" y="3" width="22" height="18" rx="3" fill="currentColor" opacity="0.12" stroke="currentColor" strokeWidth="1.3" />
-      <text x="12" y="15.5" textAnchor="middle" fill="currentColor" fontSize="9" fontWeight="700" fontFamily="Arial,sans-serif">DM</text>
+      <path d="M3.5 6.5h6.3c2.96 0 5.2 2.16 5.2 5.5s-2.24 5.5-5.2 5.5H3.5Zm3 2.65v5.7h2.9c1.44 0 2.58-.94 2.58-2.85 0-1.87-1.14-2.85-2.58-2.85Z" fill="currentColor" />
+      <path d="M16.2 17.5V6.5h1.95l2.2 3.48L22.55 6.5H23.1v11h-2.45v-5.5l-1.7 2.6h-.22L16.98 12v5.5Z" fill="currentColor" />
     </svg>
+  )
+}
+
+export function DamengMenuIcon({ className, size = 14 }: IconProps) {
+  return (
+    <span
+      className={className}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transform: 'translateY(0.1px) scale(0.94)',
+        transformOrigin: 'center',
+      }}
+    >
+      <svg width={size} height={size} viewBox="0 0 1024 1024" fill="currentColor" aria-hidden="true">
+        <path d="M310.592 288c-8.192 57.6 0.704 107.84 27.52 149.76 28.8 44.992 76.864 78.656 142.976 101.184l32.64 10.496c50.816 17.6 85.44 41.984 105.216 72.896 19.776 30.912 25.856 70.144 17.28 118.72l-3.008 14.848-5.952 26.304c-13.76 6.336-27.52 12.288-41.216 17.792 7.168-56-1.92-104.832-28.16-145.856-28.8-44.992-76.864-78.592-142.976-101.12l-32.64-10.496c-50.816-17.6-85.44-41.984-105.216-72.896-19.776-30.912-25.856-70.208-17.28-118.72l3.008-14.848 4.864-21.184c10.88-7.36 22.208-14.528 33.792-21.44l9.152-5.44z m86.144-46.208c13.76-6.336 27.52-12.224 41.28-17.792-7.232 56 1.92 104.832 28.16 145.856 28.736 44.992 76.8 78.592 142.912 101.12l32.64 10.496c50.816 17.6 85.44 41.984 105.216 72.896 19.776 30.848 25.856 70.144 17.28 118.72l-3.008 14.848-4.8 21.12c-13.824 9.28-28.16 18.24-43.008 26.944 8.192-57.728-0.704-107.904-27.52-149.824-28.8-44.992-76.864-78.592-142.976-101.12l-32.64-10.496C459.52 456.96 424.832 432.64 405.12 401.664c-19.776-30.912-25.856-70.144-17.28-118.72l3.008-14.848 5.952-26.24-0.064-0.064zM210.752 352c-2.304 50.048 6.656 94.272 27.328 132.16 26.048 47.872 69.76 83.584 129.664 107.584l29.632 11.136c46.144 18.752 77.568 44.672 95.488 77.568 17.92 32.832 23.488 74.624 15.68 126.272l-2.688 15.808-1.536 7.68c-182.4 63.808-352.896 37.056-416-78.528-58.24-106.944-8.448-260.224 112.832-389.632l9.6-10.048zM519.68 193.792c182.4-63.808 352.896-37.056 416 78.528 59.776 109.696 5.76 268.16-122.496 399.68 2.368-50.112-6.592-94.336-27.264-132.224-26.048-47.808-69.76-83.584-129.664-107.52l-29.632-11.2c-46.144-18.688-77.568-44.608-95.488-77.504-17.92-32.896-23.488-74.688-15.68-126.272l2.688-15.808 1.536-7.68z" />
+      </svg>
+    </span>
   )
 }
 
 /** 通用数据库 — 圆柱体 (用于未匹配的数据库类型) */
 export function GenericDbIcon({ className, size = 14 }: IconProps) {
+  return <AppIcon icon="ph:database-fill" size={size} className={className} />
+}
+
+/** 菜单数据库图标 — 黑白线性风格 */
+export function GenericDbMenuIcon({ className, size = 14 }: IconProps) {
   return (
     <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <ellipse cx="12" cy="6" rx="8" ry="3" fill="currentColor" opacity="0.2" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M4 6v12c0 1.66 3.58 3 8 3s8-1.34 8-3V6" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
+      <ellipse cx="12" cy="6" rx="7.5" ry="2.75" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M4.5 6v11.5c0 1.52 3.36 2.75 7.5 2.75s7.5-1.23 7.5-2.75V6" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M4.5 11.75c0 1.52 3.36 2.75 7.5 2.75s7.5-1.23 7.5-2.75" stroke="currentColor" strokeWidth="1.6" opacity="0.7" />
     </svg>
   )
 }
 
 /* ── 协议 → 图标/颜色映射 ── */
 
-const PROTOCOL_MAP: Record<string, { Icon: (p: IconProps) => JSX.Element; color: string }> = {
-  ssh:        { Icon: SshIcon,         color: 'text-icon-terminal' },
-  local:      { Icon: LocalTermIcon,   color: 'text-[#8B5CF6]' },
-  docker:     { Icon: DockerIcon,      color: 'text-[#2496ED]' },
-  redis:      { Icon: RedisIcon,       color: 'text-[#DC382D]' },
-  mysql:      { Icon: MysqlIcon,       color: 'text-[#4479A1]' },
-  mariadb:    { Icon: MariadbIcon,     color: 'text-[#003545]' },
-  postgresql: { Icon: PostgresqlIcon,  color: 'text-[#4169E1]' },
-  sqlserver:  { Icon: SqlServerIcon,   color: 'text-[#CC2927]' },
-  clickhouse: { Icon: ClickhouseIcon,  color: 'text-[#FABC2C]' },
-  sqlite:     { Icon: SqliteIcon,      color: 'text-[#003B57]' },
-  oracle:     { Icon: OracleIcon,      color: 'text-[#F80000]' },
-  dameng:     { Icon: DamengIcon,      color: 'text-[#D4001A]' },
-  sftp:       { Icon: SftpIcon,        color: 'text-icon-action' },
-  rdp:        { Icon: RdpIcon,         color: 'text-primary' },
-  database:   { Icon: GenericDbIcon,   color: 'text-chart-green' },
+const PROTOCOL_MAP: Record<string, ProtocolIconEntry> = {
+  ssh:        { assetIcon: SshAssetIcon,       menuIcon: SshMenuIcon,       color: 'text-icon-terminal' },
+  local:      { assetIcon: LocalTermAssetIcon, menuIcon: LocalTermMenuIcon, color: 'text-[#8B5CF6]' },
+  'ssh-tunnel': { assetIcon: SshTunnelAssetIcon, menuIcon: SshTunnelMenuIcon, color: 'text-[#0284C7]' },
+  telnet:     { assetIcon: TelnetAssetIcon,    menuIcon: TelnetMenuIcon,    color: 'text-[#0F766E]' },
+  serial:     { assetIcon: SerialAssetIcon,    menuIcon: SerialMenuIcon,    color: 'text-[#D97706]' },
+  docker:     { assetIcon: DockerIcon,         menuIcon: DockerMenuIcon,     color: 'text-[#2496ED]' },
+  redis:      { assetIcon: RedisIcon,          menuIcon: RedisMenuIcon,      color: 'text-[#DC382D]' },
+  mysql:      { assetIcon: MysqlIcon,          menuIcon: MysqlMenuIcon,      color: 'text-[#4479A1]' },
+  mariadb:    { assetIcon: MariadbIcon,        menuIcon: MariadbMenuIcon,    color: 'text-[#003545]' },
+  postgresql: { assetIcon: PostgresqlIcon,     menuIcon: PostgresqlMenuIcon, color: 'text-[#4169E1]' },
+  sqlserver:  { assetIcon: SqlServerIcon,      menuIcon: SqlServerMenuIcon,  color: 'text-[#CC2927]' },
+  clickhouse: { assetIcon: ClickhouseIcon,     menuIcon: ClickhouseMenuIcon, color: 'text-[#FABC2C]' },
+  sqlite:     { assetIcon: SqliteIcon,         menuIcon: SqliteMenuIcon,     color: 'text-[#003B57]' },
+  oracle:     { assetIcon: OracleIcon,         menuIcon: OracleMenuIcon,     color: 'text-[#F80000]' },
+  dameng:     { assetIcon: DamengIcon,         menuIcon: DamengMenuIcon,     color: 'text-[#D4001A]' },
+  sftp:       { assetIcon: SftpIcon,           color: 'text-icon-action' },
+  rdp:        { assetIcon: RdpAssetIcon,       menuIcon: RdpMenuIcon,       color: 'text-primary' },
+  database:   { assetIcon: GenericDbIcon,      menuIcon: GenericDbMenuIcon, color: 'text-chart-green' },
 }
 
 /** 根据协议类型渲染对应图标（统一入口） */
-export function ProtocolIcon({ protocol, className, size, mono }: { protocol?: string; className?: string; size?: number; mono?: boolean }) {
+export function ProtocolIcon({
+  protocol,
+  className,
+  size,
+  mono,
+  variant = 'asset',
+}: {
+  protocol?: string
+  className?: string
+  size?: number
+  mono?: boolean
+  variant?: ProtocolIconVariant
+}) {
   const entry = PROTOCOL_MAP[protocol || 'ssh'] || PROTOCOL_MAP.ssh
-  return <entry.Icon className={`${mono ? '' : entry.color} ${className || ''}`} size={size} />
+  const Icon = variant === 'menu' ? (entry.menuIcon ?? entry.assetIcon) : entry.assetIcon
+  return <Icon className={`${mono ? '' : entry.color} ${className || ''}`} size={size} />
 }
 
 /** 数据库标签 → 协议 key 映射 */
+// eslint-disable-next-line react-refresh/only-export-components
 export const DB_LABEL_PROTOCOL: Record<string, string> = {
   'Redis': 'redis', 'MySQL': 'mysql', 'MariaDB': 'mariadb',
   'PostgreSQL': 'postgresql', 'SqlServer': 'sqlserver', 'ClickHouse': 'clickhouse',

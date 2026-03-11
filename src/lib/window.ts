@@ -13,7 +13,7 @@ interface WindowControl {
 const noop = () => {}
 
 function getWindowControl(): WindowControl {
-  const ctrl = (window as Record<string, unknown>).__VORTIX_WINDOW__ as WindowControl | undefined
+  const ctrl = (window as unknown as Record<string, unknown>).__VORTIX_WINDOW__ as WindowControl | undefined
   return ctrl || { minimize: noop, maximize: noop, close: noop, togglePin: noop }
 }
 

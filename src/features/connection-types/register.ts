@@ -25,9 +25,9 @@ export function registerConnectionTypes(): void {
 
   // 未实现的协议
   const unimplemented: { protocol: string; label: string; icon?: string; useProtocolIcon?: boolean }[] = [
-    { protocol: 'ssh-tunnel', label: 'SSH隧道', icon: 'ph:flow-arrow' },
-    { protocol: 'telnet', label: 'Telnet', icon: 'ph:monitor' },
-    { protocol: 'serial', label: '串口', icon: 'ph:usb' },
+    { protocol: 'ssh-tunnel', label: 'SSH隧道', useProtocolIcon: true },
+    { protocol: 'telnet', label: 'Telnet', useProtocolIcon: true },
+    { protocol: 'serial', label: '串口', useProtocolIcon: true },
     { protocol: 'rdp', label: 'RDP', useProtocolIcon: true },
     { protocol: 'docker', label: 'Docker', useProtocolIcon: true },
     { protocol: 'redis', label: 'Redis', useProtocolIcon: true },

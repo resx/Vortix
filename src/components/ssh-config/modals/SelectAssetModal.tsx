@@ -96,7 +96,7 @@ function TreeNode({
           <div className="mr-1 text-text-3 w-4 flex justify-center">
             {isOpen ? <AppIcon icon={icons.chevronDown} size={14} /> : <AppIcon icon={icons.chevronRight} size={14} />}
           </div>
-          <AppIcon icon={icons.folder} size={14} className="mr-1.5 text-icon-folder" />
+          <AppIcon icon={isOpen ? icons.folderOpenFill : icons.folderFill} size={15} className="mr-1.5 text-icon-folder" />
           {node.name}
         </div>
         {isOpen && node.children && (

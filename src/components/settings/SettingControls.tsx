@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { useSettingsStore, type SettingsState } from '../../stores/useSettingsStore'
 import { Switch } from '../ui/switch'
 import { SettingsDropdown } from '../ui/select'
@@ -7,6 +7,7 @@ import { cn } from '../../lib/utils'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { createPortal } from 'react-dom'
+import { Reorder } from 'framer-motion'
 
 /* ── 公共便捷封装 ── */
 
@@ -61,8 +62,6 @@ const FILE_COLUMNS = [
   { key: 'perm', label: '权限' },
   { key: 'owner', label: '用户/组' },
 ]
-
-const DEFAULT_CHECKED = new Set(['name', 'mtime', 'type', 'size'])
 
 export function SColumnSelect({ k, label }: { k: keyof SettingsState; label: string }) {
   const storeValue = useSettingsStore((s) => s[k]) as string[]
@@ -134,29 +133,24 @@ interface FontItem {
   fontWeight?: string
 }
 
+interface QueryLocalFontsEntry {
+  family: string
+}
+
+interface WindowWithLocalFonts extends Window {
+  queryLocalFonts?: () => Promise<QueryLocalFontsEntry[]>
+}
+
 const PRESET_FONTS: FontItem[] = [
-  { value: 'system', label: '(内置)系统字体', family: 'system-ui, -apple-system, sans-serif' },
-  { value: 'JetBrainsMono', label: '(内置)JetBrainsMono', family: '"JetBrains Mono Variable", "JetBrains Mono", monospace' },
+  { value: 'JetBrainsMono', label: '(内置)JetBrains Mono', family: '"JetBrains Mono Variable", "JetBrains Mono", monospace' },
   { value: 'NotoSansSC', label: '(内置)思源黑体', family: '"Noto Sans SC Variable", "Noto Sans SC", "Source Han Sans SC", sans-serif' },
+  { value: 'IoskeleyMono', label: '(内置)Ioskeley Mono', family: '"IoskeleyMono", monospace' },
+  { value: 'system', label: '(内置)系统字体', family: 'system-ui, -apple-system, sans-serif' },
   { value: 'serif', label: '(内置)Serif', family: 'serif' },
   { value: 'sans-serif', label: '(内置)Sans-serif', family: 'sans-serif' },
   { value: 'monospace', label: '(内置)Monospace', family: 'monospace' },
   { value: 'cursive', label: '(内置)Cursive', family: 'cursive' },
-  { value: 'fantasy', label: '【内置】Fantasy', family: 'fantasy', fontWeight: 'bold' },
-  { value: 'FiraCode', label: 'Fira Code', family: '"Fira Code", monospace' },
-  { value: 'SourceCodePro', label: 'Source Code Pro', family: '"Source Code Pro", monospace' },
-  { value: 'CascadiaCode', label: 'Cascadia Code', family: '"Cascadia Code", monospace' },
-  { value: 'CascadiaMono', label: 'Cascadia Mono', family: '"Cascadia Mono", monospace' },
-  { value: 'Inconsolata', label: 'Inconsolata', family: '"Inconsolata", monospace' },
-  { value: 'RobotoMono', label: 'Roboto Mono', family: '"Roboto Mono", monospace' },
-  { value: 'UbuntuMono', label: 'Ubuntu Mono', family: '"Ubuntu Mono", monospace' },
-  { value: 'IBMPlexMono', label: 'IBM Plex Mono', family: '"IBM Plex Mono", monospace' },
-  { value: 'Hack', label: 'Hack', family: '"Hack", monospace' },
-  { value: 'VictorMono', label: 'Victor Mono', family: '"Victor Mono", monospace' },
-  { value: 'NotoSansMono', label: 'Noto Sans Mono', family: '"Noto Sans Mono", monospace' },
-  { value: 'SpaceMono', label: 'Space Mono', family: '"Space Mono", monospace' },
-  { value: 'AnonymousPro', label: 'Anonymous Pro', family: '"Anonymous Pro", monospace' },
-  { value: 'Cousine', label: 'Cousine', family: '"Cousine", monospace' },
+  { value: 'fantasy', label: '(内置)Fantasy', family: 'fantasy', fontWeight: 'bold' },
 ]
 
 /* ── 系统字体加载（全局缓存） ── */
@@ -166,8 +160,9 @@ let _systemFontsCache: FontItem[] | null = null
 async function getSystemFonts(): Promise<FontItem[]> {
   if (_systemFontsCache) return _systemFontsCache
   try {
-    if ('queryLocalFonts' in window) {
-      const fonts: Array<{ family: string }> = await (window as any).queryLocalFonts()
+    const windowWithLocalFonts = window as WindowWithLocalFonts
+    if (typeof windowWithLocalFonts.queryLocalFonts === 'function') {
+      const fonts = await windowWithLocalFonts.queryLocalFonts()
       const seen = new Set<string>()
       const presetValues = new Set(PRESET_FONTS.map(f => f.value))
       const result: FontItem[] = []
@@ -195,9 +190,21 @@ async function getSystemFonts(): Promise<FontItem[]> {
   return _systemFontsCache
 }
 
-function useSystemFonts() {
+function useSystemFonts(enabled: boolean) {
   const [fonts, setFonts] = useState<FontItem[]>(_systemFontsCache ?? [])
-  useEffect(() => { getSystemFonts().then(setFonts) }, [])
+  useEffect(() => {
+    if (!enabled || _systemFontsCache) return
+
+    let active = true
+    void getSystemFonts().then((nextFonts) => {
+      if (active) setFonts(nextFonts)
+    })
+
+    return () => {
+      active = false
+    }
+  }, [enabled])
+
   return fonts
 }
 
@@ -209,20 +216,20 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
 }) {
   const storeValue = useSettingsStore((s) => k ? s[k] : null) as string[] | null
   const storeUpdate = useSettingsStore((s) => s.updateSetting)
-  const selectedFonts = externalValue ?? storeValue ?? []
-  const selectedFontsRef = useRef(selectedFonts)
-  selectedFontsRef.current = selectedFonts
-  const updateFonts = (next: string[]) => {
-    selectedFontsRef.current = next
+  const selectedFonts = useMemo(
+    () => externalValue ?? storeValue ?? [],
+    [externalValue, storeValue],
+  )
+  const updateFonts = useCallback((next: string[]) => {
     if (onChangeFonts) onChangeFonts(next)
     else if (k) storeUpdate(k, next as never)
-  }
+  }, [onChangeFonts, k, storeUpdate])
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const systemFonts = useSystemFonts()
+  const systemFonts = useSystemFonts(open)
 
   /* 合并预置 + 系统字体 */
   const allFonts = useMemo(() => [...PRESET_FONTS, ...systemFonts], [systemFonts])
@@ -249,7 +256,7 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
   const isIndeterminate = filteredFonts.some(f => selectedFonts.includes(f.value)) && !isAllSelected
 
   const handleToggleFont = (fontId: string) => {
-    const current = [...selectedFontsRef.current]
+    const current = [...selectedFonts]
     const idx = current.indexOf(fontId)
     if (idx >= 0) {
       current.splice(idx, 1)
@@ -262,7 +269,7 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
   }
 
   const handleToggleAll = () => {
-    const current = [...selectedFontsRef.current]
+    const current = [...selectedFonts]
     if (isAllSelected) {
       // 取消：移除过滤列表中的字体，但保留不在过滤结果中的已选字体
       const removeSet = new Set(filteredFonts.map(f => f.value))
@@ -309,12 +316,14 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
   }
 
   useEffect(() => {
-    if (open) {
+    if (!open) return
+    const frame = window.requestAnimationFrame(() => {
       const p = calcPosition()
       if (p) setPos(p)
       setSearch('')
-      setTimeout(() => inputRef.current?.focus(), 0)
-    }
+      inputRef.current?.focus()
+    })
+    return () => window.cancelAnimationFrame(frame)
   }, [open])
 
   /* 滚动跟踪：设置面板内容区滚动时重新定位 */
@@ -349,25 +358,40 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
   /* 序号圆标 */
   const NUM_BADGES = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
 
-  const renderFontItem = (font: FontItem, isSelected: boolean) => {
+  /* 拖拽排序回调 */
+  const isDraggingRef = useRef(false)
+  const handleReorder = useCallback((newOrder: string[]) => {
+    // newOrder 是已选字体 value 的新顺序，保留未在当前过滤中显示的已选字体
+    const visibleSet = new Set(sortedFonts.selected.map(f => f.value))
+    const hiddenSelected = selectedFonts.filter(v => !visibleSet.has(v))
+    updateFonts([...newOrder, ...hiddenSelected])
+  }, [sortedFonts.selected, selectedFonts, updateFonts])
+
+  const selectedValues = useMemo(
+    () => sortedFonts.selected.map(f => f.value),
+    [sortedFonts.selected],
+  )
+
+  const renderSelectedFontItem = (font: FontItem) => {
     const orderIdx = selectedFonts.indexOf(font.value)
     return (
-      <div
+      <Reorder.Item
         key={font.value}
-        className="group flex items-center gap-2.5 px-2 py-1 rounded-lg cursor-pointer transition-colors hover:bg-primary/40"
-        onClick={() => handleToggleFont(font.value)}
+        value={font.value}
+        className="group flex items-center gap-2 px-2 py-1 rounded-lg cursor-pointer transition-colors hover:bg-primary/40"
+        onDragStart={() => { isDraggingRef.current = true }}
+        onDragEnd={() => { requestAnimationFrame(() => { isDraggingRef.current = false }) }}
+        onClick={() => { if (!isDraggingRef.current) handleToggleFont(font.value) }}
+        whileDrag={{ scale: 1.02, boxShadow: '0 2px 8px rgba(0,0,0,0.15)', zIndex: 10 }}
       >
+        <AppIcon icon={icons.gripVertical} size={12} className="shrink-0 text-text-3 cursor-grab active:cursor-grabbing" />
         <div className={cn(
           'relative flex items-center justify-center w-[15px] h-[15px] rounded-[3px] border-[1.5px] transition-all shrink-0',
-          isSelected
-            ? 'bg-primary border-primary group-hover:bg-bg-card group-hover:border-bg-card'
-            : 'bg-transparent border-primary group-hover:border-bg-card',
+          'bg-primary border-primary group-hover:bg-bg-card group-hover:border-bg-card',
         )}>
-          {isSelected && (
-            <AppIcon icon={icons.check} size={11} className="text-white group-hover:text-primary" />
-          )}
+          <AppIcon icon={icons.check} size={11} className="text-white group-hover:text-primary" />
         </div>
-        {isSelected && orderIdx >= 0 && (
+        {orderIdx >= 0 && (
           <span className="text-[10px] text-primary font-medium shrink-0 group-hover:text-white">
             {NUM_BADGES[orderIdx] ?? `${orderIdx + 1}`}
           </span>
@@ -378,9 +402,29 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
         >
           {font.label}
         </span>
-      </div>
+      </Reorder.Item>
     )
   }
+
+  const renderUnselectedFontItem = (font: FontItem) => (
+    <div
+      key={font.value}
+      className="group flex items-center gap-2.5 px-2 py-1 rounded-lg cursor-pointer transition-colors hover:bg-primary/40"
+      onClick={() => handleToggleFont(font.value)}
+    >
+      <div className={cn(
+        'relative flex items-center justify-center w-[15px] h-[15px] rounded-[3px] border-[1.5px] transition-all shrink-0',
+        'bg-transparent border-primary group-hover:border-bg-card',
+      )}>
+      </div>
+      <span
+        className="text-[12px] text-text-1 group-hover:text-white select-none truncate"
+        style={{ fontFamily: font.family, fontWeight: font.fontWeight || 'normal' }}
+      >
+        {font.label}
+      </span>
+    </div>
+  )
 
   return (
     <SettingRow label={label} desc={desc}>
@@ -444,11 +488,15 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
               <div className="text-center text-text-3 py-8 text-[12px]">无匹配字体</div>
             ) : (
               <>
-                {sortedFonts.selected.map(font => renderFontItem(font, true))}
+                {sortedFonts.selected.length > 0 && (
+                  <Reorder.Group axis="y" values={selectedValues} onReorder={handleReorder} className="list-none p-0 m-0">
+                    {sortedFonts.selected.map(font => renderSelectedFontItem(font))}
+                  </Reorder.Group>
+                )}
                 {sortedFonts.selected.length > 0 && sortedFonts.unselected.length > 0 && (
                   <div className="mx-2 my-1 border-t border-border-subtle" />
                 )}
-                {sortedFonts.unselected.map(font => renderFontItem(font, false))}
+                {sortedFonts.unselected.map(font => renderUnselectedFontItem(font))}
               </>
             )}
           </div>

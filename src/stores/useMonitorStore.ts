@@ -77,10 +77,14 @@ export const useMonitorStore = create<MonitorState>((set) => ({
   })),
 
   clearTab: (tabId) => set((s) => {
-    const { [tabId]: _snap, ...snapshots } = s.snapshots
-    const { [tabId]: _info, ...sysInfo } = s.sysInfo
-    const { [tabId]: _hist, ...history } = s.history
-    const { [tabId]: _tick, ..._ticks } = s._ticks
+    const snapshots = { ...s.snapshots }
+    const sysInfo = { ...s.sysInfo }
+    const history = { ...s.history }
+    const _ticks = { ...s._ticks }
+    delete snapshots[tabId]
+    delete sysInfo[tabId]
+    delete history[tabId]
+    delete _ticks[tabId]
     return { snapshots, sysInfo, history, _ticks }
   }),
 }))

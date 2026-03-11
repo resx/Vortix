@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { SettingRow, SettingGroup } from './SettingGroup'
-import { useSettingsStore, buildSyncBody, type SettingsState } from '../../stores/useSettingsStore'
+import { useSettingsStore, type SettingsState } from '../../stores/useSettingsStore'
 import { useAssetStore } from '../../stores/useAssetStore'
 import { useToastStore } from '../../stores/useToastStore'
 import { useShortcutStore } from '../../stores/useShortcutStore'
 import { Switch } from '../ui/switch'
 import { SettingsDropdown } from '../ui/select'
 import * as api from '../../api/client'
-import type { SyncFileInfo, ImportResult, SyncConflictInfo } from '../../api/types'
+import type { SyncFileInfo, ImportResult, SyncConflictInfo, SyncRequestBody } from '../../api/types'
 import { AppIcon, icons } from '../icons/AppIcon'
 import KeyPickerModal from './KeyPickerModal'
 
@@ -68,10 +68,12 @@ export default function SyncSettings() {
   const update = useSettingsStore((s) => s.updateSetting)
   const repoSource = useSettingsStore((s) => s.syncRepoSource)
   const autoSync = useSettingsStore((s) => s.syncAutoSync)
-  const syncLocalPath = useSettingsStore((s) => s.syncLocalPath)
   const syncEncryptionKey = useSettingsStore((s) => s.syncEncryptionKey)
+  const syncLocalPath = useSettingsStore((s) => s.syncLocalPath)
+  const syncTlsVerify = useSettingsStore((s) => s.syncTlsVerify)
   const gitUrl = useSettingsStore((s) => s.syncGitUrl)
   const gitBranch = useSettingsStore((s) => s.syncGitBranch)
+  const gitPath = useSettingsStore((s) => s.syncGitPath)
   const gitUsername = useSettingsStore((s) => s.syncGitUsername)
   const gitPassword = useSettingsStore((s) => s.syncGitPassword)
   const gitSshKey = useSettingsStore((s) => s.syncGitSshKey)
@@ -100,6 +102,51 @@ export default function SyncSettings() {
   const [conflictInfo, setConflictInfo] = useState<{ info: SyncConflictInfo; action: 'push' | 'pull' } | null>(null)
   const [pickingDir, setPickingDir] = useState(false)
   const [showKeyPicker, setShowKeyPicker] = useState(false)
+  const syncBody = useMemo<SyncRequestBody>(() => ({
+    repoSource,
+    encryptionKey: syncEncryptionKey || undefined,
+    syncLocalPath: syncLocalPath ?? '',
+    syncTlsVerify,
+    syncGitUrl: gitUrl ?? '',
+    syncGitBranch: gitBranch ?? 'master',
+    syncGitPath: gitPath ?? '',
+    syncGitUsername: gitUsername ?? '',
+    syncGitPassword: gitPassword ?? '',
+    syncGitSshKey: gitSshKey ?? '',
+    syncWebdavEndpoint: webdavEndpoint ?? '',
+    syncWebdavPath: webdavPath ?? 'vortix',
+    syncWebdavUsername: webdavUsername ?? '',
+    syncWebdavPassword: webdavPassword ?? '',
+    syncS3Style: s3Style ?? 'virtual-hosted',
+    syncS3Endpoint: s3Endpoint ?? '',
+    syncS3Path: s3Path ?? 'vortix',
+    syncS3Region: s3Region ?? 'ap-east-1',
+    syncS3Bucket: s3Bucket ?? '',
+    syncS3AccessKey: s3AccessKey ?? '',
+    syncS3SecretKey: s3SecretKey ?? '',
+  }), [
+    gitBranch,
+    gitPassword,
+    gitPath,
+    gitSshKey,
+    gitUrl,
+    gitUsername,
+    repoSource,
+    s3AccessKey,
+    s3Bucket,
+    s3Endpoint,
+    s3Path,
+    s3Region,
+    s3SecretKey,
+    s3Style,
+    syncEncryptionKey,
+    syncLocalPath,
+    syncTlsVerify,
+    webdavEndpoint,
+    webdavPassword,
+    webdavPath,
+    webdavUsername,
+  ])
 
   // 使用共享的 buildSyncBody 工具函数
 
@@ -110,10 +157,10 @@ export default function SyncSettings() {
     if (repoSource === 'webdav' && !webdavEndpoint.trim()) { setFileInfo(null); return }
     if (repoSource === 's3' && !s3Endpoint.trim()) { setFileInfo(null); return }
     try {
-      const info = await api.getSyncStatus(buildSyncBody())
+      const info = await api.getSyncStatus(syncBody)
       setFileInfo(info)
     } catch { setFileInfo(null) }
-  }, [repoSource, syncLocalPath, gitUrl, gitBranch, webdavEndpoint, webdavPath, s3Endpoint, s3Path, s3Bucket])
+  }, [gitUrl, repoSource, s3Endpoint, syncBody, syncLocalPath, webdavEndpoint])
 
   useEffect(() => { refreshFileInfo() }, [refreshFileInfo])
 
@@ -126,14 +173,14 @@ export default function SyncSettings() {
     try {
       // 非强制推送时先检测冲突
       if (!force) {
-        const conflict = await api.checkPushConflict(buildSyncBody())
+        const conflict = await api.checkPushConflict(syncBody)
         if (conflict.hasConflict) {
           setConflictInfo({ info: conflict, action: 'push' })
           setSyncing(false)
           return
         }
       }
-      await api.syncExport(buildSyncBody())
+      await api.syncExport(syncBody)
       addToast('success', '推送成功')
       await refreshFileInfo()
     } catch (e) {
@@ -150,14 +197,14 @@ export default function SyncSettings() {
     try {
       // 非强制拉取时先检测冲突
       if (!force) {
-        const conflict = await api.checkPullConflict(buildSyncBody())
+        const conflict = await api.checkPullConflict(syncBody)
         if (conflict.hasConflict) {
           setConflictInfo({ info: conflict, action: 'pull' })
           setSyncing(false)
           return
         }
       }
-      const result: ImportResult = await api.syncImport(buildSyncBody())
+      const result: ImportResult = await api.syncImport(syncBody)
       addToast('success', `拉取成功：${result.folders} 个文件夹、${result.connections} 个连接、${result.shortcuts} 个快捷命令、${result.sshKeys} 个密钥`)
       await Promise.all([
         useSettingsStore.getState().loadSettings(),
@@ -186,7 +233,7 @@ export default function SyncSettings() {
   const handleDeleteRemote = async () => {
     setSyncing(true); setConfirmDeleteRemote(false)
     try {
-      await api.deleteSyncRemote(buildSyncBody())
+      await api.deleteSyncRemote(syncBody)
       addToast('success', '远端同步数据已删除')
       await refreshFileInfo()
     } catch (e) {
@@ -198,7 +245,7 @@ export default function SyncSettings() {
   const handleTest = async () => {
     setTesting(true)
     try {
-      await api.syncTest(buildSyncBody())
+      await api.syncTest(syncBody)
       addToast('success', `${REPO_LABELS[repoSource]} 连接测试成功`)
     } catch (e) {
       addToast('error', `连接测试失败: ${(e as Error).message}`)
@@ -598,7 +645,7 @@ export default function SyncSettings() {
             </div>
             <div className="flex items-center justify-end gap-2 px-5 py-3.5">
               <button onClick={() => setConfirmImport(false)} className="px-3.5 py-1.5 bg-bg-base text-text-2 rounded-lg text-[12px] font-medium hover:bg-border transition-colors">取消</button>
-              <button onClick={handleImport} className="px-3.5 py-1.5 bg-primary text-white rounded-lg text-[12px] font-medium hover:opacity-90 transition-opacity">确认拉取</button>
+              <button onClick={() => handleImport()} className="px-3.5 py-1.5 bg-primary text-white rounded-lg text-[12px] font-medium hover:opacity-90 transition-opacity">确认拉取</button>
             </div>
           </div>
         </div>

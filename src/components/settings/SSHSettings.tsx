@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { SettingRow, SettingGroup } from './SettingGroup'
-import { SToggle, SDropdown, SNumberDropdown, SColumnSelect, SFontSelect, SNumberInput, STextInput } from './SettingControls'
+import { SToggle, SDropdown, SColumnSelect, SFontSelect, SNumberInput } from './SettingControls'
 import TermThemePanel from './TermThemePanel'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
@@ -124,7 +124,7 @@ export default function SSHSettings() {
             width="w-[130px]"
           />
           <SNumberInput k="sshHistoryLoadCount" label="SSH 历史命令-输入提示加载数量" />
-          <SToggle k="termHighPerformance" label="渲染模式 (高性能模式)" desc="高性能模式能够更快进行终端渲染" />
+          <SToggle k="termHighPerformance" label="GPU 加速渲染" desc="使用 WebGL 进行终端渲染，降低 CPU 占用，提升大量输出时的流畅度" />
         </SettingGroup>
 
         {/* 右列 */}

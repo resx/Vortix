@@ -3,10 +3,9 @@ import { ProtocolIcon } from '../icons/ProtocolIcons'
 import { useTabStore } from '../../stores/useTabStore'
 import { useUIStore } from '../../stores/useUIStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
-import { useWorkspaceStore, collectLeafIds } from '../../stores/useWorkspaceStore'
 import { markTransferring, unmarkTransferring } from '../../stores/terminalSessionRegistry'
 import { getColorTagDotClass } from '../../lib/color-tag'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 export default function TabBar() {
   const tabs = useTabStore((s) => s.tabs)
@@ -38,7 +37,6 @@ export default function TabBar() {
     return () => window.removeEventListener('click', handleClick)
   }, [])
 
-  const activeTab = tabs.find(t => t.id === activeTabId)
   // 下拉菜单只跟踪数据库表（排除首页和 SSH 终端资产）
   const dbTabs = tabs.filter(t => t.type !== 'list' && t.type !== 'asset')
 

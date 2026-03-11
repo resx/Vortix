@@ -2,15 +2,19 @@ import { useAssetStore } from '../../stores/useAssetStore'
 import { useUIStore } from '../../stores/useUIStore'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import { AppIcon, icons } from '../icons/AppIcon'
+import { ProtocolIcon } from '../icons/ProtocolIcons'
 import type { ActiveFilter } from '../../types'
+import type { ReactNode } from 'react'
 
 function TooltipButton({
   icon,
+  iconNode,
   isActive,
   tooltipText,
   onClick,
 }: {
-  icon: string
+  icon?: string
+  iconNode?: ReactNode
   isActive: boolean
   tooltipText: string
   onClick: () => void
@@ -24,7 +28,7 @@ function TooltipButton({
             isActive ? 'bg-border text-text-1' : 'text-text-3 hover:bg-border/60'
           }`}
         >
-          <AppIcon icon={icon} size={18} />
+          {iconNode ?? <AppIcon icon={icon!} size={18} />}
         </button>
       </TooltipTrigger>
       <TooltipContent side="right">{tooltipText}</TooltipContent>
@@ -54,7 +58,7 @@ export default function ActivityBar() {
     <div id="activity-bar" className="w-[48px] flex flex-col items-center py-2 shrink-0 select-none z-20">
       <div className="w-full mb-2 flex justify-center">
         <TooltipButton
-          icon={icons.folder}
+          icon={isSidebarOpen ? icons.folderOpen : icons.folder}
           isActive={isSidebarOpen}
           onClick={toggleSidebar}
           tooltipText={isSidebarOpen ? '隐藏资产树' : '显示资产树'}
@@ -67,7 +71,8 @@ export default function ActivityBar() {
         {filterItems.map(({ key, icon, tooltip }) => (
           <TooltipButton
             key={key}
-            icon={icon}
+            icon={key === 'docker' ? undefined : icon}
+            iconNode={key === 'docker' ? <ProtocolIcon protocol="docker" size={18} mono /> : undefined}
             isActive={activeFilter === key}
             onClick={() => setActiveFilter(key)}
             tooltipText={tooltip}

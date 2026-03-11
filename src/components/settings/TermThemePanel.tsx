@@ -104,10 +104,6 @@ export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps)
     profileStore.updateProfile(selectedProfileId, { [key]: id })
   }
 
-  const handleUpdateField = <K extends string>(key: K, value: unknown) => {
-    profileStore.updateProfile(selectedProfileId, { [key]: value } as never)
-  }
-
   const handleCreate = () => {
     const id = profileStore.createProfile({
       ...profile,

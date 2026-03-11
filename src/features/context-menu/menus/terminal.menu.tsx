@@ -26,7 +26,7 @@ export function registerTerminalMenu(): () => void {
       const ws = termTabId ? workspaces[termTabId] : null
       const paneCount = ws ? collectLeafIds(ws.rootNode).length : 1
 
-      const { tabs, closeTab, duplicateTab, reconnectTab } = useTabStore.getState()
+      const { closeTab, duplicateTab, reconnectTab } = useTabStore.getState()
       const { addToast } = useToastStore.getState()
 
       const handleSplit = (dir: 'vertical' | 'horizontal') => {

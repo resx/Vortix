@@ -145,8 +145,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
   },
 
   removeWorkspace: (tabId) => set((s) => {
-    const { [tabId]: _, ...rest } = s.workspaces
-    return { workspaces: rest }
+    const workspaces = { ...s.workspaces }
+    delete workspaces[tabId]
+    return { workspaces }
   }),
 
   splitPane: (tabId, paneId, direction) => set((s) => {
@@ -299,7 +300,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         [sourceTabId]: { rootNode: newRoot, activePaneId: newActive },
       },
     }))
-    return meta ?? {}
+    return meta ?? null
   },
 
   insertPaneAt: (targetTabId, targetPaneId, insertPaneId, zone, meta) => set((s) => {

@@ -10,6 +10,30 @@ import * as api from '../../../api/client'
 import type { TableContextData, AssetRow } from '../../../types'
 import { downloadJson, pickJsonFile, connClipboard, setConnClipboard } from '../menu-utils'
 
+type ImportedConnection = {
+  name?: string
+  host?: string
+  port?: number
+  username?: string
+  protocol?: string
+  auth_method?: string
+  remark?: string
+  color_tag?: string
+  folder_id?: string | null
+}
+
+function parseImportedConnections(data: unknown): ImportedConnection[] {
+  const payload: unknown[] = Array.isArray(data)
+    ? data
+    : typeof data === 'object' && data !== null && 'connections' in data
+      ? Array.isArray((data as { connections?: unknown }).connections)
+        ? (data as { connections: unknown[] }).connections
+        : [data]
+      : [data]
+
+  return payload.filter((item): item is ImportedConnection => typeof item === 'object' && item !== null)
+}
+
 export function registerTableMenu(): () => void {
   return registerMenu({
     types: ['table-context'],
@@ -24,7 +48,7 @@ export function registerTableMenu(): () => void {
 
       const { fetchAssets, deleteFolderAction, deleteConnectionAction, renameFolderAction, renameConnectionAction, cloneConnectionAction, batchOpenSelected, selectedRowIds, tableData } = useAssetStore.getState()
       const { openAssetTab, openSplitTab } = useTabStore.getState()
-      const { hideContextMenu, setShowDirModal, openSshConfig, openLocalTermConfig, openBatchEdit } = useUIStore.getState()
+      const { setShowDirModal, openSshConfig, openLocalTermConfig, openBatchEdit } = useUIStore.getState()
       const { addToast } = useToastStore.getState()
 
       const handleDelete = (id: string, type: 'folder' | 'connection' | 'asset') => {
@@ -81,7 +105,7 @@ export function registerTableMenu(): () => void {
             <MenuItem icon={icons.fileDown} label="通过文本批量导入SSH" onClick={() => { ctx.close(); const text = prompt('请输入 SSH 连接信息（每行一条，格式：user@host:port）'); if (!text) return; ;(async () => { let count = 0; for (const line of text.split('\n')) { const m = line.trim().match(/^(\S+)@(\S+?)(?::(\d+))?$/); if (m) { await api.createConnection({ name: `${m[1]}@${m[2]}`, host: m[2], port: m[3] ? parseInt(m[3]) : 22, username: m[1] }); count++ } } fetchAssets(); addToast('success', `成功导入 ${count} 条连接`) })() }} />
             <MenuItem icon={icons.key} label="上传 SSH公钥(ssh-copy-id)" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? () => { ctx.close(); api.getSshKeys().then(keys => { if (keys.length === 0) { addToast('error', '请先在密钥库中添加密钥'); return } const names = keys.map((k, i) => `${i + 1}. ${k.name}`).join('\n'); const idx = prompt(`选择要上传的公钥：\n${names}\n\n请输入序号`, '1'); if (!idx) return; const key = keys[parseInt(idx) - 1]; if (!key) { addToast('error', '无效的序号'); return } api.uploadSshKey(rowData.id, key.id).then(r => addToast('success', r.message)).catch(e => addToast('error', (e as Error).message)) }) } : undefined} />
             <MenuItem icon={icons.activity} label="Ping" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? () => { ctx.close(); api.pingConnections([rowData.id]).then(result => { const ms = result[rowData.id]; addToast('success', `${rowData.name}: ${ms !== null ? `${ms}ms` : '超时'}`) }).catch(() => addToast('error', 'Ping 失败')) } : undefined} />
-            <MenuItem icon={icons.fileDown} label="导入" onClick={() => { ctx.close(); pickJsonFile().then(async (data: any) => { const conns = Array.isArray(data) ? data : data.connections ?? [data]; let count = 0; for (const c of conns) { if (c.name && c.host) { await api.createConnection({ name: c.name, host: c.host, port: c.port, username: c.username ?? '', protocol: c.protocol, auth_method: c.auth_method, remark: c.remark, color_tag: c.color_tag, folder_id: c.folder_id }); count++ } } fetchAssets(); addToast('success', `成功导入 ${count} 条连接`) }).catch(() => {}) }} />
+            <MenuItem icon={icons.fileDown} label="导入" onClick={() => { ctx.close(); pickJsonFile().then(async (data) => { const conns = parseImportedConnections(data); let count = 0; for (const c of conns) { if (c.name && c.host) { await api.createConnection({ name: c.name, host: c.host, port: c.port, username: c.username ?? '', protocol: c.protocol, auth_method: c.auth_method, remark: c.remark, color_tag: c.color_tag, folder_id: c.folder_id }); count++ } } fetchAssets(); addToast('success', `成功导入 ${count} 条连接`) }).catch(() => {}) }} />
             <MenuItem icon={icons.fileUp} label="导出" onClick={() => { ctx.close(); if (selectedRowIds.size > 0) { const ids = [...selectedRowIds]; const connIds: string[] = []; for (const id of ids) { const r = tableData.find(row => row.id === id); if (!r) continue; if (r.type === 'asset') connIds.push(id); if (r.type === 'folder') tableData.filter(row => row.type === 'asset' && row.folderId === id).forEach(row => connIds.push(row.id)) } const unique = [...new Set(connIds)]; Promise.all(unique.map(id => api.getConnection(id))).then(conns => downloadJson({ connections: conns }, `vortix-export-${conns.length}.json`)) } else if (rowData) { api.getConnection(rowData.id).then(conn => downloadJson({ connections: [conn] }, `connection-${conn.name}.json`)) } else if (currentFolderId) { const folderConns = tableData.filter(r => r.type === 'asset' && r.folderId === currentFolderId); Promise.all(folderConns.map(r => api.getConnection(r.id))).then(conns => downloadJson({ connections: conns }, `vortix-folder-${conns.length}.json`)) } else { Promise.all([api.getFolders(), api.getConnections()]).then(([folders, connections]) => downloadJson({ folders, connections }, 'vortix-connections.json')) } }} />
           </MenuItem>
         </>

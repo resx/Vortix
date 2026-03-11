@@ -1,4 +1,3 @@
-import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 import { DEFAULT_PROFILE_ID } from '../../types/terminal-profile'
 
@@ -49,7 +48,6 @@ function ColorInput({
 }
 
 export default function KeywordHighlightPanel({ profileId }: { profileId?: string }) {
-  const settingsHighlights = useSettingsStore((s) => s.keywordHighlights)
   const profileStore = useTerminalProfileStore()
   const pid = profileId ?? DEFAULT_PROFILE_ID
   const profile = profileStore.getProfileById(pid) ?? profileStore.getDefaultProfile()

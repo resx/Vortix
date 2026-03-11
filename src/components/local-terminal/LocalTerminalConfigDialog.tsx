@@ -36,7 +36,7 @@ export default function LocalTerminalConfigDialog() {
       store.loadFromConnection(initialId)
     }
     return () => { store.reset() }
-  }, [mode, initialId])
+  }, [initialId, mode, store])
 
   // 点击外部关闭下拉
   useEffect(() => {

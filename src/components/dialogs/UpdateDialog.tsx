@@ -14,22 +14,41 @@ export default function UpdateDialog() {
   const updateChannel = useSettingsStore((s) => s.updateChannel) as 'stable' | 'experimental'
   const t = useT()
 
-  const [loading, setLoading] = useState(false)
+  if (!open) return null
+
+  return <UpdateDialogContent key={updateChannel} updateChannel={updateChannel} toggle={toggle} t={t} />
+}
+
+function UpdateDialogContent({
+  updateChannel,
+  toggle,
+  t,
+}: {
+  updateChannel: 'stable' | 'experimental'
+  toggle: ReturnType<typeof useUIStore.getState>['toggleUpdateDialog']
+  t: ReturnType<typeof useT>
+}) {
+  const [loading, setLoading] = useState(true)
   const [result, setResult] = useState<UpdateCheckResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open) return
-    setLoading(true)
-    setResult(null)
-    setError(null)
-    checkForUpdate(updateChannel)
-      .then(setResult)
-      .catch(e => setError((e as Error).message))
-      .finally(() => setLoading(false))
-  }, [open, updateChannel])
+    let cancelled = false
+    void checkForUpdate(updateChannel)
+      .then((data) => {
+        if (!cancelled) setResult(data)
+      })
+      .catch((e) => {
+        if (!cancelled) setError((e as Error).message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
 
-  if (!open) return null
+    return () => {
+      cancelled = true
+    }
+  }, [updateChannel])
 
   return (
     <div className="fixed inset-0 bg-black/20 backdrop-blur-[1px] z-[999] flex items-center justify-center" onClick={toggle}>

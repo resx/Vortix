@@ -3,7 +3,20 @@ import type { Terminal, IDecoration } from '@xterm/xterm'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 
-type HighlightKey = 'error' | 'warning' | 'ok' | 'info' | 'debug' | 'ipMac'
+type HighlightKey = 'error' | 'warning' | 'ok' | 'info' | 'debug' | 'ipMac' | 'path' | 'url' | 'timestamp' | 'env'
+
+const FALLBACK_HIGHLIGHTS: Record<HighlightKey, string> = {
+  error: '#F53F3F',
+  warning: '#E6A23C',
+  ok: '#00B42A',
+  info: '#4080FF',
+  debug: '#86909C',
+  ipMac: '#9A7ECC',
+  path: '#D2B48C',
+  url: '#00B4D8',
+  timestamp: '#8B8682',
+  env: '#61AFEF',
+}
 
 const KEYWORD_RULES: { key: HighlightKey; pattern: RegExp }[] = [
   { key: 'error',   pattern: /\b(error|ERROR|fail|FAIL|failed|FAILED|fatal|FATAL|panic|PANIC)\b/g },
@@ -12,6 +25,10 @@ const KEYWORD_RULES: { key: HighlightKey; pattern: RegExp }[] = [
   { key: 'info',    pattern: /\b(info|INFO|notice|NOTICE)\b/g },
   { key: 'debug',   pattern: /\b(debug|DEBUG|trace|TRACE)\b/g },
   { key: 'ipMac',   pattern: /\b(?:\d{1,3}\.){3}\d{1,3}(?::\d+)?\b|(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b/g },
+  { key: 'path',    pattern: /(?:\/[\w.-]+){2,}(?:\.\w+)?/g },
+  { key: 'url',     pattern: /https?:\/\/[^\s'")\]>]+/g },
+  { key: 'timestamp', pattern: /\b\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\b/g },
+  { key: 'env',     pattern: /\$\{?\w+\}?/g },
 ]
 
 interface UseKeywordHighlightOptions {
@@ -31,12 +48,11 @@ export function useKeywordHighlight({ termRef, profileId }: UseKeywordHighlightO
     type Highlights = Record<HighlightKey, string>
 
     const getHighlightConfig = (): Highlights | null => {
-      const s = useSettingsStore.getState()
-      if (!s.termHighlightEnhance) return null
       const ps = useTerminalProfileStore.getState()
+      const s = useSettingsStore.getState()
       const profile = ps.getProfileById(profileId ?? s.activeProfileId)
         ?? ps.getDefaultProfile()
-      return profile.keywordHighlights
+      return { ...FALLBACK_HIGHLIGHTS, ...profile.keywordHighlights }
     }
 
     // 清理所有装饰
@@ -64,9 +80,7 @@ export function useKeywordHighlight({ termRef, profileId }: UseKeywordHighlightO
       const text = line.translateToString()
       if (!text.trim()) return
 
-      // 当后端拦截器启用时，跳过已包含 24-bit ANSI 前景色的行
-      // translateToString() 会剥离 ANSI，但如果 termHighlightEnhance 开启
-      // 说明后端已在处理，前端 decoration 不再需要
+      // 后端高亮开启时，前端 decoration 只保留兜底职责，避免重复着色。
       const settings = useSettingsStore.getState()
       if (settings.termHighlightEnhance) return
 

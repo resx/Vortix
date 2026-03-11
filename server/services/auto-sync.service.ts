@@ -22,7 +22,7 @@ export function init(wsServer: WebSocketServer): void {
 }
 
 /** 向所有前端 WebSocket 客户端广播消息 */
-function broadcast(type: string, data?: unknown): void {
+export function broadcast(type: string, data?: unknown): void {
   if (!wss) return
   const msg = JSON.stringify({ type, data })
   for (const client of wss.clients) {

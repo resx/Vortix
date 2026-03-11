@@ -4,7 +4,8 @@ import type { Request, Response, NextFunction } from 'express'
 
 const isDev = process.env.NODE_ENV !== 'production'
 
-export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): void {
+export function errorHandler(err: Error, _req: Request, res: Response, next: NextFunction): void {
+  void next
   console.error('[Vortix Error]', err.message)
   res.status(500).json({
     success: false,

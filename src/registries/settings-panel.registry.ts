@@ -19,9 +19,20 @@ export type SettingsEntry = SettingsNavItem | SettingsNavGroup
 
 const entries: SettingsEntry[] = []
 
-/** 注册设置面板导航项（按调用顺序排列） */
+/** 注册设置面板导航项（按调用顺序排列，同 id 去重） */
 export function registerSettingsPanels(items: SettingsEntry[]): () => void {
-  entries.push(...items)
+  for (const item of items) {
+    if (item.type === 'item') {
+      const idx = entries.findIndex(e => e.type === 'item' && e.id === item.id)
+      if (idx >= 0) { entries[idx] = item; continue }
+    }
+    // group 类型按 label 去重
+    if (item.type === 'group') {
+      const idx = entries.findIndex(e => e.type === 'group' && e.label === item.label)
+      if (idx >= 0) { entries[idx] = item; continue }
+    }
+    entries.push(item)
+  }
   return () => {
     for (const item of items) {
       const idx = entries.indexOf(item)

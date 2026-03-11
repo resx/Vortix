@@ -29,7 +29,6 @@ export default function MainMenu() {
   const toggleClearDataDialog = useUIStore((s) => s.toggleClearDataDialog)
   const recentConnections = useAssetStore((s) => s.recentConnections)
   const fetchRecentConnections = useAssetStore((s) => s.fetchRecentConnections)
-  const tableData = useAssetStore((s) => s.tableData)
   const openAssetTab = useTabStore((s) => s.openAssetTab)
   const serializeTabState = useTabStore((s) => s.serializeTabState)
   const updateSetting = useSettingsStore((s) => s.updateSetting)
@@ -52,7 +51,7 @@ export default function MainMenu() {
             {t('menu.newWindow')}
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
-            <DropdownMenuSubContent sideOffset={4} side="left">
+            <DropdownMenuSubContent sideOffset={4}>
               <DropdownMenuItem onSelect={() => openNewWindow()}>
                 <div className="flex items-center gap-2.5">
                   <AppIcon icon={icons.externalLink} size={14} className="text-text-2" />
@@ -80,7 +79,7 @@ export default function MainMenu() {
             {t('menu.recentProjects')}
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
-            <DropdownMenuSubContent sideOffset={4} side="left">
+            <DropdownMenuSubContent sideOffset={4}>
               {recentConnections.length === 0 ? (
                 <DropdownMenuItem disabled>
                   <span className="text-text-3">{t('menu.recentProjects.empty')}</span>
@@ -90,12 +89,14 @@ export default function MainMenu() {
                   <DropdownMenuItem
                     key={rc.id}
                     onSelect={() => {
-                      const row = tableData.find(r => r.type === 'asset' && r.id === rc.id)
+                      const row = useAssetStore
+                        .getState()
+                        .tableData.find((r) => r.type === 'asset' && r.id === rc.id)
                       if (row) openAssetTab(row)
                     }}
                   >
                     <div className="flex items-center gap-2.5">
-                      <ProtocolIcon protocol={rc.protocol} size={14} className="!text-text-2" />
+                      <ProtocolIcon protocol={rc.protocol} variant="menu" size={14} className="!text-text-2" />
                       <div className="flex flex-col">
                         <span>{rc.name}</span>
                         <span className="text-[11px] text-text-3">{rc.host}</span>
@@ -115,7 +116,7 @@ export default function MainMenu() {
             {t('menu.language')}
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
-            <DropdownMenuSubContent sideOffset={4} side="left">
+            <DropdownMenuSubContent sideOffset={4}>
               <DropdownMenuItem
                 className={locale === 'zh-CN' ? 'bg-primary-bg text-primary' : ''}
                 onSelect={() => updateSetting('language', 'zh-CN')}
@@ -139,7 +140,7 @@ export default function MainMenu() {
             {t('menu.help')}
           </DropdownMenuSubTrigger>
           <DropdownMenuPortal>
-            <DropdownMenuSubContent sideOffset={4} side="left">
+            <DropdownMenuSubContent sideOffset={4}>
               <DropdownMenuItem onSelect={() => window.open('https://github.com/resx/Vortix/issues/new?template=bug_report.md&labels=bug', '_blank')}>
                 <div className="flex items-center gap-2.5">
                   <AppIcon icon={icons.alertCircle} size={14} className="text-text-2" />
@@ -210,7 +211,11 @@ export default function MainMenu() {
         <DropdownMenuItem onSelect={() => {
           const { tabs } = useTabStore.getState()
           const hasConnected = tabs.some(t => t.status === 'connected')
-          hasConnected ? useUIStore.getState().toggleReloadDialog() : location.reload()
+          if (hasConnected) {
+            useUIStore.getState().toggleReloadDialog()
+          } else {
+            location.reload()
+          }
         }}>
           <div className="flex items-center gap-2.5">
             <AppIcon icon={icons.rotateCw} size={14} className="text-text-2" />

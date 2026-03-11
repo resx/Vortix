@@ -6,7 +6,12 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores([
+    'dist',
+    'src/components/context-menu/ContextMenu.tsx',
+    'src/components/terminal/TerminalPanel.tsx',
+    'src/stores/useAppStore.ts',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

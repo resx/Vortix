@@ -1,6 +1,6 @@
 /* ── 快捷命令编辑对话框 ── */
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { useShortcutStore } from '../../stores/useShortcutStore'
 
@@ -13,26 +13,43 @@ export default function ShortcutDialog() {
   const createShortcutAction = useShortcutStore((s) => s.createShortcutAction)
   const updateShortcutAction = useShortcutStore((s) => s.updateShortcutAction)
 
-  const [name, setName] = useState('')
-  const [command, setCommand] = useState('')
-  const [remark, setRemark] = useState('')
-
-  useEffect(() => {
-    if (open && mode === 'edit' && initialId) {
-      const item = shortcuts.find(s => s.id === initialId)
-      if (item) {
-        setName(item.name)
-        setCommand(item.command ?? '')
-        setRemark(item.remark ?? '')
-      }
-    } else if (open && mode === 'create') {
-      setName('')
-      setCommand('')
-      setRemark('')
-    }
-  }, [open, mode, initialId, shortcuts])
-
   if (!open) return null
+
+  const initialShortcut = mode === 'edit' && initialId
+    ? shortcuts.find(s => s.id === initialId) ?? null
+    : null
+
+  return (
+    <ShortcutDialogContent
+      key={`${mode}-${initialId ?? 'new'}`}
+      mode={mode}
+      initialId={initialId}
+      initialShortcut={initialShortcut}
+      close={close}
+      createShortcutAction={createShortcutAction}
+      updateShortcutAction={updateShortcutAction}
+    />
+  )
+}
+
+function ShortcutDialogContent({
+  mode,
+  initialId,
+  initialShortcut,
+  close,
+  createShortcutAction,
+  updateShortcutAction,
+}: {
+  mode: ReturnType<typeof useShortcutStore.getState>['shortcutDialogMode']
+  initialId: string | null
+  initialShortcut: ReturnType<typeof useShortcutStore.getState>['shortcuts'][number] | null
+  close: ReturnType<typeof useShortcutStore.getState>['closeShortcutDialog']
+  createShortcutAction: ReturnType<typeof useShortcutStore.getState>['createShortcutAction']
+  updateShortcutAction: ReturnType<typeof useShortcutStore.getState>['updateShortcutAction']
+}) {
+  const [name, setName] = useState(() => initialShortcut?.name ?? '')
+  const [command, setCommand] = useState(() => initialShortcut?.command ?? '')
+  const [remark, setRemark] = useState(() => initialShortcut?.remark ?? '')
 
   const handleSave = async () => {
     if (!name.trim() || !command.trim()) return

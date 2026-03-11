@@ -11,11 +11,12 @@ export default function HeaderToolbar({ activeTabId, connectionId, assetLabel }:
   connectionId?: string
   assetLabel: string
 }) {
+  return <HeaderToolbarInner key={activeTabId} connectionId={connectionId} assetLabel={assetLabel} />
+}
+
+function HeaderToolbarInner({ connectionId, assetLabel }: { connectionId?: string; assetLabel: string }) {
   const [activePopover, setActivePopover] = useState<'transfer' | 'broadcast' | 'history' | null>(null)
   const ref = useRef<HTMLDivElement>(null)
-
-  // 切换标签页时重置弹出层
-  useEffect(() => { setActivePopover(null) }, [activeTabId])
 
   // 点击外部关闭弹出层
   useEffect(() => {

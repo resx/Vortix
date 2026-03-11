@@ -11,9 +11,14 @@ export interface DialogRegistration {
 
 const dialogs: DialogRegistration[] = []
 
-/** 注册对话框 */
+/** 注册对话框（同 id 去重，HMR 安全） */
 export function registerDialog(reg: DialogRegistration): () => void {
-  dialogs.push(reg)
+  const existing = dialogs.findIndex(d => d.id === reg.id)
+  if (existing >= 0) {
+    dialogs[existing] = reg
+  } else {
+    dialogs.push(reg)
+  }
   return () => {
     const idx = dialogs.indexOf(reg)
     if (idx >= 0) dialogs.splice(idx, 1)

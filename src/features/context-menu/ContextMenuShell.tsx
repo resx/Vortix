@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useUIStore } from '../../stores/useUIStore'
 import { getMenuProvider } from '../../registries/context-menu.registry'
+import { MenuGroup } from './components/MenuParts'
 
 export default function ContextMenuShell() {
   const contextMenu = useUIStore((s) => s.contextMenu)
   const hideContextMenu = useUIStore((s) => s.hideContextMenu)
   const menuRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const [position, setPosition] = useState<{ top: number; left: number; sourceX: number; sourceY: number } | null>(null)
 
   const adjustPosition = useCallback(() => {
     if (!menuRef.current || !contextMenu.visible) return
@@ -20,14 +21,13 @@ export default function ContextMenuShell() {
     let top = contextMenu.y
     if (top + rect.height > vh - pad) top = vh - rect.height - pad
     if (top < pad) top = pad
-    setPosition({ top, left })
+    setPosition({ top, left, sourceX: contextMenu.x, sourceY: contextMenu.y })
   }, [contextMenu.visible, contextMenu.x, contextMenu.y])
 
   useEffect(() => {
-    if (contextMenu.visible) {
-      setPosition({ top: contextMenu.y, left: contextMenu.x })
-      requestAnimationFrame(adjustPosition)
-    }
+    if (!contextMenu.visible) return
+    const frame = requestAnimationFrame(adjustPosition)
+    return () => cancelAnimationFrame(frame)
   }, [contextMenu.visible, contextMenu.x, contextMenu.y, adjustPosition])
 
   useEffect(() => {
@@ -36,22 +36,41 @@ export default function ContextMenuShell() {
     return () => window.removeEventListener('click', close)
   }, [hideContextMenu])
 
-  if (!contextMenu.visible || !contextMenu.type) return null
+  const provider = useMemo(
+    () => contextMenu.type ? getMenuProvider(contextMenu.type) : null,
+    [contextMenu.type],
+  )
 
-  const provider = getMenuProvider(contextMenu.type)
-  if (!provider) return null
+  const ctx = useMemo(
+    () => contextMenu.type
+      ? { type: contextMenu.type, data: contextMenu.data, close: hideContextMenu }
+      : null,
+    [contextMenu.data, contextMenu.type, hideContextMenu],
+  )
+  const content = useMemo(
+    () => provider && ctx ? provider.render(ctx) : null,
+    [provider, ctx],
+  )
 
-  const ctx = { type: contextMenu.type, data: contextMenu.data, close: hideContextMenu }
+  if (!contextMenu.visible || !contextMenu.type || !provider || !ctx || !content) return null
+
   const minWidth = provider.minWidth ?? 'min-w-[210px]'
+  const resolvedPosition = position && position.sourceX === contextMenu.x && position.sourceY === contextMenu.y
+    ? position
+    : { top: contextMenu.y, left: contextMenu.x }
+
+  const minWidthPx = minWidth === 'min-w-[260px]' ? 260 : 210
 
   return (
     <div
       ref={menuRef}
       className={`fixed glass-context rounded-xl py-1 ${minWidth} z-[100]`}
-      style={{ top: position.top, left: position.left }}
+      style={{ top: resolvedPosition.top, left: resolvedPosition.left, '--ctx-menu-w': `${minWidthPx}px` } as React.CSSProperties}
       onClick={(e) => e.stopPropagation()}
     >
-      {provider.render(ctx)}
+      <MenuGroup>
+        {content}
+      </MenuGroup>
     </div>
   )
 }

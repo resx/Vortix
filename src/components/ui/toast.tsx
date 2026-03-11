@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useToastStore, type ToastItem } from '../../stores/useToastStore'
 import { AppIcon, icons } from '../icons/AppIcon'
 
-function Toast({ id, type, message, onClose }: ToastItem & { onClose: () => void }) {
+function Toast({ type, message, onClose }: ToastItem & { onClose: () => void }) {
   useEffect(() => {
     const ms = type === 'error' ? 5000 : 3000
     const timer = setTimeout(onClose, ms)

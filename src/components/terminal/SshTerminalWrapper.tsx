@@ -62,7 +62,10 @@ export default function SshTerminalWrapper({ tab }: Props) {
   }, [tab.id, tab.quickConnect, tab.connectionId, tab.assetRow, updateTabStatus])
 
   useEffect(() => {
-    loadCredential()
+    const timer = window.setTimeout(() => {
+      void loadCredential()
+    }, 0)
+    return () => window.clearTimeout(timer)
   }, [loadCredential, retryKey])
 
   const handleStatusChange = useCallback((status: 'connecting' | 'connected' | 'closed' | 'error') => {

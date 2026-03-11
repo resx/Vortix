@@ -68,10 +68,25 @@ export default function AssetTable() {
 
   // 橡皮筋框选状态
   const [lasso, setLasso] = useState<{ startX: number; startY: number; x: number; y: number } | null>(null)
-  const lassoRef = useRef(lasso)
-  lassoRef.current = lasso
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map())
   const justFinishedLasso = useRef(false)
+  const lassoActive = lasso !== null
+
+  // 当前文件夹信息（用于 .. 行的创建时间）
+  const currentFolderRow = currentFolder
+    ? tableData.find(r => r.id === currentFolder && r.type === 'folder')
+    : null
+
+  // 根据当前文件夹过滤数据：根目录只显示文件夹 + 无归属的资产
+  const filteredData = currentFolder
+    ? tableData.filter(row => row.type === 'asset' && row.folderId === currentFolder)
+    : tableData.filter(row => row.type === 'folder' || !row.folderId)
+
+  // 排序
+  const visibleData = useMemo(
+    () => sortKey && sortDir ? sortData(filteredData, sortKey, sortDir) : filteredData,
+    [filteredData, sortKey, sortDir],
+  )
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -100,7 +115,7 @@ export default function AssetTable() {
       setSelectedRowIds(new Set([row.id]))
     }
     lastClickedIndex.current = index
-  }, [selectedRowIds, setSelectedRowIds, toggleRowSelection])
+  }, [selectedRowIds, setSelectedRowIds, toggleRowSelection, visibleData])
 
   // 橡皮筋框选
   const handleLassoStart = useCallback((e: React.MouseEvent) => {
@@ -127,12 +142,10 @@ export default function AssetTable() {
       setLasso(prev => prev ? { ...prev, x, y } : null)
 
       // 计算框选矩形与行的交集
-      const cur = lassoRef.current
-      if (!cur) return
-      const minX = Math.min(cur.startX, x)
-      const maxX = Math.max(cur.startX, x)
-      const minY = Math.min(cur.startY, y)
-      const maxY = Math.max(cur.startY, y)
+      const minX = Math.min(lasso.startX, x)
+      const maxX = Math.max(lasso.startX, x)
+      const minY = Math.min(lasso.startY, y)
+      const maxY = Math.max(lasso.startY, y)
       const ids = new Set<string>()
       rowRefs.current.forEach((el, id) => {
         const rowRect = el.getBoundingClientRect()
@@ -160,23 +173,7 @@ export default function AssetTable() {
       window.removeEventListener('mousemove', handleMove)
       window.removeEventListener('mouseup', handleUp)
     }
-  }, [lasso !== null])
-
-  // 当前文件夹信息（用于 .. 行的创建时间）
-  const currentFolderRow = currentFolder
-    ? tableData.find(r => r.id === currentFolder && r.type === 'folder')
-    : null
-
-  // 根据当前文件夹过滤数据：根目录只显示文件夹 + 无归属的资产
-  const filteredData = currentFolder
-    ? tableData.filter(row => row.type === 'asset' && row.folderId === currentFolder)
-    : tableData.filter(row => row.type === 'folder' || !row.folderId)
-
-  // 排序
-  const visibleData = useMemo(
-    () => sortKey && sortDir ? sortData(filteredData, sortKey, sortDir) : filteredData,
-    [filteredData, sortKey, sortDir],
-  )
+  }, [lasso, lassoActive, setSelectedRowIds])
 
   return (
     <div
@@ -295,9 +292,9 @@ export default function AssetTable() {
             >
               <td className="px-5 py-3 text-[13px] text-text-1 flex items-center gap-1.5">
                 {row.type === 'folder' ? (
-                  <AppIcon icon={icons.folder} size={14} className="text-icon-folder" />
+                  <AppIcon icon={icons.folderFill} size={15} className="text-icon-folder" />
                 ) : (
-                  <ProtocolIcon protocol={row.protocol} size={14} />
+                  <ProtocolIcon protocol={row.protocol} size={15} />
                 )}
                 <span className={getColorTagTextClass(row.colorTag)}>{maskText(row.name, isAnonymized)}</span>
               </td>

@@ -76,7 +76,7 @@ function DropdownMenuItem({
             {submenuKey === 'db' && (
               <>
                 {['Redis', 'MySQL', 'MariaDB', 'PostgreSQL', 'SqlServer', 'ClickHouse', 'SQLite', 'Oracle', '达梦'].map((db) => (
-                  <SubItem key={db} iconNode={<ProtocolIcon protocol={DB_LABEL_PROTOCOL[db]} size={14} mono className="text-text-1" />} label={db} />
+                  <SubItem key={db} iconNode={<ProtocolIcon protocol={DB_LABEL_PROTOCOL[db]} variant="menu" size={14} mono className="text-text-1" />} label={db} />
                 ))}
               </>
             )}

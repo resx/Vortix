@@ -39,7 +39,7 @@ const DEFAULT_RULES: HighlightRule[] = [
   { category: 'ipMac',     priority: 85, pattern: /\b(?:\d{1,3}\.){3}\d{1,3}(?:\/\d{1,2})?(?::\d+)?\b|(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b/g },
   { category: 'url',       priority: 85, pattern: /https?:\/\/[^\s'")\]>]+/g },
   { category: 'timestamp', priority: 55, pattern: /\b\d{4}[-/]\d{2}[-/]\d{2}[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?\b/g },
-  { category: 'path',      priority: 50, pattern: /(?:\/[\w.\-]+){2,}(?:\.\w+)?/g },
+  { category: 'path',      priority: 50, pattern: /(?:\/[\w.-]+){2,}(?:\.\w+)?/g },
   { category: 'env',       priority: 50, pattern: /\$\{?\w+\}?/g },
 ]
 
@@ -51,9 +51,12 @@ const DEFAULT_COLORS: Record<string, string> = {
 
 // ── CSI / OSC 正则 ──
 
-const CSI_RE = /\x1b\[[0-9;]*[A-Za-z]/g
-const OSC_RE = /\x1b\].*?(?:\x1b\\|\x07)/g
-const INCOMPLETE_ESC_RE = /\x1b(?:\[?[0-9;]*)?$/
+const ESC = '\\u001b'
+const BEL = '\\u0007'
+const CSI_RE = new RegExp(`${ESC}\\[[0-9;]*[A-Za-z]`, 'g')
+const OSC_RE = new RegExp(`${ESC}\\].*?(?:${ESC}\\\\|${BEL})`, 'g')
+const INCOMPLETE_ESC_RE = new RegExp(`${ESC}(?:\\[?[0-9;]*)?$`)
+const SGR_RE = new RegExp(`^${ESC}\\[([0-9;]*)m$`)
 
 // ── 工具函数 ──
 
@@ -252,7 +255,7 @@ export class HighlightInterceptor extends EventEmitter {
     for (const seg of segments) {
       if (seg.type === 'ansi') {
         // 更新 ANSI 图形状态
-        const sgrMatch = seg.content.match(/^\x1b\[([0-9;]*)m$/)
+        const sgrMatch = seg.content.match(SGR_RE)
         if (sgrMatch) {
           parseSgr(sgrMatch[1], this.state)
         }

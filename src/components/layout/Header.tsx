@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { useTabStore } from '../../stores/useTabStore'
-import { useUIStore } from '../../stores/useUIStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import VortixLogoGroup from '../../features/header/VortixLogo'

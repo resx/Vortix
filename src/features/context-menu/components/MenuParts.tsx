@@ -1,5 +1,21 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, createContext, useContext, useId, useMemo } from 'react'
 import { AppIcon, icons } from '../../../components/icons/AppIcon'
+
+/* ---- MenuGroup 上下文：协调同级子菜单的互斥展开 ---- */
+const MenuGroupContext = createContext<{
+  activeId: string | null
+  setActiveId: (id: string | null) => void
+} | null>(null)
+
+export function MenuGroup({ children }: { children: React.ReactNode }) {
+  const [activeId, setActiveId] = useState<string | null>(null)
+  const value = useMemo(() => ({ activeId, setActiveId }), [activeId])
+  return (
+    <MenuGroupContext.Provider value={value}>
+      {children}
+    </MenuGroupContext.Provider>
+  )
+}
 
 /* ---- MenuItem ---- */
 export function MenuItem({
@@ -10,19 +26,17 @@ export function MenuItem({
 }) {
   const itemRef = useRef<HTMLDivElement>(null)
   const submenuRef = useRef<HTMLDivElement>(null)
-  const [showSub, setShowSub] = useState(false)
   const [subPos, setSubPos] = useState<{ top?: string; bottom?: string; left?: string; right?: string }>({})
-  const hideTimer = useRef<ReturnType<typeof setTimeout>>(null)
+  const group = useContext(MenuGroupContext)
+  const id = useId()
 
-  const openSubmenu = useCallback(() => {
-    if (disabled || !hasSubmenu) return
-    if (hideTimer.current) clearTimeout(hideTimer.current)
-    setShowSub(true)
-  }, [disabled, hasSubmenu])
+  // 子菜单展开由上下文驱动：仅当指针移到同级其他选项时关闭
+  const showSub = !!hasSubmenu && !disabled && group?.activeId === id
 
-  const closeSubmenu = useCallback(() => {
-    hideTimer.current = setTimeout(() => setShowSub(false), 150)
-  }, [])
+  const handleMouseEnter = useCallback(() => {
+    if (disabled) return
+    group?.setActiveId(hasSubmenu ? id : null)
+  }, [disabled, hasSubmenu, group, id])
 
   useEffect(() => {
     if (!showSub || !itemRef.current || !submenuRef.current) return
@@ -48,35 +62,45 @@ export function MenuItem({
     } else {
       pos.top = '-6px'
     }
-    setSubPos(pos)
+    const frame = requestAnimationFrame(() => {
+      setSubPos(pos)
+    })
+    return () => cancelAnimationFrame(frame)
   }, [showSub])
   return (
     <div
       ref={itemRef}
-      className={`group/item relative flex items-center justify-between px-2.5 h-[28px] mx-1 my-[2px] rounded-md text-[12px] transition-colors select-none
+      className={`group/item relative flex items-center justify-between px-3 h-[32px] mx-1 my-[2px] rounded-lg text-[13px] transition-colors select-none
         ${disabled ? 'text-text-disabled cursor-not-allowed' : 'text-text-1 hover:bg-bg-active cursor-pointer'}`}
-      onMouseEnter={openSubmenu}
-      onMouseLeave={closeSubmenu}
+      onMouseEnter={handleMouseEnter}
       onClick={() => { if (!disabled && !hasSubmenu && onClick) onClick() }}
     >
-      <div className="flex items-center gap-2.5">
-        {iconNode ? <span className="transition-colors">{iconNode}</span> : icon ? <AppIcon icon={icon} size={12} className={`transition-colors ${disabled ? 'text-text-disabled' : 'text-text-2 group-hover/item:text-primary'}`} /> : null}
+      <div className="flex items-center gap-3">
+        {iconNode ? (
+          <span className="flex h-[20px] w-[20px] items-center justify-center transition-colors text-current opacity-90 group-hover/item:opacity-100 shrink-0">
+            {iconNode}
+          </span>
+        ) : icon ? (
+          <span className="flex h-[20px] w-[20px] items-center justify-center shrink-0">
+            <AppIcon icon={icon} size={16} className={`transition-colors ${disabled ? 'text-text-disabled' : 'text-current opacity-80 group-hover/item:opacity-100'}`} />
+          </span>
+        ) : null}
         <span>{label}</span>
       </div>
       <div className="flex items-center gap-3">
-        {shortcut && <span className={`text-[10px] font-sans ${disabled ? 'text-text-disabled' : 'text-text-3'}`}>{shortcut}</span>}
-        {hasSubmenu && <AppIcon icon={icons.chevronRight} size={12} className={disabled ? 'text-text-disabled' : 'text-text-3'} />}
+        {shortcut && <span className={`text-[11px] font-sans ${disabled ? 'text-text-disabled' : 'text-text-3'}`}>{shortcut}</span>}
+        {hasSubmenu && <AppIcon icon={icons.chevronRight} size={13} className={disabled ? 'text-text-disabled' : 'text-text-3'} />}
       </div>
-      {hasSubmenu && children && !disabled && showSub && (
-        <div
-          ref={submenuRef}
-          className="absolute glass-context rounded-xl py-1 w-max z-[101] pointer-events-auto"
-          style={subPos}
-          onMouseEnter={() => { if (hideTimer.current) clearTimeout(hideTimer.current) }}
-          onMouseLeave={closeSubmenu}
-        >
-          {children}
-        </div>
+      {hasSubmenu && children && showSub && (
+        <MenuGroup>
+          <div
+            ref={submenuRef}
+            className="absolute glass-context rounded-xl py-1 min-w-[var(--ctx-menu-w,210px)] w-max z-[101] pointer-events-auto"
+            style={subPos}
+          >
+            {children}
+          </div>
+        </MenuGroup>
       )}
     </div>
   )

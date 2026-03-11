@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { ProtocolIcon, DB_LABEL_PROTOCOL } from '../icons/ProtocolIcons'
 import { useAssetStore } from '../../stores/useAssetStore'
@@ -24,6 +25,18 @@ function FolderEyeIcon({ className }: { className?: string }) {
   )
 }
 
+function FolderEyeOffIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+      <path d="M9 13.5c0-1.5 1.5-2.5 3-2.5 1.02 0 2 .46 2.57 1.3" />
+      <path d="M15 13.5c0 .65-.28 1.26-.76 1.68" />
+      <circle cx="12" cy="13.5" r="1" />
+      <path d="m8 9 8 9" />
+    </svg>
+  )
+}
+
 /* 侧边栏头部按钮 */
 function SidebarHeaderButton({
   icon,
@@ -32,7 +45,7 @@ function SidebarHeaderButton({
   onClick,
   className = '',
 }: {
-  icon: string | typeof FolderEyeIcon
+  icon: string | ComponentType<{ className?: string }>
   tooltipText: string
   disabled?: boolean
   onClick?: () => void
@@ -138,7 +151,7 @@ function NewAssetDropdown() {
             {['Redis', 'MySQL', 'MariaDB', 'PostgreSQL', 'SqlServer', 'ClickHouse', 'SQLite', 'Oracle', '达梦'].map((db) => (
               <DropdownMenuItem key={db}>
                 <div className="flex items-center gap-2.5">
-                  <ProtocolIcon protocol={DB_LABEL_PROTOCOL[db]} size={14} mono className="text-text-1" />
+                  <ProtocolIcon protocol={DB_LABEL_PROTOCOL[db]} variant="menu" size={14} mono className="text-text-1" />
                   <span>{db}</span>
                 </div>
               </DropdownMenuItem>
@@ -231,9 +244,9 @@ export default function Sidebar() {
           <div className="flex items-center gap-0.5 text-text-1">
             <SidebarHeaderButton icon={icons.search} tooltipText="搜索" />
             <SidebarHeaderButton icon={icons.crosshair} tooltipText="定位到选中项" />
-            <SidebarHeaderButton icon={icons.copyPlus} tooltipText={allExpanded ? '折叠所有' : '展开所有'} onClick={() => allExpanded ? collapseAllFolders(target) : expandAllFolders(target)} />
+            <SidebarHeaderButton icon={allExpanded ? icons.folder : icons.folderOpen} tooltipText={allExpanded ? '折叠所有' : '展开所有'} onClick={() => allExpanded ? collapseAllFolders(target) : expandAllFolders(target)} />
             <SidebarHeaderButton
-              icon={FolderEyeIcon}
+              icon={hideEmptyFolders ? FolderEyeOffIcon : FolderEyeIcon}
               tooltipText={hideEmptyFolders ? '显示空文件夹' : '隐藏空文件夹'}
               disabled={disableHideEmptyFolders}
               onClick={() => updateSetting('hideEmptyFolders', !hideEmptyFolders)}
@@ -313,7 +326,7 @@ export default function Sidebar() {
                         : <AppIcon icon={icons.chevronRight} size={14} />}
                     </span>
                     <span className="w-5 flex justify-center mr-1">
-                      <AppIcon icon={icons.folder} size={14} className="text-icon-folder" />
+                      <AppIcon icon={item.isOpen ? icons.folderOpenFill : icons.folderFill} size={15} className="text-icon-folder" />
                     </span>
                     <span className="text-[12px] text-text-2 truncate flex-1">{item.name}</span>
                   </div>
@@ -347,7 +360,7 @@ export default function Sidebar() {
                       }}
                     >
                       <span className="w-5 flex justify-center mr-1">
-                        <ProtocolIcon protocol={child.protocol} size={13} />
+                        <ProtocolIcon protocol={child.protocol} size={15} />
                       </span>
                       <span className={`text-[12px] truncate flex-1 ${getColorTagTextClass(child.colorTag) || 'text-text-2'}`}>{child.name}</span>
                     </div>
@@ -383,7 +396,7 @@ export default function Sidebar() {
                 >
                   <span className="w-4 flex justify-center" />
                   <span className="w-5 flex justify-center mr-1">
-                    <ProtocolIcon protocol={item.protocol} size={13} />
+                    <ProtocolIcon protocol={item.protocol} size={15} />
                   </span>
                   <span className={`text-[12px] truncate flex-1 ${getColorTagTextClass(item.colorTag) || 'text-text-2'}`}>{item.name}</span>
                 </div>

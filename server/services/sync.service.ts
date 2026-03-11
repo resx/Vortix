@@ -9,7 +9,7 @@ import * as cryptoService from './crypto.service.js'
 import * as syncState from './sync-state.service.js'
 import type { SyncProvider } from './sync-providers/types.js'
 import type {
-  SyncPayloadV3, SyncPayloadLegacy, SyncPayload,
+  SyncPayloadV3, SyncPayloadLegacy,
   SyncConnection, SyncSshKey, ImportResult, ConnectionRow, SshKeyRow,
   SyncConflictInfo,
 } from '../types/index.js'

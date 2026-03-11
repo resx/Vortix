@@ -24,6 +24,12 @@ const KEY_TYPE_OPTIONS: { value: KeyType; label: string; desc: string }[] = [
 const ECDSA_BITS = [521, 384, 256]
 const RSA_BITS = [4096, 2048, 1024]
 const MLDSA_BITS = [87, 65, 44]
+const DEFAULT_BITS_BY_TYPE: Record<KeyType, number> = {
+  ed25519: 521,
+  ecdsa: 521,
+  rsa: 4096,
+  'ml-dsa': 87,
+}
 
 export default function KeyPickerModal({ onSelect, onClose }: KeyPickerModalProps) {
   const [tab, setTab] = useState<TabView>('list')
@@ -37,7 +43,12 @@ export default function KeyPickerModal({ onSelect, onClose }: KeyPickerModalProp
     setLoading(false)
   }, [])
 
-  useEffect(() => { loadKeys() }, [loadKeys])
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadKeys()
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [loadKeys])
 
   const handleEdit = (key: SshKey) => { setEditingKey(key); setTab('edit') }
   const handleBackToList = () => { setTab('list'); setEditingKey(null) }
@@ -265,7 +276,7 @@ function ListView({ keys, loading, onSelect, onClose, onEdit, onRefresh }: {
 function GenerateView({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState('')
   const [keyType, setKeyType] = useState<KeyType>('ed25519')
-  const [bits, setBits] = useState<number>(521)
+  const [bits, setBits] = useState<number>(DEFAULT_BITS_BY_TYPE.ed25519)
   const [passphrase, setPassphrase] = useState('')
   const [showPass, setShowPass] = useState(false)
   const [comment, setComment] = useState('')
@@ -273,12 +284,6 @@ function GenerateView({ onDone }: { onDone: () => void }) {
   const [resultPub, setResultPub] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    if (keyType === 'ecdsa') setBits(521)
-    else if (keyType === 'rsa') setBits(4096)
-    else if (keyType === 'ml-dsa') setBits(87)
-  }, [keyType])
 
   const needBits = keyType === 'ecdsa' || keyType === 'rsa' || keyType === 'ml-dsa'
   const bitsOptions = keyType === 'ecdsa' ? ECDSA_BITS : keyType === 'rsa' ? RSA_BITS : MLDSA_BITS
@@ -325,10 +330,15 @@ function GenerateView({ onDone }: { onDone: () => void }) {
         <label className="text-[11px] text-text-3 mb-1.5 block">密钥类型</label>
         <div className="grid grid-cols-4 gap-2">
           {KEY_TYPE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => { setKeyType(opt.value); setResultPub(''); setError('') }}
-              className={`px-3 py-2 rounded-lg border text-xs text-center transition-colors ${
+              <button
+                key={opt.value}
+                onClick={() => {
+                  setKeyType(opt.value)
+                  setBits(DEFAULT_BITS_BY_TYPE[opt.value])
+                  setResultPub('')
+                  setError('')
+                }}
+                className={`px-3 py-2 rounded-lg border text-xs text-center transition-colors ${
                 keyType === opt.value
                   ? 'border-primary bg-primary/10 text-primary font-medium'
                   : 'border-border/60 text-text-2 hover:border-primary/40 hover:bg-primary/5'

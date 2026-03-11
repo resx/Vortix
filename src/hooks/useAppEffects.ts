@@ -61,7 +61,11 @@ export function useThemeEffect() {
       const mq = window.matchMedia('(prefers-color-scheme: dark)')
       const apply = () => {
         root.classList.add('theme-switching')
-        mq.matches ? root.classList.add('dark') : root.classList.remove('dark')
+        if (mq.matches) {
+          root.classList.add('dark')
+        } else {
+          root.classList.remove('dark')
+        }
         requestAnimationFrame(() => {
           requestAnimationFrame(() => root.classList.remove('theme-switching'))
         })

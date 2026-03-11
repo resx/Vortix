@@ -3,6 +3,7 @@
 import { spawn, type IPty } from 'node-pty'
 import { existsSync, statSync } from 'fs'
 import type { WebSocket } from 'ws'
+import type { HighlightInterceptor } from '../highlight-interceptor'
 
 export interface LocalPtyConfig {
   shell: string
@@ -10,6 +11,7 @@ export interface LocalPtyConfig {
   initialCommand?: string
   cols?: number
   rows?: number
+  highlightInterceptor?: HighlightInterceptor | null
 }
 
 /** Shell 名称 → 可执行文件映射 */
@@ -59,7 +61,11 @@ export function createLocalPty(ws: WebSocket, config: LocalPtyConfig): IPty {
   // PTY 输出 → WebSocket
   ptyProcess.onData((data) => {
     if (ws.readyState === 1 /* WebSocket.OPEN */) {
-      ws.send(JSON.stringify({ type: 'output', data }))
+      if (config.highlightInterceptor) {
+        config.highlightInterceptor.processChunk(data)
+      } else {
+        ws.send(JSON.stringify({ type: 'output', data }))
+      }
     }
   })
 

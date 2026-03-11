@@ -1,5 +1,3 @@
-import type { ReactNode } from 'react'
-
 // ── 类型定义 ──
 
 export interface ConnectionTypeDef {
@@ -19,9 +17,16 @@ export interface ConnectionTypeDef {
 const types: ConnectionTypeDef[] = []
 
 export function registerConnectionType(def: ConnectionTypeDef): () => void {
-  types.push(def)
+  const existingIndex = types.findIndex((item) => item.protocol === def.protocol)
+
+  if (existingIndex >= 0) {
+    types[existingIndex] = def
+  } else {
+    types.push(def)
+  }
+
   return () => {
-    const idx = types.indexOf(def)
+    const idx = types.findIndex((item) => item.protocol === def.protocol)
     if (idx >= 0) types.splice(idx, 1)
   }
 }

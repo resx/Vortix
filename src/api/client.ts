@@ -25,9 +25,9 @@ import type {
 } from './types'
 
 // CEF 预留：运行时可通过 window.__VORTIX_CONFIG__ 覆盖
-const config = (window as Record<string, unknown>).__VORTIX_CONFIG__ as { apiBaseUrl?: string } | undefined
+const config = (window as unknown as Record<string, unknown>).__VORTIX_CONFIG__ as { apiBaseUrl?: string } | undefined
 const BASE_URL = config?.apiBaseUrl || 'http://localhost:3001/api'
-Object.freeze(config)
+if (config) Object.freeze(config)
 
 /** 通用请求方法 */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {

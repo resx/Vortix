@@ -11,6 +11,10 @@ import * as logRepo from '../repositories/log.repository.js'
 import * as historyRepo from '../repositories/history.repository.js'
 import * as settingsRepo from '../repositories/settings.repository.js'
 
+const ESC = '\\u001b'
+const BRACKETED_PASTE_START_RE = new RegExp(`${ESC}\\[200~`, 'g')
+const BRACKETED_PASTE_END_RE = new RegExp(`${ESC}\\[201~`, 'g')
+
 export function setupWebSocket(server: http.Server): WebSocketServer {
   const wss = new WebSocketServer({ server, path: '/ws/ssh' })
 
@@ -92,6 +96,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
                 initialCommand: data.initialCommand as string | undefined,
                 cols: data.cols as number | undefined,
                 rows: data.rows as number | undefined,
+                highlightInterceptor,
               })
             } catch (err) {
               ws.send(JSON.stringify({ type: 'error', data: (err as Error).message }))
@@ -100,8 +105,8 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
           }
 
           // ── SSH 连接分支 ──
-          const { host, port, username, password, privateKey, connectionId } = data as {
-            host: string; port: number; username: string; password?: string; privateKey?: string; connectionId?: string
+          const { host, port, username, password, privateKey, connectionId, cols, rows } = data as {
+            host: string; port: number; username: string; password?: string; privateKey?: string; connectionId?: string; cols?: number; rows?: number
           }
 
           // 输入验证
@@ -118,6 +123,9 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
             ws.send(JSON.stringify({ type: 'error', data: '端口号必须在 1-65535 之间' }))
             break
           }
+
+          const shellCols = Number.isInteger(Number(cols)) ? Math.min(Math.max(Number(cols), 1), 500) : 120
+          const shellRows = Number.isInteger(Number(rows)) ? Math.min(Math.max(Number(rows), 1), 200) : 30
 
           currentConnectionId = connectionId || null
           // 缓存历史记录设置，避免每次 Enter 都查询数据库
@@ -138,7 +146,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
             }
 
             sshClient!.shell(
-              { term: 'xterm-256color', cols: 120, rows: 30 },
+              { term: 'xterm-256color', cols: shellCols, rows: shellRows },
               (err, stream) => {
                 if (err) {
                   ws.send(JSON.stringify({ type: 'error', data: err.message }))
@@ -214,7 +222,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
 
           // 命令历史记录：累积输入，检测 Enter 后持久化
           // 过滤 bracketed paste 转义序列
-          const cleanInput = inputData.replace(/\x1b\[200~/g, '').replace(/\x1b\[201~/g, '')
+          const cleanInput = inputData.replace(BRACKETED_PASTE_START_RE, '').replace(BRACKETED_PASTE_END_RE, '')
           for (const ch of cleanInput) {
             if (ch === '\r' || ch === '\n') {
               const trimmed = cmdBuffer.trim()
@@ -332,10 +340,7 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
               const cpuFields = cpuLine.replace(/^cpu\s+/, '').split(/\s+/).map(Number)
               // user, nice, system, idle, iowait, irq, softirq, steal
               const totalCpu = cpuFields.reduce((a, b) => a + b, 0)
-              const idle = (cpuFields[3] || 0) + (cpuFields[4] || 0)
               const system = cpuFields[2] || 0
-              const userCpu = (cpuFields[0] || 0) + (cpuFields[1] || 0)
-              const iowait = cpuFields[4] || 0
 
               let cpuUsage = 0, cpuKernel = 0, cpuUser = 0, cpuIo = 0
               if (prevCpuSample) {
