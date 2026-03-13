@@ -33,12 +33,20 @@ export default function SelectKeyModal({ onSelect, onClose }: SelectKeyModalProp
     toggleSubModal('selectKey', false)
   }
 
+  const authType = useSshConfigStore((s) => s.authType)
+
   const handleConfirm = () => {
     if (!selectedId) { close(); return }
     const key = keys.find((k) => k.id === selectedId)
     if (key) {
       if (onSelect) { onSelect(key.id, key.name); return }
-      setField('privateKeyId', key.id)
+      if (authType === 'jump') {
+        setField('jumpKeyId', key.id)
+        setField('jumpKeyName', key.name)
+      } else {
+        setField('privateKeyId', key.id)
+        setField('privateKeyName', key.name)
+      }
     }
     toggleSubModal('selectKey', false)
   }

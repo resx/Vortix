@@ -20,6 +20,7 @@ interface SshConnection {
   username: string
   password?: string
   privateKey?: string
+  passphrase?: string
 }
 
 /** 本地终端参数 */

@@ -202,7 +202,7 @@ function AuthFields({
         <div>
           <label className={`${labelClass} ${err.privateKey ? 'text-red-500' : ''}`}>私钥</label>
           <div className="relative">
-            <input type="text" className={`${errorInputClass(!!err.privateKey)} pr-8`} readOnly value={store.privateKeyId ?? ''} />
+            <input type="text" className={`${errorInputClass(!!err.privateKey)} pr-8`} readOnly value={store.privateKeyName || ''} placeholder="请选择私钥" />
             <button onClick={() => store.toggleSubModal('selectKey', true)} className="absolute right-1.5 top-1 p-1 text-text-3 hover:text-text-2 hover:bg-bg-hover rounded">
               <AppIcon icon={icons.crosshair} size={14} />
             </button>
@@ -255,7 +255,7 @@ function AuthFields({
       <div className={anim}>
         <label className={`${labelClass} ${err.presetId ? 'text-red-500' : ''}`}>预设账号密码</label>
         <div className="relative">
-          <input type="text" className={`${errorInputClass(!!err.presetId)} pr-8`} readOnly value={store.presetId ?? ''} />
+          <input type="text" className={`${errorInputClass(!!err.presetId)} pr-8`} readOnly value={store.presetName || ''} placeholder="请选择预设账号密码" />
           <button onClick={() => store.toggleSubModal('selectPreset', true)} className="absolute right-1.5 top-1 p-1 text-text-3 hover:text-text-2 hover:bg-bg-hover rounded">
             <AppIcon icon={icons.crosshair} size={14} />
           </button>
@@ -272,7 +272,7 @@ function AuthFields({
         <div>
           <label className={`${labelClass} ${err.jumpKey ? 'text-red-500' : ''}`}>跳板机私钥</label>
           <div className="relative">
-            <input type="text" className={`${errorInputClass(!!err.jumpKey)} pr-8`} readOnly placeholder="请选择跳板机的私钥凭证" value={store.jumpKeyId ?? ''} />
+            <input type="text" className={`${errorInputClass(!!err.jumpKey)} pr-8`} readOnly placeholder="请选择跳板机的私钥凭证" value={store.jumpKeyName || ''} />
             <button onClick={() => store.toggleSubModal('selectKey', true)} className="absolute right-1.5 top-1 p-1 text-text-3 hover:text-text-2 hover:bg-bg-hover rounded">
               <AppIcon icon={icons.crosshair} size={14} />
             </button>

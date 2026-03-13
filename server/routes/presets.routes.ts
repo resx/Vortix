@@ -2,6 +2,7 @@
 
 import { Router } from 'express'
 import * as presetRepo from '../repositories/preset.repository.js'
+import * as connectionRepo from '../repositories/connection.repository.js'
 
 const router = Router()
 
@@ -9,6 +10,16 @@ const router = Router()
 router.get('/presets', (_req, res) => {
   const presets = presetRepo.findAll()
   res.json({ success: true, data: presets })
+})
+
+// 获取单个预设（不含密码）
+router.get('/presets/:id', (req, res) => {
+  const preset = presetRepo.findById(req.params.id)
+  if (!preset) {
+    res.status(404).json({ success: false, error: '预设不存在' })
+    return
+  }
+  res.json({ success: true, data: preset })
 })
 
 // 获取预设凭据（含解密密码）
@@ -47,13 +58,14 @@ router.put('/presets/:id', (req, res) => {
   res.json({ success: true, data: preset })
 })
 
-// 删除预设
+// 删除预设（同步清除连接中的引用）
 router.delete('/presets/:id', (req, res) => {
   const deleted = presetRepo.remove(req.params.id)
   if (!deleted) {
     res.status(404).json({ success: false, error: '预设不存在' })
     return
   }
+  connectionRepo.clearPresetReferences(req.params.id)
   res.json({ success: true })
 })
 

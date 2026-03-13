@@ -181,6 +181,10 @@ export async function getPresets(): Promise<import('./types').PresetPublic[]> {
   return request<import('./types').PresetPublic[]>('/presets')
 }
 
+export async function getPreset(id: string): Promise<import('./types').PresetPublic> {
+  return request<import('./types').PresetPublic>(`/presets/${id}`)
+}
+
 export async function getPresetCredential(id: string): Promise<import('./types').PresetCredential> {
   return request<import('./types').PresetCredential>(`/presets/${id}/credential`)
 }
@@ -209,8 +213,16 @@ export async function getSshKeys(): Promise<SshKey[]> {
   return request<SshKey[]>('/ssh-keys')
 }
 
+export async function getSshKey(id: string): Promise<SshKey> {
+  return request<SshKey>(`/ssh-keys/${id}`)
+}
+
 export async function getSshKeyPrivate(id: string): Promise<{ private_key: string }> {
   return request<{ private_key: string }>(`/ssh-keys/${id}/private`)
+}
+
+export async function getSshKeyCredential(id: string): Promise<{ private_key: string; passphrase?: string }> {
+  return request<{ private_key: string; passphrase?: string }>(`/ssh-keys/${id}/credential`)
 }
 
 export async function createSshKey(dto: CreateSshKeyDto): Promise<SshKey> {
@@ -258,7 +270,7 @@ export async function uploadSshKey(connectionId: string, keyId: string): Promise
   })
 }
 
-export async function testSshConnection(data: { host: string; port: number; username: string; password?: string; privateKey?: string }): Promise<TestResult> {
+export async function testSshConnection(data: Record<string, unknown>): Promise<TestResult> {
   const res = await fetch(`${BASE_URL}/connections/test-ssh`, {
     method: 'POST',
     headers: {

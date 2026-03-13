@@ -45,6 +45,7 @@ export default function SelectPresetModal({ onSelect, onClose, onManage }: Selec
   const handleSelect = (preset: PresetPublic) => {
     if (onSelect) { onSelect(preset.id); return }
     setField('presetId', preset.id)
+    setField('presetName', preset.name)
     toggleSubModal('selectPreset', false)
   }
 

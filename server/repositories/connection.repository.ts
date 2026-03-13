@@ -29,6 +29,10 @@ function toConnection(row: ConnectionRow): Connection {
     proxy_username: row.proxy_username ?? '',
     proxy_timeout: row.proxy_timeout ?? 5,
     jump_server_id: row.jump_server_id,
+    preset_id: row.preset_id ?? null,
+    private_key_id: row.private_key_id ?? null,
+    jump_key_id: row.jump_key_id ?? null,
+    has_passphrase: !!row.encrypted_passphrase,
     tunnels: safeJsonParse(row.tunnels, []),
     env_vars: safeJsonParse(row.env_vars, []),
     advanced: safeJsonParse(row.advanced, {}),
@@ -63,7 +67,7 @@ export function findAllRaw(): ConnectionRow[] {
   return connectionStore.findAll()
 }
 
-export function create(dto: CreateConnectionDto, encryptedPassword?: string | null, encryptedPrivateKey?: string | null, encryptedProxyPassword?: string | null): Connection {
+export function create(dto: CreateConnectionDto, encryptedPassword?: string | null, encryptedPrivateKey?: string | null, encryptedProxyPassword?: string | null, encryptedPassphrase?: string | null): Connection {
   const id = crypto.randomUUID()
   const now = new Date().toISOString()
   const row: ConnectionRow = {
@@ -89,6 +93,10 @@ export function create(dto: CreateConnectionDto, encryptedPassword?: string | nu
     proxy_password: encryptedProxyPassword ?? '',
     proxy_timeout: dto.proxy_timeout ?? 5,
     jump_server_id: dto.jump_server_id ?? null,
+    preset_id: dto.preset_id ?? null,
+    private_key_id: dto.private_key_id ?? null,
+    jump_key_id: dto.jump_key_id ?? null,
+    encrypted_passphrase: encryptedPassphrase ?? null,
     tunnels: dto.tunnels ?? '[]',
     env_vars: dto.env_vars ?? '[]',
     advanced: dto.advanced ?? '{}',
@@ -106,6 +114,7 @@ export function update(
   encryptedPassword?: string | null,
   encryptedPrivateKey?: string | null,
   encryptedProxyPassword?: string | null,
+  encryptedPassphrase?: string | null,
 ): Connection | undefined {
   const result = connectionStore.update(id, (existing) => ({
     ...existing,
@@ -129,6 +138,10 @@ export function update(
     proxy_password: encryptedProxyPassword !== undefined ? (encryptedProxyPassword ?? '') : existing.proxy_password,
     proxy_timeout: dto.proxy_timeout !== undefined ? dto.proxy_timeout : existing.proxy_timeout,
     jump_server_id: dto.jump_server_id !== undefined ? dto.jump_server_id : existing.jump_server_id,
+    preset_id: dto.preset_id !== undefined ? dto.preset_id : existing.preset_id,
+    private_key_id: dto.private_key_id !== undefined ? dto.private_key_id : existing.private_key_id,
+    jump_key_id: dto.jump_key_id !== undefined ? dto.jump_key_id : existing.jump_key_id,
+    encrypted_passphrase: encryptedPassphrase !== undefined ? encryptedPassphrase : existing.encrypted_passphrase,
     tunnels: dto.tunnels !== undefined ? dto.tunnels : existing.tunnels,
     env_vars: dto.env_vars !== undefined ? dto.env_vars : existing.env_vars,
     advanced: dto.advanced !== undefined ? dto.advanced : existing.advanced,
@@ -145,4 +158,35 @@ export function remove(id: string): boolean {
   const ok = connectionStore.remove(id)
   if (ok) markDirty()
   return ok
+}
+
+/** 清除所有连接中对指定预设的引用 */
+export function clearPresetReferences(presetId: string): void {
+  const rows = connectionStore.findAll().filter((r) => r.preset_id === presetId)
+  for (const row of rows) {
+    connectionStore.update(row.id, (existing) => ({
+      ...existing,
+      preset_id: null,
+      auth_type: 'password',
+      updated_at: new Date().toISOString(),
+    }))
+  }
+  if (rows.length > 0) markDirty()
+}
+
+/** 清除所有连接中对指定密钥的引用（私钥 + 跳板机） */
+export function clearKeyReferences(keyId: string): void {
+  const rows = connectionStore.findAll().filter((r) => r.private_key_id === keyId || r.jump_key_id === keyId)
+  for (const row of rows) {
+    const updates: Partial<ConnectionRow> = { updated_at: new Date().toISOString() }
+    if (row.private_key_id === keyId) {
+      updates.private_key_id = null
+      updates.auth_type = 'password'
+    }
+    if (row.jump_key_id === keyId) {
+      updates.jump_key_id = null
+    }
+    connectionStore.update(row.id, (existing) => ({ ...existing, ...updates }))
+  }
+  if (rows.length > 0) markDirty()
 }

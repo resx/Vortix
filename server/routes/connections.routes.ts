@@ -7,6 +7,7 @@ import { existsSync, statSync } from 'fs'
 import { Socket } from 'net'
 import * as connectionRepo from '../repositories/connection.repository.js'
 import * as sshKeyRepo from '../repositories/sshkey.repository.js'
+import * as presetRepo from '../repositories/preset.repository.js'
 import { encrypt, decrypt } from '../services/crypto.service.js'
 
 const router = Router()
@@ -60,12 +61,38 @@ router.get('/connections/:id/credential', (req, res) => {
     username: raw.username,
   }
 
-  if (raw.encrypted_password) {
+  // 预设引用解析
+  if (raw.preset_id) {
+    const presetCred = presetRepo.getCredential(raw.preset_id)
+    if (presetCred) {
+      credential.username = presetCred.username
+      credential.password = presetCred.password
+    }
+  } else if (raw.encrypted_password) {
     credential.password = decrypt(raw.encrypted_password)
   }
-  if (raw.encrypted_private_key) {
+
+  // 私钥引用解析
+  if (raw.private_key_id) {
+    const pk = sshKeyRepo.getPrivateKey(raw.private_key_id)
+    if (pk) credential.private_key = pk
+    const pp = sshKeyRepo.getPassphrase(raw.private_key_id)
+    if (pp) credential.passphrase = pp
+  } else if (raw.encrypted_private_key) {
     credential.private_key = decrypt(raw.encrypted_private_key)
+    if (raw.encrypted_passphrase) {
+      credential.passphrase = decrypt(raw.encrypted_passphrase)
+    }
   }
+
+  // 跳板机私钥引用解析
+  if (raw.jump_key_id) {
+    const jk = sshKeyRepo.getPrivateKey(raw.jump_key_id)
+    if (jk) credential.jump_private_key = jk
+    const jp = sshKeyRepo.getPassphrase(raw.jump_key_id)
+    if (jp) credential.jump_passphrase = jp
+  }
+
   if (raw.proxy_password) {
     credential.proxy_password = decrypt(raw.proxy_password)
   }
@@ -75,7 +102,7 @@ router.get('/connections/:id/credential', (req, res) => {
 
 // 创建连接
 router.post('/connections', (req, res) => {
-  const { name, host, username, password, private_key, proxy_password, ...rest } = req.body
+  const { name, host, username, password, private_key, proxy_password, passphrase, ...rest } = req.body
   const isLocal = rest.protocol === 'local'
   if (!name || (!isLocal && (!host || !username))) {
     res.status(400).json({ success: false, error: isLocal ? '名称不能为空' : '名称、主机和用户名不能为空' })
@@ -108,12 +135,14 @@ router.post('/connections', (req, res) => {
   const encryptedPassword = password ? encrypt(password) : null
   const encryptedPrivateKey = private_key ? encrypt(private_key) : null
   const encryptedProxyPassword = proxy_password ? encrypt(proxy_password) : null
+  const encryptedPassphrase = passphrase ? encrypt(passphrase) : null
 
   const connection = connectionRepo.create(
     { name, host, username, ...rest },
     encryptedPassword,
     encryptedPrivateKey,
     encryptedProxyPassword,
+    encryptedPassphrase,
   )
   res.status(201).json({ success: true, data: connection })
 })
@@ -170,14 +199,15 @@ router.patch('/connections/batch', (req, res) => {
 // 更新连接
 router.put('/connections/:id', (req, res) => {
   const { id } = req.params
-  const { password, private_key, proxy_password, ...rest } = req.body
+  const { password, private_key, proxy_password, passphrase, ...rest } = req.body
 
   // 仅在明确传入时更新凭据
   const encryptedPassword = password !== undefined ? (password ? encrypt(password) : null) : undefined
   const encryptedPrivateKey = private_key !== undefined ? (private_key ? encrypt(private_key) : null) : undefined
   const encryptedProxyPassword = proxy_password !== undefined ? (proxy_password ? encrypt(proxy_password) : null) : undefined
+  const encryptedPassphrase = passphrase !== undefined ? (passphrase ? encrypt(passphrase) : null) : undefined
 
-  const connection = connectionRepo.update(id, rest, encryptedPassword, encryptedPrivateKey, encryptedProxyPassword)
+  const connection = connectionRepo.update(id, rest, encryptedPassword, encryptedPrivateKey, encryptedProxyPassword, encryptedPassphrase)
   if (!connection) {
     res.status(404).json({ success: false, error: '连接不存在' })
     return
@@ -250,10 +280,24 @@ router.post('/connections/ping', async (req, res) => {
 
 // SSH 测试连接
 router.post('/connections/test-ssh', (req, res) => {
-  const { host, port, username, password, privateKey } = req.body
+  const { host, port, username, password, privateKey, passphrase, preset_id } = req.body
   if (!host || !username) {
     res.status(400).json({ success: false, error: '主机和用户名不能为空' })
     return
+  }
+
+  // 解析凭据：预设优先
+  let resolvedUsername = username
+  let resolvedPassword = password
+  let resolvedPrivateKey = privateKey
+  let resolvedPassphrase = passphrase
+
+  if (preset_id) {
+    const presetCred = presetRepo.getCredential(preset_id)
+    if (presetCred) {
+      resolvedUsername = presetCred.username
+      resolvedPassword = presetCred.password
+    }
   }
 
   const client = new SshClient()
@@ -265,11 +309,15 @@ router.post('/connections/test-ssh', (req, res) => {
   const connConfig: Record<string, unknown> = {
     host,
     port: port || 22,
-    username,
+    username: resolvedUsername,
     readyTimeout: 8000,
   }
-  if (privateKey) connConfig.privateKey = privateKey
-  else if (password) connConfig.password = password
+  if (resolvedPrivateKey) {
+    connConfig.privateKey = resolvedPrivateKey
+    if (resolvedPassphrase) connConfig.passphrase = resolvedPassphrase
+  } else if (resolvedPassword) {
+    connConfig.password = resolvedPassword
+  }
 
   client
     .on('ready', () => {

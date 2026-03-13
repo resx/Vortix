@@ -9,7 +9,7 @@ interface TabState {
   listViewMode: ListViewMode
 
   openAssetTab: (row: AssetRow) => void
-  openQuickConnect: (config: { host: string; port: number; username: string; password?: string; privateKey?: string }) => void
+  openQuickConnect: (config: { host: string; port: number; username: string; password?: string; privateKey?: string; passphrase?: string }) => void
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
   setListViewMode: (mode: ListViewMode) => void

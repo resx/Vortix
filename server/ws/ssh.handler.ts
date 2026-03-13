@@ -105,8 +105,8 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
           }
 
           // ── SSH 连接分支 ──
-          const { host, port, username, password, privateKey, connectionId, cols, rows } = data as {
-            host: string; port: number; username: string; password?: string; privateKey?: string; connectionId?: string; cols?: number; rows?: number
+          const { host, port, username, password, privateKey, passphrase, connectionId, cols, rows } = data as {
+            host: string; port: number; username: string; password?: string; privateKey?: string; passphrase?: string; connectionId?: string; cols?: number; rows?: number
           }
 
           // 输入验证
@@ -206,8 +206,12 @@ export function setupWebSocket(server: http.Server): WebSocketServer {
           const connectConfig: Record<string, unknown> = {
             host, port: portNum, username, readyTimeout: 10000,
           }
-          if (privateKey) connectConfig.privateKey = privateKey
-          else if (password) connectConfig.password = password
+          if (privateKey) {
+            connectConfig.privateKey = privateKey
+            if (passphrase) connectConfig.passphrase = passphrase
+          } else if (password) {
+            connectConfig.password = password
+          }
 
           sshClient.connect(connectConfig as Parameters<Client['connect']>[0])
           break

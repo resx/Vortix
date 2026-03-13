@@ -6,6 +6,7 @@ import crypto from 'node:crypto'
 import { createGzip } from 'node:zlib'
 import { Readable } from 'node:stream'
 import * as sshKeyRepo from '../repositories/sshkey.repository.js'
+import * as connectionRepo from '../repositories/connection.repository.js'
 
 const require = createRequire(import.meta.url)
 const { utils } = require('ssh2') as { utils: {
@@ -20,6 +21,16 @@ router.get('/ssh-keys', (_req: Request, res: Response) => {
   res.json({ success: true, data: keys })
 })
 
+/** GET /api/ssh-keys/:id — 获取单个密钥（元信息） */
+router.get('/ssh-keys/:id', (req: Request, res: Response) => {
+  const key = sshKeyRepo.findById(req.params.id)
+  if (!key) {
+    res.status(404).json({ success: false, error: '密钥不存在' })
+    return
+  }
+  res.json({ success: true, data: key })
+})
+
 /** GET /api/ssh-keys/:id/private — 获取解密后的私钥 */
 router.get('/ssh-keys/:id/private', (req: Request, res: Response) => {
   const privateKey = sshKeyRepo.getPrivateKey(req.params.id)
@@ -28,6 +39,17 @@ router.get('/ssh-keys/:id/private', (req: Request, res: Response) => {
     return
   }
   res.json({ success: true, data: { private_key: privateKey } })
+})
+
+/** GET /api/ssh-keys/:id/credential — 获取解密后的私钥 + passphrase */
+router.get('/ssh-keys/:id/credential', (req: Request, res: Response) => {
+  const privateKey = sshKeyRepo.getPrivateKey(req.params.id)
+  if (!privateKey) {
+    res.status(404).json({ success: false, error: '密钥不存在' })
+    return
+  }
+  const passphrase = sshKeyRepo.getPassphrase(req.params.id)
+  res.json({ success: true, data: { private_key: privateKey, passphrase: passphrase ?? undefined } })
 })
 
 /** POST /api/ssh-keys — 导入密钥 */
@@ -162,13 +184,14 @@ router.get('/ssh-keys/:id/export', (req: Request, res: Response) => {
   Readable.from(tarBuffer).pipe(gzip).pipe(res)
 })
 
-/** DELETE /api/ssh-keys/:id — 删除密钥 */
+/** DELETE /api/ssh-keys/:id — 删除密钥（同步清除连接中的引用） */
 router.delete('/ssh-keys/:id', (req: Request, res: Response) => {
   const ok = sshKeyRepo.remove(req.params.id)
   if (!ok) {
     res.status(404).json({ success: false, error: '密钥不存在' })
     return
   }
+  connectionRepo.clearKeyReferences(req.params.id)
   res.json({ success: true, data: null })
 })
 

@@ -66,10 +66,13 @@ interface SshConfigState {
   authType: AuthType
   password: string
   privateKeyId: string | null
+  privateKeyName: string
   privateKeyPassword: string
   mfaSecret: string
   presetId: string | null
+  presetName: string
   jumpKeyId: string | null
+  jumpKeyName: string
   jumpKeyPassword: string
   agentSocketPath: string
   remark: string
@@ -179,10 +182,13 @@ const initialState = {
   authType: 'password' as AuthType,
   password: '',
   privateKeyId: null as string | null,
+  privateKeyName: '',
   privateKeyPassword: '',
   mfaSecret: '',
   presetId: null as string | null,
+  presetName: '',
   jumpKeyId: null as string | null,
+  jumpKeyName: '',
   jumpKeyPassword: '',
   agentSocketPath: '',
   remark: '',
@@ -287,6 +293,9 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
         color_tag: s.colorTag,
         environment: s.environment,
         auth_type: s.authType,
+        preset_id: s.authType === 'preset' ? s.presetId : null,
+        private_key_id: s.authType === 'privateKey' ? s.privateKeyId : null,
+        jump_key_id: s.authType === 'jump' ? s.jumpKeyId : null,
         proxy_type: s.proxyType,
         proxy_host: s.proxyHost,
         proxy_port: parseInt(s.proxyPort) || 7890,
@@ -324,13 +333,28 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
     }
     set({ testing: true, testResult: null })
     try {
-      const result = await api.testSshConnection({
+      const testPayload: Record<string, unknown> = {
         host: s.host,
         port: parseInt(s.port) || 22,
         username: s.user,
-        password: s.password || undefined,
-        privateKey: undefined,
-      })
+      }
+
+      if (s.authType === 'preset' && s.presetId) {
+        testPayload.preset_id = s.presetId
+      } else if (s.authType === 'privateKey' && s.privateKeyId) {
+        // 从密钥库获取私钥用于测试
+        try {
+          const keyData = await api.getSshKeyCredential(s.privateKeyId)
+          testPayload.privateKey = keyData.private_key
+          if (keyData.passphrase) testPayload.passphrase = keyData.passphrase
+        } catch {
+          testPayload.password = s.password || undefined
+        }
+      } else {
+        testPayload.password = s.password || undefined
+      }
+
+      const result = await api.testSshConnection(testPayload)
       set({ testResult: { success: result.success, message: result.message || result.error || '' } })
     } catch (e) {
       set({ testResult: { success: false, message: (e as Error).message } })
@@ -365,6 +389,9 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
         colorTag: conn.color_tag,
         environment: conn.environment ?? '无',
         authType: (conn.auth_type ?? 'password') as AuthType,
+        presetId: conn.preset_id ?? null,
+        privateKeyId: conn.private_key_id ?? null,
+        jumpKeyId: conn.jump_key_id ?? null,
         proxyType: (conn.proxy_type ?? '关闭') as ProxyType,
         proxyHost: conn.proxy_host ?? '127.0.0.1',
         proxyPort: String(conn.proxy_port ?? 7890),
@@ -376,6 +403,18 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
         envVars: envList,
         advanced: adv,
         loading: false,
+      })
+
+      // 并发解析引用的显示名称
+      const [preset, key, jumpKey] = await Promise.all([
+        conn.preset_id ? api.getPreset(conn.preset_id).catch(() => null) : null,
+        conn.private_key_id ? api.getSshKey(conn.private_key_id).catch(() => null) : null,
+        conn.jump_key_id ? api.getSshKey(conn.jump_key_id).catch(() => null) : null,
+      ])
+      set({
+        presetName: preset?.name ?? '',
+        privateKeyName: key?.name ?? '',
+        jumpKeyName: jumpKey?.name ?? '',
       })
     } catch {
       set({ loading: false })

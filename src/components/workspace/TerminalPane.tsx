@@ -133,7 +133,7 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
           })
         } else {
           const cred = await api.getConnectionCredential(connId)
-          setConnection({ host: cred.host, port: cred.port, username: cred.username, password: cred.password, privateKey: cred.private_key })
+          setConnection({ host: cred.host, port: cred.port, username: cred.username, password: cred.password, privateKey: cred.private_key, passphrase: cred.passphrase })
         }
       } else if (assetRow) {
         setConnection({ host: assetRow.host, port: 22, username: assetRow.user })

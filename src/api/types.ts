@@ -52,6 +52,10 @@ export interface Connection {
   proxy_username: string
   proxy_timeout: number
   jump_server_id: string | null
+  preset_id: string | null
+  private_key_id: string | null
+  jump_key_id: string | null
+  has_passphrase: boolean
   tunnels: unknown[]
   env_vars: unknown[]
   advanced: Record<string, unknown>
@@ -80,6 +84,9 @@ export interface CreateConnectionDto {
   proxy_password?: string
   proxy_timeout?: number
   jump_server_id?: string | null
+  preset_id?: string | null
+  private_key_id?: string | null
+  jump_key_id?: string | null
   tunnels?: string
   env_vars?: string
   advanced?: string
@@ -106,6 +113,9 @@ export interface UpdateConnectionDto {
   proxy_password?: string | null
   proxy_timeout?: number
   jump_server_id?: string | null
+  preset_id?: string | null
+  private_key_id?: string | null
+  jump_key_id?: string | null
   tunnels?: string
   env_vars?: string
   advanced?: string
@@ -142,6 +152,9 @@ export interface ConnectionCredential {
   username: string
   password?: string
   private_key?: string
+  passphrase?: string
+  jump_private_key?: string
+  jump_passphrase?: string
   proxy_password?: string
 }
 
