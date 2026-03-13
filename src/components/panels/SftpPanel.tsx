@@ -14,7 +14,7 @@ import type { MenuState } from './sftp/SftpContextMenu'
 import RemoteFileEditor from '../editor/RemoteFileEditor'
 import SftpChmodModal from './sftp/SftpChmodModal'
 import { uploadFiles } from '../../services/transfer-engine'
-import { useToastStore } from '../../stores/useToastStore'
+import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTabStore } from '../../stores/useTabStore'
 import * as api from '../../api/client'
 import type { SftpFileEntry } from '../../types/sftp'
@@ -33,6 +33,12 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
 
   const sftp = useSftpConnection()
   const connectAttempted = useRef(false)
+
+  // 面板挂载时根据全局设置初始化路径联动开关
+  useEffect(() => {
+    const { sshSftpPathSync } = useSettingsStore.getState()
+    useSftpStore.getState().setPathSyncEnabled(sshSftpPathSync)
+  }, [])
 
   // 自动连接：面板挂载时解析当前标签页的 SSH 凭据并建立 SFTP 连接
   useEffect(() => {
@@ -101,8 +107,17 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
 
   const actions = useSftpActions({ sftp, targetTabId, openEditor })
 
-  // 路径联动
-  usePathSync(targetTabId, actions.handleNavigate)
+  // 路径联动（双向）
+  const { syncToTerminal } = usePathSync({
+    targetTabId,
+    onNavigate: actions.handleNavigate,
+  })
+
+  // 包装 handleNavigate：导航时同步终端
+  const handleNavigateWithSync = useCallback((path: string) => {
+    actions.handleNavigate(path)
+    syncToTerminal(path)
+  }, [actions, syncToTerminal])
 
   // 右键菜单状态
   const [menuState, setMenuState] = useState<MenuState>(menuInitial)
@@ -193,11 +208,13 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
         style={hidden ? { display: 'none' } : undefined}
       >
         <SftpNavBar
-          onNavigate={actions.handleNavigate}
+          onNavigate={handleNavigateWithSync}
           onRefresh={sftp.refresh}
+          onListDir={(path) => void sftp.listDir(path)}
+          onSyncTerminal={syncToTerminal}
         />
         <SftpFileList
-          onNavigate={actions.handleNavigate}
+          onNavigate={handleNavigateWithSync}
           onContextMenu={handleContextMenu}
           onBlankContextMenu={handleBlankContextMenu}
           onDoubleClick={handleDoubleClick}

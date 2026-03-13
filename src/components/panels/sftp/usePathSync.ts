@@ -1,82 +1,93 @@
 /* ── SFTP 路径联动 hook ── */
-/* 监听终端输入，检测 cd 命令并同步 SFTP 路径 */
+/* 双向联动：SSH cd → SFTP 跟随 | SFTP 导航 → SSH cd */
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { useSftpStore } from '../../../stores/useSftpStore'
 import { useWorkspaceStore } from '../../../stores/useWorkspaceStore'
-import { addInputListener, removeInputListener } from '../../../stores/terminalSessionRegistry'
+import {
+  addInputListener,
+  removeInputListener,
+  getSession,
+} from '../../../stores/terminalSessionRegistry'
+
+interface UsePathSyncParams {
+  targetTabId: string | null
+  onNavigate: (path: string) => void
+}
+
+/** 通过 SSH WebSocket 获取终端当前工作目录 */
+function queryTerminalPwd(paneId: string): Promise<string | null> {
+  const session = getSession(paneId)
+  if (!session?.ws || session.ws.readyState !== WebSocket.OPEN) {
+    return Promise.resolve(null)
+  }
+
+  const requestId = `pwd-${Date.now()}`
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      cleanup()
+      resolve(null)
+    }, 3000)
+
+    const handler = (ev: MessageEvent) => {
+      try {
+        const msg = JSON.parse(ev.data as string)
+        if (msg.type === 'pwd-result' && msg.data?.requestId === requestId) {
+          cleanup()
+          resolve(msg.data.path || null)
+        }
+      } catch { /* ignore */ }
+    }
+
+    const cleanup = () => {
+      clearTimeout(timeout)
+      session.ws?.removeEventListener('message', handler)
+    }
+
+    session.ws!.addEventListener('message', handler)
+    session.ws!.send(JSON.stringify({ type: 'pwd', data: { requestId } }))
+  })
+}
 
 /**
- * 当 pathSyncEnabled 为 true 时，监听关联终端的输入，
- * 检测 cd 命令并自动导航 SFTP 到对应路径。
+ * 双向路径联动：
+ * 1. SSH → SFTP：检测终端 Enter 键，通过 SSH pwd 获取真实路径后同步
+ * 2. SFTP → SSH：SFTP 导航时向终端发送 cd 命令
  */
-export function usePathSync(
-  targetTabId: string | null,
-  onNavigate: (path: string) => void,
-) {
+export function usePathSync({ targetTabId, onNavigate }: UsePathSyncParams) {
   const pathSyncEnabled = useSftpStore(s => s.pathSyncEnabled)
-  const bufferRef = useRef('')
+  const connected = useSftpStore(s => s.connected)
+  const pendingPwdRef = useRef(false)
+  const suppressRef = useRef(false)
 
+  // SSH → SFTP：监听终端输入，检测 Enter 后通过 SSH pwd 获取真实路径
   useEffect(() => {
-    if (!pathSyncEnabled || !targetTabId) return
+    if (!pathSyncEnabled || !targetTabId || !connected) return
 
     const ws = useWorkspaceStore.getState().workspaces[targetTabId]
     const paneId = ws?.activePaneId
     if (!paneId) return
 
     const listener = (data: string) => {
-      // 逐字符累积，遇到回车解析命令
       for (const ch of data) {
-        if (ch === '\r' || ch === '\n') {
-          const line = bufferRef.current.trim()
-          bufferRef.current = ''
-          if (!line) continue
+        if ((ch === '\r' || ch === '\n') && !pendingPwdRef.current && !suppressRef.current) {
+          pendingPwdRef.current = true
 
-          // 匹配 cd 命令（支持 cd /path、cd ~/path、cd ..、cd -）
-          const match = line.match(/^cd\s+(.+)$/)
-          if (!match) continue
+          setTimeout(async () => {
+            try {
+              const remoteCwd = await queryTerminalPwd(paneId)
+              if (!remoteCwd || !remoteCwd.startsWith('/')) return
 
-          const target = match[1].trim().replace(/^["']|["']$/g, '')
-          if (!target) continue
-
-          const { currentPath } = useSftpStore.getState()
-
-          let resolved: string
-          if (target === '-') {
-            // cd - 不好追踪，跳过
-            continue
-          } else if (target === '~' || target.startsWith('~/')) {
-            const { homePath } = useSftpStore.getState()
-            resolved = target === '~' ? homePath : `${homePath}/${target.slice(2)}`
-          } else if (target.startsWith('/')) {
-            resolved = target
-          } else {
-            // 相对路径
-            resolved = currentPath === '/' ? `/${target}` : `${currentPath}/${target}`
-          }
-
-          // 简单处理 .. 和 .
-          const parts = resolved.split('/').filter(Boolean)
-          const stack: string[] = []
-          for (const p of parts) {
-            if (p === '..') stack.pop()
-            else if (p !== '.') stack.push(p)
-          }
-          resolved = '/' + stack.join('/')
-
-          // 延迟导航，等终端命令执行完
-          setTimeout(() => onNavigate(resolved), 300)
-        } else if (ch === '\x7f' || ch === '\b') {
-          // 退格
-          bufferRef.current = bufferRef.current.slice(0, -1)
-        } else if (ch === '\x15') {
-          // Ctrl+U 清行
-          bufferRef.current = ''
-        } else if (ch === '\x17') {
-          // Ctrl+W 删词
-          bufferRef.current = bufferRef.current.replace(/\S+\s*$/, '')
-        } else if (ch >= ' ') {
-          bufferRef.current += ch
+              const { currentPath } = useSftpStore.getState()
+              if (remoteCwd !== currentPath) {
+                onNavigate(remoteCwd)
+              }
+            } catch {
+              // 静默忽略
+            } finally {
+              pendingPwdRef.current = false
+            }
+          }, 500)
         }
       }
     }
@@ -84,7 +95,28 @@ export function usePathSync(
     addInputListener(paneId, listener)
     return () => {
       removeInputListener(paneId, listener)
-      bufferRef.current = ''
+      pendingPwdRef.current = false
     }
-  }, [pathSyncEnabled, targetTabId, onNavigate])
+  }, [pathSyncEnabled, targetTabId, connected, onNavigate])
+
+  // SFTP → SSH：SFTP 导航时向终端发送 cd 命令
+  const syncToTerminal = useCallback((path: string) => {
+    if (!pathSyncEnabled || !targetTabId) return
+
+    const ws = useWorkspaceStore.getState().workspaces[targetTabId]
+    const paneId = ws?.activePaneId
+    if (!paneId) return
+
+    const session = getSession(paneId)
+    if (!session?.ws || session.ws.readyState !== WebSocket.OPEN) return
+
+    suppressRef.current = true
+    // 先发 Ctrl+U 清空终端当前行的未完成输入，避免 cd 命令拼接到已有内容后面
+    const escapedPath = path.replace(/'/g, "'\\''")
+    session.ws.send(JSON.stringify({ type: 'input', data: `\x15cd '${escapedPath}'\r` }))
+
+    setTimeout(() => { suppressRef.current = false }, 800)
+  }, [pathSyncEnabled, targetTabId])
+
+  return { syncToTerminal }
 }

@@ -96,7 +96,7 @@ export default function BasicSettings() {
               { value: 'experimental', label: '实验性通道' },
             ]}
             width="w-[140px]"
-            desc="修改后需重启生效，通道之间资产不共享"
+            desc="影响检查更新时获取的版本"
           />
           <SFontSelect k="editorFontFamily" label="编辑器字体" />
           <SNumberDropdown

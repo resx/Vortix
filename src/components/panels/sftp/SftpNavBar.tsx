@@ -9,6 +9,10 @@ import SftpHistoryPopover from './SftpHistoryPopover'
 interface Props {
   onNavigate: (path: string) => void
   onRefresh: () => void
+  /** 仅刷新文件列表，不修改历史（用于后退/前进） */
+  onListDir: (path: string) => void
+  /** 同步路径到 SSH 终端 */
+  onSyncTerminal?: (path: string) => void
 }
 
 /* ── 更多下拉菜单 ── */
@@ -65,7 +69,7 @@ function MoreDropdown({ onClose }: { onClose: () => void }) {
   )
 }
 
-export default function SftpNavBar({ onNavigate, onRefresh }: Props) {
+export default function SftpNavBar({ onNavigate, onRefresh, onListDir, onSyncTerminal }: Props) {
   const currentPath = useSftpStore(s => s.currentPath)
   const historyIndex = useSftpStore(s => s.historyIndex)
   const pathHistory = useSftpStore(s => s.pathHistory)
@@ -151,7 +155,12 @@ export default function SftpNavBar({ onNavigate, onRefresh }: Props) {
       <button
         className={btnCls}
         disabled={historyIndex <= 0}
-        onClick={() => { goBack(); onNavigate(pathHistory[historyIndex - 1]) }}
+        onClick={() => {
+          const target = pathHistory[historyIndex - 1]
+          goBack()
+          onListDir(target)
+          onSyncTerminal?.(target)
+        }}
         title="后退"
       >
         <AppIcon icon={icons.chevronLeft} size={14} />
@@ -160,7 +169,12 @@ export default function SftpNavBar({ onNavigate, onRefresh }: Props) {
       <button
         className={btnCls}
         disabled={historyIndex >= pathHistory.length - 1}
-        onClick={() => { goForward(); onNavigate(pathHistory[historyIndex + 1]) }}
+        onClick={() => {
+          const target = pathHistory[historyIndex + 1]
+          goForward()
+          onListDir(target)
+          onSyncTerminal?.(target)
+        }}
         title="前进"
       >
         <AppIcon icon={icons.chevronRight} size={14} />
@@ -205,7 +219,10 @@ export default function SftpNavBar({ onNavigate, onRefresh }: Props) {
 
         {/* 路径栏下拉历史 */}
         {showPathDrop && !searchActive && (
-          <div className="absolute top-full left-0 right-0 mt-1 z-50 max-h-[220px] overflow-y-auto rounded-xl glass-context py-1 shadow-lg">
+          <div
+            className="absolute top-full left-0 right-0 mt-1 z-50 max-h-[220px] overflow-y-auto rounded-xl glass-context py-1 shadow-lg"
+            onMouseDown={e => e.preventDefault()}
+          >
             {recentPaths.map(p => (
               <div
                 key={p}

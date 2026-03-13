@@ -28,6 +28,13 @@ export function setupWebSocket(_server: http.Server): WebSocketServer {
     let cmdBuffer = '' // 命令累积缓冲区
     let cachedHistoryEnabled: boolean | null = null // 缓存 sshHistoryEnabled 设置
 
+    // pwd 查询状态
+    let pwdRequestId: string | null = null
+    let pwdBuffer = ''
+    let pwdSuppressUntil = 0  // pwd 完成后短暂抑制输出，避免 shell prompt 泄漏
+    const PWD_MARKER_START = '__VORTIX_PWD_START__'
+    const PWD_MARKER_END = '__VORTIX_PWD_END__'
+
     // 监控相关
     let monitorTimer: ReturnType<typeof setInterval> | null = null
     let prevCpuSample: number[] | null = null
@@ -155,9 +162,36 @@ export function setupWebSocket(_server: http.Server): WebSocketServer {
 
                 sshStream = stream
 
-                // SSH -> 前端（经过高亮拦截器）
+                // SSH -> 前端（经过高亮拦截器，拦截 pwd 标记）
                 stream.on('data', (chunk: Buffer) => {
-                  const text = chunk.toString('utf-8')
+                  let text = chunk.toString('utf-8')
+
+                  // 拦截 pwd 查询结果
+                  if (pwdRequestId) {
+                    pwdBuffer += text
+                    const startIdx = pwdBuffer.indexOf(PWD_MARKER_START)
+                    const endIdx = pwdBuffer.indexOf(PWD_MARKER_END)
+                    if (startIdx >= 0 && endIdx > startIdx) {
+                      const path = pwdBuffer.substring(startIdx + PWD_MARKER_START.length, endIdx).trim()
+                      if (ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'pwd-result', data: { requestId: pwdRequestId, path } }))
+                      }
+                      pwdRequestId = null
+                      pwdBuffer = ''
+                      // 设置 300ms 抑制窗口，丢弃 pwd 命令产生的后续 shell prompt
+                      pwdSuppressUntil = Date.now() + 300
+                      return
+                    }
+                    // 标记还没完整，继续缓冲，不转发
+                    return
+                  }
+
+                  // pwd 完成后短暂抑制，丢弃延迟到达的 shell prompt
+                  if (pwdSuppressUntil > 0 && Date.now() < pwdSuppressUntil) {
+                    return
+                  }
+                  pwdSuppressUntil = 0
+
                   if (highlightInterceptor) {
                     highlightInterceptor.processChunk(text)
                   } else {
@@ -263,6 +297,24 @@ export function setupWebSocket(_server: http.Server): WebSocketServer {
           if (!Number.isInteger(c) || !Number.isInteger(r) || c < 1 || c > 500 || r < 1 || r > 200) break
           if (ptyProcess) ptyProcess.resize(c, r)
           else if (sshStream) sshStream.setWindow(r, c, 0, 0)
+          break
+        }
+
+        // 获取 SSH 终端当前工作目录（用于路径联动）
+        // 通过 sshStream 发送 marker 包裹的 pwd 命令，确保获取交互式 shell 的真实 cwd
+        case 'pwd': {
+          const reqId = (msg.data as { requestId?: string })?.requestId
+          if (sshStream) {
+            pwdRequestId = reqId || null
+            pwdBuffer = ''
+            // 使用 printf + hex 转义避免命令回显中出现标记字符串
+            // 回显只包含 \x5f 字面文本，printf 输出才展开为真正的下划线标记
+            sshStream.write(` printf '\\x5f\\x5fVORTIX_PWD_START\\x5f\\x5f%s\\x5f\\x5fVORTIX_PWD_END\\x5f\\x5f\\n' "$(pwd)"\n`)
+          } else {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'pwd-result', data: { requestId: reqId, path: null, error: '未连接' } }))
+            }
+          }
           break
         }
 

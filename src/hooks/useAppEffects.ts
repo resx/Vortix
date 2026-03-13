@@ -133,6 +133,8 @@ export function useGlobalShortcuts() {
         useUIStore.getState().toggleQuickSearch()
       }
       if (e.ctrlKey && !e.shiftKey && e.key === 'w') {
+        // 终端聚焦时不拦截 Ctrl+W（bash 删除前一个单词）
+        if ((e.target as HTMLElement).closest?.('.terminal-container')) return
         e.preventDefault()
         const { activeTabId, closeTab } = useTabStore.getState()
         if (activeTabId !== 'list') closeTab(activeTabId)

@@ -330,7 +330,21 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       const searchAddon = new SearchAddon()
       term.loadAddon(fitAddon)
       term.loadAddon(searchAddon)
-      term.loadAddon(new WebLinksAddon())
+      term.loadAddon(new WebLinksAddon((e, uri) => {
+        // 仅 Ctrl+Click（macOS 为 Cmd+Click）时打开链接
+        if (e.ctrlKey || e.metaKey) {
+          window.open(uri, '_blank', 'noopener')
+        }
+      }, {
+        hover: (_e, uri, _loc) => {
+          const isMac = navigator.platform.toUpperCase().includes('MAC')
+          const modifier = isMac ? 'Cmd' : 'Ctrl'
+          term.element?.setAttribute('title', `${modifier}+Click 打开链接: ${uri}`)
+        },
+        leave: () => {
+          term.element?.removeAttribute('title')
+        },
+      }))
 
       const containerEl = document.createElement('div')
       containerEl.style.width = '100%'
@@ -497,7 +511,8 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     const disposable = s.term.onSelectionChange(() => {
       const { termSelectAutoCopy } = useSettingsStore.getState()
       if (!termSelectAutoCopy) return
-      const sel = s.term.getSelection()
+      const cur = getSession(paneId)
+      const sel = cur?.term.getSelection()
       if (sel) navigator.clipboard.writeText(sel).catch(() => {})
     })
     return () => disposable.dispose()
@@ -507,74 +522,132 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
   useEffect(() => {
     const s = getSession(paneId)
     if (!s) return
+
+    // xterm 层：仅阻止 xterm 处理这些快捷键（return false），实际操作在 wrapper handler 中
     s.term.attachCustomKeyEventHandler((e) => {
       // 调试模式下放行 F12（不让 xterm 吞掉）
       if (e.key === 'F12' && useSettingsStore.getState().debugMode) return false
-      // Ctrl+Shift+C — 复制选中文本
-      if (e.ctrlKey && e.shiftKey && e.key === 'C' && e.type === 'keydown') {
-        const sel = s.term.getSelection()
-        if (sel) navigator.clipboard.writeText(sel).catch(() => {})
+      // 阻止 xterm 处理 Ctrl+Shift+C/V
+      if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c' || e.key === 'V' || e.key === 'v') && e.type === 'keydown') {
         return false
       }
-      // Ctrl+Shift+V — 粘贴
-      if (e.ctrlKey && e.shiftKey && e.key === 'V' && e.type === 'keydown') {
-        navigator.clipboard.readText().then((text) => {
-          const cur = getSession(paneId)
-          if (text && cur?.ws?.readyState === WebSocket.OPEN) {
-            cur.ws.send(JSON.stringify({ type: 'input', data: text }))
-          }
-        }).catch(() => {})
-        return false
-      }
-      // Ctrl+V — 粘贴（设置开关）
+      // 阻止 xterm 处理 Ctrl+V（设置开关）
       const { termCtrlVPaste } = useSettingsStore.getState()
       if (termCtrlVPaste && e.ctrlKey && !e.shiftKey && e.key === 'v' && e.type === 'keydown') {
-        navigator.clipboard.readText().then((text) => {
-          const cur = getSession(paneId)
-          if (text && cur?.ws?.readyState === WebSocket.OPEN) {
-            cur.ws.send(JSON.stringify({ type: 'input', data: text }))
-          }
-        }).catch(() => {})
         return false
       }
       return true
     })
   }, [paneId])
 
-  // 终端内快捷键阻止冒泡（防止 Ctrl+Shift+C/V 被全局 DevTools 拦截吞掉）
+  // 终端内快捷键：复制/粘贴 + 阻止冒泡（防止全局 DevTools 拦截）
   useEffect(() => {
     const wrapper = wrapperRef.current
     if (!wrapper) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c' || e.key === 'V' || e.key === 'v')) {
-        e.preventDefault()
-        e.stopPropagation()
+
+    /** 可靠的剪贴板写入：优先 navigator.clipboard，降级 execCommand */
+    const writeClipboard = (text: string) => {
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).catch(() => execCommandCopy(text))
+      } else {
+        execCommandCopy(text)
       }
     }
-    wrapper.addEventListener('keydown', handler)
-    return () => wrapper.removeEventListener('keydown', handler)
+    const execCommandCopy = (text: string) => {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.cssText = 'position:fixed;opacity:0;left:-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      document.execCommand('copy')
+      document.body.removeChild(ta)
+    }
+
+    /** 剪贴板读取并发送到终端 */
+    const pasteToTerminal = () => {
+      navigator.clipboard.readText().then((text) => {
+        const cur = getSession(paneId)
+        if (text && cur?.ws?.readyState === WebSocket.OPEN) {
+          cur.ws.send(JSON.stringify({ type: 'input', data: text }))
+        }
+      }).catch(() => {})
+    }
+
+    const handler = (e: KeyboardEvent) => {
+      // Ctrl+Shift+C — 复制
+      if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+        e.preventDefault()
+        e.stopPropagation()
+        const cur = getSession(paneId)
+        const sel = cur?.term.getSelection()
+        if (sel) writeClipboard(sel)
+        return
+      }
+      // Ctrl+Shift+V — 粘贴
+      if (e.ctrlKey && e.shiftKey && (e.key === 'V' || e.key === 'v')) {
+        e.preventDefault()
+        e.stopPropagation()
+        pasteToTerminal()
+        return
+      }
+      // Ctrl+V — 粘贴（设置开关）
+      if (e.ctrlKey && !e.shiftKey && (e.key === 'v' || e.key === 'V') && !e.shiftKey) {
+        const { termCtrlVPaste } = useSettingsStore.getState()
+        if (termCtrlVPaste) {
+          e.preventDefault()
+          e.stopPropagation()
+          pasteToTerminal()
+        }
+      }
+    }
+    wrapper.addEventListener('keydown', handler, true)  // capture phase 确保最先执行
+    return () => wrapper.removeEventListener('keydown', handler, true)
   }, [])
 
-  // 鼠标中键操作
+  // 鼠标中键操作（none/copy/paste/menu/copy-paste）
   useEffect(() => {
     const wrapper = wrapperRef.current
     if (!wrapper) return
+
+    const copySelection = () => {
+      const s = getSession(paneId)
+      const sel = s?.term.getSelection()
+      if (sel) navigator.clipboard.writeText(sel).catch(() => {})
+    }
+    const pasteClipboard = () => {
+      navigator.clipboard.readText().then((text) => {
+        const s = getSession(paneId)
+        if (text && s?.ws?.readyState === WebSocket.OPEN) {
+          s.ws.send(JSON.stringify({ type: 'input', data: text }))
+        }
+      }).catch(() => {})
+    }
+
     const handler = (e: MouseEvent) => {
       if (e.button !== 1) return // 仅中键
       const action = useSettingsStore.getState().termMiddleClickAction
-      if (action === 'paste') {
-        e.preventDefault()
-        navigator.clipboard.readText().then((text) => {
-          const s = getSession(paneId)
-          if (text && s?.ws?.readyState === WebSocket.OPEN) {
-            s.ws.send(JSON.stringify({ type: 'input', data: text }))
-          }
-        }).catch(() => {})
+      if (action === 'none') return
+      e.preventDefault()
+      if (action === 'copy') {
+        copySelection()
+      } else if (action === 'paste') {
+        pasteClipboard()
+      } else if (action === 'menu') {
+        const hasSelection = !!getSession(paneId)?.term.getSelection()
+        onContextMenu?.(e.clientX, e.clientY, hasSelection)
+      } else if (action === 'copy-paste') {
+        const s = getSession(paneId)
+        const sel = s?.term.getSelection()
+        if (sel) {
+          navigator.clipboard.writeText(sel).catch(() => {})
+        } else {
+          pasteClipboard()
+        }
       }
     }
     wrapper.addEventListener('mousedown', handler)
     return () => wrapper.removeEventListener('mousedown', handler)
-  }, [paneId])
+  }, [paneId, onContextMenu])
 
   // 终端关键词高亮
   useKeywordHighlight({ termRef, profileId })
@@ -634,17 +707,32 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         onContextMenu={(e) => {
           e.preventDefault()
           const action = useSettingsStore.getState().termRightClickAction
-          if (action === 'paste') {
-            // 右键粘贴模式
+          if (action === 'none') return
+          if (action === 'copy') {
+            const sel = getSession(paneId)?.term.getSelection()
+            if (sel) navigator.clipboard.writeText(sel).catch(() => {})
+          } else if (action === 'paste') {
             navigator.clipboard.readText().then((text) => {
               const s = getSession(paneId)
               if (text && s?.ws?.readyState === WebSocket.OPEN) {
                 s.ws.send(JSON.stringify({ type: 'input', data: text }))
               }
             }).catch(() => {})
+          } else if (action === 'copy-paste') {
+            const sel = getSession(paneId)?.term.getSelection()
+            if (sel) {
+              navigator.clipboard.writeText(sel).catch(() => {})
+            } else {
+              navigator.clipboard.readText().then((text) => {
+                const s = getSession(paneId)
+                if (text && s?.ws?.readyState === WebSocket.OPEN) {
+                  s.ws.send(JSON.stringify({ type: 'input', data: text }))
+                }
+              }).catch(() => {})
+            }
           } else {
-            // 右键菜单模式（默认）
-            const hasSelection = !!termRef.current?.getSelection()
+            // menu 模式（默认）
+            const hasSelection = !!getSession(paneId)?.term.getSelection()
             onContextMenu?.(e.clientX, e.clientY, hasSelection)
           }
         }}

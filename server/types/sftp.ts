@@ -165,7 +165,7 @@ export interface SftpTouchData {
 }
 
 /** exec 命令白名单前缀 */
-export const EXEC_ALLOWED_COMMANDS = ['cp', 'mv', 'tar', 'zip', 'unzip', 'gzip', 'gunzip', 'chmod', 'chown', 'ln', 'cat', 'du', 'df'] as const
+export const EXEC_ALLOWED_COMMANDS = ['cp', 'mv', 'tar', 'zip', 'unzip', 'gzip', 'gunzip', 'chmod', 'chown', 'ln', 'cat', 'du', 'df', 'pwd'] as const
 
 export interface SftpExecData {
   /** 完整命令字符串 */
