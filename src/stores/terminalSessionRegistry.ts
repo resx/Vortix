@@ -26,6 +26,23 @@ const sessions = new Map<string, TerminalSession>()
 /** 正在跨标签页转移的 pane，跳过销毁 */
 const transferring = new Set<string>()
 
+/** 终端输入监听器 */
+type InputListener = (data: string) => void
+const inputListeners = new Map<string, Set<InputListener>>()
+
+export function addInputListener(paneId: string, listener: InputListener): void {
+  if (!inputListeners.has(paneId)) inputListeners.set(paneId, new Set())
+  inputListeners.get(paneId)!.add(listener)
+}
+
+export function removeInputListener(paneId: string, listener: InputListener): void {
+  inputListeners.get(paneId)?.delete(listener)
+}
+
+export function notifyInputListeners(paneId: string, data: string): void {
+  inputListeners.get(paneId)?.forEach(fn => fn(data))
+}
+
 export function getSession(paneId: string): TerminalSession | undefined {
   return sessions.get(paneId)
 }

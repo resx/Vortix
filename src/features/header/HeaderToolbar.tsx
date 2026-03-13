@@ -5,6 +5,7 @@ import { HeaderTopButton, TransferIcon, BroadcastIcon, CloudClockIcon } from './
 import TransferPopover from './popovers/TransferPopover'
 import BroadcastPopover from './popovers/BroadcastPopover'
 import HistoryPopover from './popovers/HistoryPopover'
+import { useTransferStore } from '../../stores/useTransferStore'
 
 export default function HeaderToolbar({ activeTabId, connectionId, assetLabel }: {
   activeTabId: string
@@ -17,6 +18,7 @@ export default function HeaderToolbar({ activeTabId, connectionId, assetLabel }:
 function HeaderToolbarInner({ connectionId, assetLabel }: { connectionId?: string; assetLabel: string }) {
   const [activePopover, setActivePopover] = useState<'transfer' | 'broadcast' | 'history' | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+  const activeTransferCount = useTransferStore(s => s.tasks.filter(t => t.status === 'active' || t.status === 'queued').length)
 
   // 点击外部关闭弹出层
   useEffect(() => {
@@ -31,6 +33,11 @@ function HeaderToolbarInner({ connectionId, assetLabel }: { connectionId?: strin
     <div className="flex items-center gap-3.5 mr-2" ref={ref}>
       <div className="relative">
         <HeaderTopButton icon={TransferIcon} tooltip="文件传输" isActive={activePopover === 'transfer'} onClick={() => setActivePopover(prev => prev === 'transfer' ? null : 'transfer')} />
+        {activeTransferCount > 0 && (
+          <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] flex items-center justify-center rounded-full bg-primary text-[9px] text-white font-medium px-0.5 pointer-events-none">
+            {activeTransferCount}
+          </span>
+        )}
         {activePopover === 'transfer' && <TransferPopover />}
       </div>
       <div className="relative">

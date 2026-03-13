@@ -1,6 +1,7 @@
 /* ── SFTP 独立右键菜单 ── */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon, icons } from '../../icons/AppIcon'
 import type { SftpFileEntry } from '../../../types/sftp'
 
@@ -21,6 +22,13 @@ interface SftpActions {
   handleBookmark: () => void
   handleChmod: (path: string, mode: string, recursive: boolean) => void
   handleNavigate: (path: string) => void
+  handleLocalOpen: (entry: SftpFileEntry) => void
+  handleDownloadTo: (entry: SftpFileEntry) => void
+  handleUploadFolder: () => void
+  handleCompress: () => void
+  handleDecompress: (entry: SftpFileEntry) => void
+  handleScpDownload: () => void
+  handleScpUpload: () => void
 }
 
 interface MenuState {
@@ -36,6 +44,8 @@ interface Props {
   state: MenuState
   actions: SftpActions
   onClose: () => void
+  onRefresh?: () => void
+  onOpenChmod?: (path: string, permissions: string, isDir: boolean) => void
 }
 
 /* ── 菜单项 ── */
@@ -52,6 +62,30 @@ function Item({ icon, label, onClick, disabled }: {
       <span>{label}</span>
     </div>
   )
+}
+
+/* ── 顶部横排操作按钮（与全局菜单 ActionButton 风格一致） ── */
+function ActionBtn({ icon, tooltip, onClick }: { icon: string; tooltip: string; onClick: () => void }) {
+  return (
+    <div className="group/action relative flex items-center">
+      <button
+        className="px-[6px] py-[4px] rounded-md transition-colors hover:bg-bg-active hover:text-primary text-text-2"
+        onClick={onClick}
+      >
+        <AppIcon icon={icon} size={12} />
+      </button>
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/action:flex items-center justify-center z-[150]">
+        <div className="bg-tooltip-bg text-tooltip-text text-[11px] px-2 py-1.5 rounded-md shadow-lg whitespace-nowrap font-medium">
+          {tooltip}
+        </div>
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-t-[4px] border-t-tooltip-bg border-x-[4px] border-x-transparent" />
+      </div>
+    </div>
+  )
+}
+
+function ActionDivider() {
+  return <div className="w-px h-3 bg-border mx-[1px]" />
 }
 
 function Divider() {
@@ -117,7 +151,7 @@ function SubMenu({ icon, label, children }: {
 }
 
 /* ── 主菜单 ── */
-export default function SftpContextMenu({ state, actions, onClose }: Props) {
+export default function SftpContextMenu({ state, actions, onClose, onRefresh, onOpenChmod }: Props) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ top: 0, left: 0 })
 
@@ -152,13 +186,13 @@ export default function SftpContextMenu({ state, actions, onClose }: Props) {
     return () => cancelAnimationFrame(frame)
   }, [state.visible, state.x, state.y])
 
-  if (!state.visible || !state.entry) return null
+  if (!state.visible) return null
 
   const entry = state.entry
-  const isDir = entry.type === 'dir'
+  const isDir = entry?.type === 'dir'
   const close = onClose
 
-  return (
+  const menu = (
     <div
       ref={menuRef}
       className="fixed glass-context rounded-xl py-1 min-w-[220px] w-max z-[100]"
@@ -166,53 +200,100 @@ export default function SftpContextMenu({ state, actions, onClose }: Props) {
       onClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* ── 顶部：复制/剪切/粘贴/定位 ── */}
-      <Item icon={icons.copy} label="复制" onClick={() => { close(); actions.handleCopy() }} />
-      <Item icon={icons.scissors} label="剪切" onClick={() => { close(); actions.handleCut() }} />
-      <Item icon={icons.clipboardPaste} label="粘贴" onClick={() => { close(); actions.handlePaste() }} />
-      <Item icon={icons.crosshair} label="在终端中定位" onClick={() => { close(); actions.handleLocate() }} />
+      {entry ? (
+        <>
+          {/* ── 顶部：标题 + 操作按钮组 ── */}
+          <div className="flex items-center justify-between px-3 py-[4px] mb-1 border-b border-border/50">
+            <span className="text-[11px] text-text-1 font-medium tracking-wide">操作</span>
+            <div className="flex items-center bg-bg-base rounded border border-border p-[2px]">
+              <ActionBtn icon={icons.copy} tooltip="复制" onClick={() => { close(); actions.handleCopy() }} />
+              <ActionDivider />
+              <ActionBtn icon={icons.scissors} tooltip="剪切" onClick={() => { close(); actions.handleCut() }} />
+              <ActionDivider />
+              <ActionBtn icon={icons.clipboardPaste} tooltip="粘贴" onClick={() => { close(); actions.handlePaste() }} />
+              <ActionDivider />
+              <ActionBtn icon={icons.crosshair} tooltip="在终端中定位" onClick={() => { close(); actions.handleLocate() }} />
+            </div>
+          </div>
 
-      <Divider />
+          <Divider />
 
-      {/* ── 打开/编辑 ── */}
-      {!isDir && <Item icon={icons.fileEdit} label="在线编辑" onClick={() => { close(); actions.handleEdit(entry) }} />}
-      {isDir && <Item icon={icons.folderOpen} label="打开目录" onClick={() => { close(); actions.handleNavigate(entry.path) }} />}
+          {/* ── 打开/编辑 ── */}
+          {!isDir && <Item icon={icons.externalLink} label="本地打开" onClick={() => { close(); actions.handleLocalOpen(entry) }} />}
+          {!isDir && <Item icon={icons.fileEdit} label="在线编辑" onClick={() => { close(); actions.handleEdit(entry) }} />}
+          {isDir && <Item icon={icons.folderOpen} label="打开目录" onClick={() => { close(); actions.handleNavigate(entry.path) }} />}
 
-      <Divider />
+          <Divider />
 
-      {/* ── 刷新 + 收藏 ── */}
-      <Item icon={icons.refresh} label="刷新" onClick={() => { close(); actions.handleNavigate(entry.path.replace(/\/[^/]+$/, '') || '/') }} />
-      <Item icon={icons.pin} label="收藏当前路径" onClick={() => { close(); actions.handleBookmark() }} />
+          {/* ── 刷新 + 收藏 ── */}
+          <Item icon={icons.refresh} label="刷新" onClick={() => { close(); actions.handleNavigate(entry.path.replace(/\/[^/]+$/, '') || '/') }} />
+          <Item icon={icons.pin} label="收藏当前路径" onClick={() => { close(); actions.handleBookmark() }} />
 
-      <Divider />
+          <Divider />
 
-      {/* ── 传输 ── */}
-      <Item icon={icons.download} label="下载" onClick={() => { close(); actions.handleDownload() }} />
-      <Item icon={icons.upload} label="上传文件" onClick={() => { close(); actions.handleUpload() }} />
+          {/* ── 传输 ── */}
+          {!isDir && <Item icon={icons.download} label="下载至" onClick={() => { close(); actions.handleDownloadTo(entry) }} />}
+          <Item icon={icons.upload} label="上传文件" onClick={() => { close(); actions.handleUpload() }} />
+          <Item icon={icons.folderOpen} label="上传文件夹" onClick={() => { close(); actions.handleUploadFolder() }} />
 
-      <Divider />
+          {/* ── SCP 子菜单 ── */}
+          <SubMenu icon={icons.arrowUpRight} label="SCP 传输">
+            <Item icon={icons.download} label="SCP 下载" onClick={() => { close(); actions.handleScpDownload() }} />
+            <Item icon={icons.upload} label="SCP 上传" onClick={() => { close(); actions.handleScpUpload() }} />
+          </SubMenu>
 
-      {/* ── 编辑操作 ── */}
-      <Item icon={icons.pencil} label="重命名" onClick={() => { close(); actions.handleRename(entry) }} />
-      <Item icon={icons.trash} label="删除" onClick={() => { close(); actions.handleDelete(entry.path, isDir) }} />
+          <Divider />
 
-      <Divider />
+          {/* ── 压缩/解压 ── */}
+          <Item icon={icons.folderArchive} label="压缩" onClick={() => { close(); actions.handleCompress() }} />
+          {!isDir && <Item icon={icons.fileDown} label="解压缩" onClick={() => { close(); actions.handleDecompress(entry) }} />}
 
-      {/* ── 更多 ▸ ── */}
-      <SubMenu icon={icons.moreVertical} label="更多">
-        <Item icon={icons.copy} label="复制路径" onClick={() => { close(); actions.handleCopyPath(entry.path) }} />
-        <Divider />
-        <Item icon={icons.folderPlus} label="新建目录" onClick={() => { close(); actions.handleMkdir() }} />
-        <Item icon={icons.filePlus} label="新建文件" onClick={() => { close(); actions.handleNewFile() }} />
-        <Divider />
-        <Item icon={icons.key} label="修改权限" onClick={() => {
-          close()
-          const mode = prompt('输入权限（如 755）', entry.permissions ? '' : '644')
-          if (mode?.trim()) actions.handleChmod(entry.path, mode.trim(), isDir)
-        }} />
-      </SubMenu>
+          <Divider />
+
+          {/* ── 编辑操作 ── */}
+          <Item icon={icons.pencil} label="重命名" onClick={() => { close(); actions.handleRename(entry) }} />
+          <Item icon={icons.trash} label="删除" onClick={() => { close(); actions.handleDelete(entry.path, isDir) }} />
+
+          <Divider />
+
+          {/* ── 更多 ▸ ── */}
+          <SubMenu icon={icons.moreVertical} label="更多">
+            <Item icon={icons.copy} label="复制路径" onClick={() => { close(); actions.handleCopyPath(entry.path) }} />
+            <Divider />
+            <Item icon={icons.folderPlus} label="新建目录" onClick={() => { close(); actions.handleMkdir() }} />
+            <Item icon={icons.filePlus} label="新建文件" onClick={() => { close(); actions.handleNewFile() }} />
+            <Divider />
+            <Item icon={icons.key} label="修改权限" onClick={() => {
+              close()
+              onOpenChmod?.(entry.path, entry.permissions || '', isDir ?? false)
+            }} />
+          </SubMenu>
+        </>
+      ) : (
+        <>
+          {/* ── 空白区域精简菜单 ── */}
+          <Item icon={icons.clipboardPaste} label="粘贴" onClick={() => { close(); actions.handlePaste() }} />
+          <Item icon={icons.refresh} label="刷新" onClick={() => { close(); onRefresh?.() }} />
+
+          <Divider />
+
+          <Item icon={icons.pin} label="收藏当前路径" onClick={() => { close(); actions.handleBookmark() }} />
+
+          <Divider />
+
+          <Item icon={icons.upload} label="上传文件" onClick={() => { close(); actions.handleUpload() }} />
+          <Item icon={icons.folderOpen} label="上传文件夹" onClick={() => { close(); actions.handleUploadFolder() }} />
+
+          <Divider />
+
+          <Item icon={icons.folderPlus} label="新建目录" onClick={() => { close(); actions.handleMkdir() }} />
+          <Item icon={icons.filePlus} label="新建文件" onClick={() => { close(); actions.handleNewFile() }} />
+        </>
+      )}
     </div>
   )
+
+  return createPortal(menu, document.body)
 }
 
 export { initialState }

@@ -52,8 +52,7 @@ interface DownloadSession {
   aborted: boolean
 }
 
-export function setupSftpWebSocket(server: http.Server): WebSocketServer {
-  void server
+export function setupSftpWebSocket(_server: http.Server): WebSocketServer {
   const wss = new WebSocketServer({ noServer: true })
 
   wss.on('connection', (ws: WebSocket) => {

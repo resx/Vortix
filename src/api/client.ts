@@ -173,6 +173,39 @@ export async function pickFile(title?: string, filters?: string): Promise<{ path
   })
 }
 
+/** 保存二进制数据到本地磁盘（默认 ~/Downloads/vortix-download/） */
+export async function saveDownloadToLocal(blob: Blob, fileName: string, targetDir?: string): Promise<string> {
+  const res = await fetch(`${BASE_URL}/fs/save-download`, {
+    method: 'POST',
+    headers: {
+      'X-File-Name': fileName,
+      ...(targetDir ? { 'X-Target-Dir': targetDir } : {}),
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: blob,
+  })
+  const json = await res.json() as { success: boolean; data?: { path: string }; error?: string }
+  if (!json.success) throw new Error(json.error || '保存失败')
+  return json.data!.path
+}
+
+/** 用系统默认程序打开本地文件 */
+export async function openLocalFile(filePath: string): Promise<void> {
+  return request<void>('/fs/open-local', {
+    method: 'POST',
+    body: JSON.stringify({ path: filePath }),
+  })
+}
+
+/** 调用系统原生保存文件对话框 */
+export async function pickSavePath(fileName?: string, filters?: string): Promise<string | null> {
+  const result = await request<{ path: string | null }>('/fs/pick-save-path', {
+    method: 'POST',
+    body: JSON.stringify({ fileName, filters }),
+  })
+  return result.path
+}
+
 /* ── SSH 密钥库 API ── */
 
 /* ── 连接预设 API ── */

@@ -82,7 +82,7 @@ export default function App() {
               </div>
 
               <AnimatePresence>
-                {isAssetView && sftpOpen && isConnected && <SftpPanel />}
+                {sftpOpen && <SftpPanel targetTabId={activeTabId} hidden={!(isAssetView && isConnected)} />}
               </AnimatePresence>
             </div>
           </div>

@@ -8,7 +8,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 import { useMonitorStore } from '../../stores/useMonitorStore'
 import { useKeywordHighlight } from './useKeywordHighlight'
-import { getSession, setSession } from '../../stores/terminalSessionRegistry'
+import { getSession, setSession, notifyInputListeners } from '../../stores/terminalSessionRegistry'
 import { getWsBaseUrl } from '../../api/client'
 import type { TerminalSession } from '../../stores/terminalSessionRegistry'
 import '@xterm/xterm/css/xterm.css'
@@ -363,6 +363,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         if (current?.ws?.readyState === WebSocket.OPEN) {
           current.ws.send(JSON.stringify({ type: 'input', data }))
         }
+        notifyInputListeners(paneId, data)
       })
 
       const isLocalConn = 'type' in connection && connection.type === 'local'

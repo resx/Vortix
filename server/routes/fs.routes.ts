@@ -1,8 +1,8 @@
 /* ── 文件系统路由 ── */
 
-import { Router } from 'express'
-import { readdirSync, statSync, readFileSync } from 'fs'
-import { join, resolve } from 'path'
+import { Router, raw as expressRaw } from 'express'
+import { readdirSync, statSync, readFileSync, mkdirSync, writeFileSync } from 'fs'
+import { join, resolve, dirname } from 'path'
 import { homedir } from 'os'
 import { execFile } from 'child_process'
 
@@ -141,6 +141,80 @@ if ($d.ShowDialog() -eq 'OK') { Write-Output $d.FileName } else { Write-Output '
     } catch (e) {
       res.json({ success: false, error: `无法读取文件: ${(e as Error).message}` })
     }
+  })
+})
+
+// 保存下载文件到本地磁盘（默认 ~/Downloads/vortix-download/）
+router.post('/fs/save-download', expressRaw({ limit: '500mb', type: '*/*' }), (req, res) => {
+  const fileName = req.headers['x-file-name'] as string
+  const targetDir = (req.headers['x-target-dir'] as string) || ''
+
+  if (!fileName) {
+    res.status(400).json({ success: false, error: '缺少文件名' })
+    return
+  }
+
+  const defaultDir = join(homedir(), 'Downloads', 'vortix-download')
+  const saveDir = targetDir ? resolve(targetDir) : defaultDir
+
+  try {
+    mkdirSync(saveDir, { recursive: true })
+    const filePath = join(saveDir, fileName)
+    writeFileSync(filePath, Buffer.from(req.body as ArrayBuffer))
+    res.json({ success: true, data: { path: filePath } })
+  } catch (err) {
+    res.json({ success: false, error: `保存失败: ${(err as Error).message}` })
+  }
+})
+
+// 用系统默认程序打开本地文件（无关联程序时弹出系统选择菜单）
+router.post('/fs/open-local', (req, res) => {
+  const { path: filePath } = req.body as { path: string }
+  if (!filePath) {
+    res.status(400).json({ success: false, error: '缺少文件路径' })
+    return
+  }
+
+  // Windows: rundll32 url.dll,FileProtocolHandler "path"
+  // 比 cmd /c start 更可靠：无关联程序时弹出"选择打开方式"而非报错
+  execFile('rundll32', ['url.dll,FileProtocolHandler', filePath], { timeout: 10000 }, (err) => {
+    // rundll32 几乎不会返回错误，即使文件无关联也会弹出选择对话框
+    if (err) {
+      // 回退到 cmd /c start（兼容性保底）
+      execFile('cmd', ['/c', 'start', '', filePath], { timeout: 10000 }, () => {
+        // 无论成功失败都返回成功，系统会自行处理打开方式选择
+        res.json({ success: true, data: null })
+      })
+      return
+    }
+    res.json({ success: true, data: null })
+  })
+})
+
+// 调用系统原生保存文件对话框（返回用户选择的保存路径）
+router.post('/fs/pick-save-path', (req, res) => {
+  const { fileName, filters } = req.body as { fileName?: string; filters?: string }
+
+  const fileNameCs = (fileName || '').replace(/'/g, "''")
+  const filterCs = (filters || '所有文件|*.*').replace(/'/g, "''")
+
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+$d = New-Object System.Windows.Forms.SaveFileDialog
+$d.Title = '保存文件'
+$d.Filter = '${filterCs}'
+$d.FileName = '${fileNameCs}'
+$d.OverwritePrompt = $true
+if ($d.ShowDialog() -eq 'OK') { Write-Output $d.FileName } else { Write-Output '' }
+`.trim()
+
+  execFile('powershell', ['-NoProfile', '-NonInteractive', '-STA', '-Command', script], { timeout: 60000 }, (err, stdout) => {
+    if (err) {
+      res.json({ success: false, error: err.message })
+      return
+    }
+    const selected = stdout.trim()
+    res.json({ success: true, data: { path: selected || null } })
   })
 })
 

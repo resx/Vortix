@@ -3,6 +3,8 @@
 import { useCallback, useRef, useState } from 'react'
 import { AppIcon, icons } from '../../icons/AppIcon'
 import { useSftpStore } from '../../../stores/useSftpStore'
+import { getFileTypeIcon } from '../../../lib/file-icons'
+import SftpInlineRename from './SftpInlineRename'
 import type { SftpFileEntry, SftpSortField } from '../../../types/sftp'
 
 function formatSize(bytes: number): string {
@@ -19,26 +21,22 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-function getFileIcon(entry: SftpFileEntry): string {
-  if (entry.type === 'dir') return icons.folderOpen
-  if (entry.type === 'symlink') return icons.link
-  return icons.file
-}
-
-function getFileIconColor(entry: SftpFileEntry): string {
-  if (entry.type === 'dir') return 'text-icon-folder'
-  if (entry.type === 'symlink') return 'text-primary/70'
-  return 'text-text-3'
-}
-
 interface Props {
   onNavigate: (path: string) => void
   onContextMenu: (e: React.MouseEvent, entry: SftpFileEntry) => void
+  onBlankContextMenu: (e: React.MouseEvent) => void
   onDoubleClick: (entry: SftpFileEntry) => void
   onFileDrop?: (files: File[]) => void
+  onRename?: (oldPath: string, newName: string) => void
+  onCopy?: () => void
+  onCut?: () => void
+  onPaste?: () => void
+  onDelete?: (path: string, isDir: boolean) => void
+  onRenameStart?: (entry: SftpFileEntry) => void
+  onRefresh?: () => void
 }
 
-export default function SftpFileList({ onNavigate, onContextMenu, onDoubleClick, onFileDrop }: Props) {
+export default function SftpFileList({ onNavigate, onContextMenu, onBlankContextMenu, onDoubleClick, onFileDrop, onRename, onCopy, onCut, onPaste, onDelete, onRenameStart, onRefresh }: Props) {
   const entries = useSftpStore(s => s.entries)
   const loading = useSftpStore(s => s.loading)
   const showHidden = useSftpStore(s => s.showHidden)
@@ -49,7 +47,12 @@ export default function SftpFileList({ onNavigate, onContextMenu, onDoubleClick,
   const selectPath = useSftpStore(s => s.selectPath)
   const toggleSelect = useSftpStore(s => s.toggleSelect)
   const selectRange = useSftpStore(s => s.selectRange)
+  const selectAll = useSftpStore(s => s.selectAll)
   const clearSelection = useSftpStore(s => s.clearSelection)
+  const searchQuery = useSftpStore(s => s.searchQuery)
+  const renamingPath = useSftpStore(s => s.renamingPath)
+  const connected = useSftpStore(s => s.connected)
+  const connecting = useSftpStore(s => s.connecting)
 
   const lastClickRef = useRef<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -73,22 +76,71 @@ export default function SftpFileList({ onNavigate, onContextMenu, onDoubleClick,
     setDragOver(false)
     if (!onFileDrop) return
 
-    const files: File[] = []
     const items = e.dataTransfer.items
-    if (items) {
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i]
-        if (item.kind === 'file') {
-          const file = item.getAsFile()
-          if (file) files.push(file)
+    if (!items || items.length === 0) return
+
+    // 尝试使用 webkitGetAsEntry 递归读取文件夹
+    const entries: FileSystemEntry[] = []
+    for (let i = 0; i < items.length; i++) {
+      const entry = items[i].webkitGetAsEntry?.()
+      if (entry) entries.push(entry)
+    }
+
+    if (entries.length > 0) {
+      // 递归读取所有文件（含文件夹内文件）
+      const readEntry = (entry: FileSystemEntry): Promise<File[]> => {
+        if (entry.isFile) {
+          return new Promise((resolve) => {
+            (entry as FileSystemFileEntry).file(
+              (f) => {
+                // 保留相对路径信息
+                Object.defineProperty(f, 'webkitRelativePath', {
+                  value: entry.fullPath.replace(/^\//, ''),
+                  writable: false,
+                })
+                resolve([f])
+              },
+              () => resolve([]),
+            )
+          })
         }
+        if (entry.isDirectory) {
+          return new Promise((resolve) => {
+            const reader = (entry as FileSystemDirectoryEntry).createReader()
+            const allFiles: File[] = []
+            const readBatch = () => {
+              reader.readEntries(
+                (batch) => {
+                  if (batch.length === 0) {
+                    resolve(allFiles)
+                    return
+                  }
+                  Promise.all(batch.map(readEntry)).then((results) => {
+                    for (const files of results) allFiles.push(...files)
+                    readBatch()
+                  })
+                },
+                () => resolve(allFiles),
+              )
+            }
+            readBatch()
+          })
+        }
+        return Promise.resolve([])
       }
+
+      Promise.all(entries.map(readEntry)).then((results) => {
+        const files = results.flat()
+        if (files.length > 0) onFileDrop(files)
+      })
     } else {
+      // 回退：直接读取 dataTransfer.files
+      const files: File[] = []
       for (let i = 0; i < e.dataTransfer.files.length; i++) {
         files.push(e.dataTransfer.files[i])
       }
+      if (files.length > 0) onFileDrop(files)
     }
-    if (files.length > 0) onFileDrop(files)
   }, [onFileDrop])
 
   // 拖出：SftpPanel 文件拖出（设置拖拽数据）
@@ -103,8 +155,13 @@ export default function SftpFileList({ onNavigate, onContextMenu, onDoubleClick,
   // 过滤隐藏文件
   const visible = showHidden ? entries : entries.filter(e => !e.name.startsWith('.'))
 
+  // 搜索过滤
+  const filtered = searchQuery
+    ? visible.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : visible
+
   // 排序：目录始终在前
-  const sorted = [...visible].sort((a, b) => {
+  const sorted = [...filtered].sort((a, b) => {
     // 目录优先
     if (a.type === 'dir' && b.type !== 'dir') return -1
     if (a.type !== 'dir' && b.type === 'dir') return 1
@@ -149,6 +206,58 @@ export default function SftpFileList({ onNavigate, onContextMenu, onDoubleClick,
     }
   }, [onNavigate, onDoubleClick])
 
+  /** 键盘快捷键 */
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const ctrl = e.ctrlKey || e.metaKey
+    const key = e.key
+
+    if (ctrl && key === 'c') { e.preventDefault(); onCopy?.(); return }
+    if (ctrl && key === 'x') { e.preventDefault(); onCut?.(); return }
+    if (ctrl && key === 'v') { e.preventDefault(); onPaste?.(); return }
+    if (ctrl && key === 'a') { e.preventDefault(); selectAll(); return }
+    if (key === 'F5') { e.preventDefault(); onRefresh?.(); return }
+    if (key === 'Escape') { clearSelection(); return }
+
+    // 需要选中项的操作
+    const selectedArr = sorted.filter(f => selectedPaths.has(f.path))
+    if (key === 'Delete' || key === 'Backspace') {
+      if (selectedArr.length === 1) {
+        e.preventDefault()
+        onDelete?.(selectedArr[0].path, selectedArr[0].type === 'dir')
+      }
+      return
+    }
+    if (key === 'F2' && selectedArr.length === 1) {
+      e.preventDefault()
+      onRenameStart?.(selectedArr[0])
+      return
+    }
+    if (key === 'Enter' && selectedArr.length === 1) {
+      e.preventDefault()
+      const entry = selectedArr[0]
+      if (entry.type === 'dir') onNavigate(entry.path)
+      else onDoubleClick(entry)
+      return
+    }
+
+    // 上下箭头移动选中
+    if (key === 'ArrowDown' || key === 'ArrowUp') {
+      e.preventDefault()
+      if (sorted.length === 0) return
+      const currentIdx = sorted.findIndex(f => selectedPaths.has(f.path))
+      let nextIdx: number
+      if (currentIdx < 0) {
+        nextIdx = key === 'ArrowDown' ? 0 : sorted.length - 1
+      } else {
+        nextIdx = key === 'ArrowDown'
+          ? Math.min(currentIdx + 1, sorted.length - 1)
+          : Math.max(currentIdx - 1, 0)
+      }
+      selectPath(sorted[nextIdx].path)
+      lastClickRef.current = sorted[nextIdx].path
+    }
+  }, [sorted, selectedPaths, selectAll, clearSelection, selectPath, onCopy, onCut, onPaste, onDelete, onRenameStart, onRefresh, onNavigate, onDoubleClick])
+
   const renderSortHeader = (field: SftpSortField, label: string, className?: string) => (
     <button
       className={`flex items-center gap-0.5 text-[10px] text-text-3 font-medium hover:text-text-1 transition-colors ${className || ''}`}
@@ -161,9 +270,24 @@ export default function SftpFileList({ onNavigate, onContextMenu, onDoubleClick,
     </button>
   )
 
+  if (connecting || (!connected && !loading)) {
+    return (
+      <div
+        className="flex-1 flex flex-col items-center justify-center text-text-3 gap-2"
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <AppIcon icon={icons.loader} size={24} className="opacity-40 animate-spin" />
+        <span className="text-[12px] opacity-60">正在连接 SFTP...</span>
+      </div>
+    )
+  }
+
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center text-text-3">
+      <div
+        className="flex-1 flex items-center justify-center text-text-3"
+        onContextMenu={(e) => e.preventDefault()}
+      >
         <AppIcon icon={icons.loader} size={20} className="opacity-50" />
       </div>
     )
@@ -171,7 +295,10 @@ export default function SftpFileList({ onNavigate, onContextMenu, onDoubleClick,
 
   if (sorted.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center text-text-3">
+      <div
+        className="flex-1 flex flex-col items-center justify-center text-text-3"
+        onContextMenu={(e) => { e.preventDefault(); onBlankContextMenu(e) }}
+      >
         <AppIcon icon={icons.folder} size={32} className="opacity-20 mb-2" />
         <span className="text-[12px]">空目录</span>
       </div>
@@ -180,8 +307,11 @@ export default function SftpFileList({ onNavigate, onContextMenu, onDoubleClick,
 
   return (
     <div
-      className="flex-1 flex flex-col overflow-hidden relative"
+      className="flex-1 flex flex-col overflow-hidden relative outline-none"
+      tabIndex={0}
       onClick={() => clearSelection()}
+      onKeyDown={handleKeyDown}
+      onContextMenu={(e) => { e.preventDefault(); onBlankContextMenu(e) }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -211,11 +341,23 @@ export default function SftpFileList({ onNavigate, onContextMenu, onDoubleClick,
                 ${selected ? 'bg-primary/10 text-text-1' : 'hover:bg-bg-hover text-text-1'}`}
               onClick={(e) => { e.stopPropagation(); handleClick(e, entry) }}
               onDoubleClick={() => handleDoubleClick(entry)}
-              onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onContextMenu(e, entry) }}
+              onContextMenu={(e) => {
+                e.preventDefault(); e.stopPropagation()
+                if (!selectedPaths.has(entry.path)) selectPath(entry.path)
+                onContextMenu(e, entry)
+              }}
               onDragStart={(e) => handleEntryDragStart(e, entry)}
             >
-              <AppIcon icon={getFileIcon(entry)} size={14} className={`shrink-0 ${getFileIconColor(entry)}`} />
-              <span className="flex-1 truncate">{entry.name}</span>
+              <AppIcon icon={getFileTypeIcon(entry.name, entry.type).icon} size={14} className={`shrink-0 ${getFileTypeIcon(entry.name, entry.type).color}`} />
+              {renamingPath === entry.path && onRename ? (
+                <SftpInlineRename
+                  name={entry.name}
+                  path={entry.path}
+                  onRename={onRename}
+                />
+              ) : (
+                <span className="flex-1 truncate">{entry.name}</span>
+              )}
               <span className="w-[60px] text-right text-[10px] text-text-3 shrink-0">
                 {entry.type === 'dir' ? '-' : formatSize(entry.size)}
               </span>

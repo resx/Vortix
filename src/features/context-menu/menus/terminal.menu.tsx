@@ -1,5 +1,5 @@
 import { registerMenu } from '../../../registries/context-menu.registry'
-import { MenuItem, MenuDivider } from '../components/MenuParts'
+import { MenuItem, MenuDivider, ActionButton } from '../components/MenuParts'
 import { useTabStore } from '../../../stores/useTabStore'
 import { useWorkspaceStore, collectLeafIds } from '../../../stores/useWorkspaceStore'
 import { useToastStore } from '../../../stores/useToastStore'
@@ -78,9 +78,14 @@ export function registerTerminalMenu(): () => void {
 
       return (
         <>
-          <div className="px-4 py-1 text-[11px] text-text-1 font-medium">操作</div>
-          <MenuItem icon={icons.copy} label="复制" shortcut="Ctrl+Shift+C" disabled={noSelection} onClick={handleTermCopy} />
-          <MenuItem icon={icons.clipboard} label="粘贴" shortcut="Ctrl+Shift+V" onClick={handleTermPaste} />
+          <div className="flex items-center justify-between px-3 py-[4px] mb-1 border-b border-border/50">
+            <span className="text-[11px] text-text-1 font-medium tracking-wide">操作</span>
+            <div className="flex items-center bg-bg-base rounded border border-border p-[2px]">
+              <ActionButton icon={icons.copy} tooltip="复制(Ctrl+Shift+C)" disabled={noSelection} onClick={!noSelection ? handleTermCopy : undefined} />
+              <div className="w-px h-3 bg-border mx-[1px]" />
+              <ActionButton icon={icons.clipboard} tooltip="粘贴(Ctrl+Shift+V)" disabled={false} onClick={handleTermPaste} />
+            </div>
+          </div>
           <MenuItem icon={icons.clipboardText} label="粘贴选中文本" disabled={noSelection} onClick={() => { hideContextMenu(); if (!termPaneId || !selectionText) return; const session = getSession(termPaneId); if (session?.ws?.readyState === WebSocket.OPEN) session.ws.send(JSON.stringify({ type: 'input', data: selectionText })) }} />
           <MenuItem icon={icons.search} label="搜索" hasSubmenu disabled={noSelection}>
             <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">搜索引擎</div>

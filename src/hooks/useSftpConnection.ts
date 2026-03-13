@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSftpStore } from '../stores/useSftpStore'
-import { handleDownloadChunk, handleDownloadOk } from '../components/panels/sftp/SftpDownloadHelper'
+import { handleDownloadChunk, handleDownloadComplete, handleDownloadError } from '../services/transfer-engine'
 import type { SftpFileEntry, ExecResult } from '../types/sftp'
 
 /** 获取后端 WebSocket 地址 */
@@ -94,14 +94,19 @@ export function useSftpConnection() {
       }
       case 'sftp-upload-progress':
       case 'sftp-upload-ok':
-        // TODO: 接入 useTransferStore 进度追踪
+        // transfer-engine 内部追踪上传进度，无需额外处理
         break
       case 'sftp-download-chunk':
         handleDownloadChunk(msg.data as Parameters<typeof handleDownloadChunk>[0])
         break
       case 'sftp-download-ok':
-        handleDownloadOk(msg.data as { transferId: string })
+        handleDownloadComplete(msg.data as { transferId: string })
         break
+      case 'sftp-download-error': {
+        const d = msg.data as { transferId: string; message: string }
+        handleDownloadError(d.transferId, d.message)
+        break
+      }
     }
   }, [store])
 
@@ -147,6 +152,7 @@ export function useSftpConnection() {
         st.setConnecting(false)
         st.setConnected(true)
         st.setHomePath(home)
+        st.setConnectionInfo(params.connectionId ?? '', params.connectionName ?? '')
         st.navigateTo(home)
         // 切换到正常消息处理
         ws.onmessage = (e) => handleMessage(e)

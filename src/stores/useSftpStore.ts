@@ -8,6 +8,8 @@ interface SftpState {
   connected: boolean
   connecting: boolean
   error: string | null
+  connectionId: string
+  connectionName: string
 
   // 路径导航
   currentPath: string
@@ -30,10 +32,21 @@ interface SftpState {
   viewMode: 'list' | 'grid'
   showHidden: boolean
 
+  // 搜索
+  searchQuery: string
+  searchActive: boolean
+
+  // 路径联动
+  pathSyncEnabled: boolean
+
+  // 内联重命名
+  renamingPath: string | null
+
   // Actions
   setConnected: (connected: boolean) => void
   setConnecting: (connecting: boolean) => void
   setError: (error: string | null) => void
+  setConnectionInfo: (id: string, name: string) => void
   setHomePath: (home: string) => void
   navigateTo: (path: string) => void
   goBack: () => void
@@ -52,6 +65,10 @@ interface SftpState {
   clearSelection: () => void
   setViewMode: (mode: 'list' | 'grid') => void
   setShowHidden: (show: boolean) => void
+  setSearchQuery: (query: string) => void
+  setSearchActive: (active: boolean) => void
+  setPathSyncEnabled: (enabled: boolean) => void
+  setRenamingPath: (path: string | null) => void
   reset: () => void
 }
 
@@ -59,6 +76,8 @@ const initialState = {
   connected: false,
   connecting: false,
   error: null,
+  connectionId: '',
+  connectionName: '',
   currentPath: '/',
   homePath: '/',
   pathHistory: ['/'],
@@ -70,6 +89,10 @@ const initialState = {
   selectedPaths: new Set<string>(),
   viewMode: 'list' as const,
   showHidden: false,
+  searchQuery: '',
+  searchActive: false,
+  pathSyncEnabled: false,
+  renamingPath: null,
 }
 
 export const useSftpStore = create<SftpState>((set, get) => ({
@@ -78,6 +101,7 @@ export const useSftpStore = create<SftpState>((set, get) => ({
   setConnected: (connected) => set({ connected }),
   setConnecting: (connecting) => set({ connecting }),
   setError: (error) => set({ error }),
+  setConnectionInfo: (id, name) => set({ connectionId: id, connectionName: name }),
   setHomePath: (home) => set({ homePath: home }),
 
   navigateTo: (path) => {
@@ -156,6 +180,10 @@ export const useSftpStore = create<SftpState>((set, get) => ({
 
   setViewMode: (mode) => set({ viewMode: mode }),
   setShowHidden: (show) => set({ showHidden: show }),
+  setSearchQuery: (query) => set({ searchQuery: query }),
+  setSearchActive: (active) => set(active ? { searchActive: true } : { searchActive: false, searchQuery: '' }),
+  setPathSyncEnabled: (enabled) => set({ pathSyncEnabled: enabled }),
+  setRenamingPath: (path) => set({ renamingPath: path }),
 
   reset: () => set({ ...initialState, selectedPaths: new Set() }),
 }))

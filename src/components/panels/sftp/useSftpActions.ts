@@ -7,8 +7,8 @@ import { useSftpBookmarkStore } from '../../../stores/useSftpBookmarkStore'
 import { useToastStore } from '../../../stores/useToastStore'
 import { useWorkspaceStore } from '../../../stores/useWorkspaceStore'
 import { getSession } from '../../../stores/terminalSessionRegistry'
-import { pickFiles, uploadFiles } from './SftpUploadHelper'
-import { downloadToBrowser } from './SftpDownloadHelper'
+import { pickFiles, pickFolder } from './SftpUploadHelper'
+import { uploadFiles, downloadFile, saveDownload, saveDownloadTo, saveAndOpenLocal } from '../../../services/transfer-engine'
 import type { SftpFileEntry, ExecResult } from '../../../types/sftp'
 
 interface SftpConnection {
@@ -44,14 +44,7 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
     if (files.length === 0) return
     const { currentPath } = useSftpStore.getState()
     try {
-      await uploadFiles(files, {
-        send: sftp.send,
-        remotePath: currentPath,
-        onProgress: (_id, bytes, total) => {
-          const pct = Math.round((bytes / total) * 100)
-          if (pct % 25 === 0) addToast('info', `上传进度: ${pct}%`)
-        },
-      })
+      await uploadFiles(sftp.send, files, currentPath)
       sftp.refresh()
       addToast('success', `${files.length} 个文件上传完成`)
     } catch (err) {
@@ -66,18 +59,12 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
       addToast('info', '请选择要下载的文件')
       return
     }
-    try {
-      for (const entry of selected) {
-        await downloadToBrowser({
-          send: sftp.send,
-          remotePath: entry.path,
-          fileName: entry.name,
-        })
-      }
-      addToast('success', `${selected.length} 个文件下载完成`)
-    } catch (err) {
-      addToast('error', `下载失败: ${(err as Error).message}`)
+    for (const entry of selected) {
+      const { transferId, promise } = downloadFile(sftp.send, entry.path, entry.name, entry.size)
+      // 下载完成后自动保存到 ~/Downloads/vortix-download/
+      promise.then(() => saveDownload(transferId)).catch(() => {/* store 已记录错误 */})
     }
+    addToast('info', `${selected.length} 个文件已加入传输队列`)
   }, [sftp, addToast])
 
   const handleMkdir = useCallback(async () => {
@@ -121,14 +108,17 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
   }, [sftp, addToast])
 
   const handleRename = useCallback(async (entry: SftpFileEntry) => {
-    const newName = prompt('重命名', entry.name)
-    if (!newName?.trim() || newName.trim() === entry.name) return
-    const parentPath = entry.path.replace(/\/[^/]+$/, '') || '/'
-    const newPath = parentPath === '/' ? `/${newName.trim()}` : `${parentPath}/${newName.trim()}`
+    useSftpStore.getState().setRenamingPath(entry.path)
+  }, [])
+
+  /** 执行重命名（由 SftpInlineRename 调用） */
+  const handleRenameSubmit = useCallback(async (oldPath: string, newName: string) => {
+    const parentPath = oldPath.replace(/\/[^/]+$/, '') || '/'
+    const newPath = parentPath === '/' ? `/${newName}` : `${parentPath}/${newName}`
     try {
-      await sftp.rename(entry.path, newPath)
+      await sftp.rename(oldPath, newPath)
       sftp.refresh()
-      addToast('success', `已重命名为 ${newName.trim()}`)
+      addToast('success', `已重命名为 ${newName}`)
     } catch (err) {
       addToast('error', `重命名失败: ${(err as Error).message}`)
     }
@@ -232,6 +222,102 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
     }
   }, [addToast])
 
+  /** 本地打开：下载文件到本地磁盘，然后用系统默认程序打开 */
+  const handleLocalOpen = useCallback(async (entry: SftpFileEntry) => {
+    if (entry.type === 'dir') return
+    try {
+      const { transferId, promise } = downloadFile(sftp.send, entry.path, entry.name, entry.size)
+      await promise
+      await saveAndOpenLocal(transferId)
+    } catch (err) {
+      addToast('error', `打开失败: ${(err as Error).message}`)
+    }
+  }, [sftp, addToast])
+
+  /** 下载至：先选择保存路径，再开始下载 */
+  const handleDownloadTo = useCallback(async (entry: SftpFileEntry) => {
+    if (entry.type === 'dir') return
+    try {
+      const { transferId, promise } = downloadFile(sftp.send, entry.path, entry.name, entry.size)
+      await promise
+      await saveDownloadTo(transferId)
+    } catch (err) {
+      addToast('error', `下载失败: ${(err as Error).message}`)
+    }
+  }, [sftp, addToast])
+
+  /** 选择文件夹上传 */
+  const handleUploadFolder = useCallback(async () => {
+    const files = await pickFolder()
+    if (files.length === 0) return
+    const { currentPath } = useSftpStore.getState()
+    try {
+      await uploadFiles(sftp.send, files, currentPath)
+      sftp.refresh()
+      addToast('success', `文件夹上传完成 (${files.length} 个文件)`)
+    } catch (err) {
+      addToast('error', `上传失败: ${(err as Error).message}`)
+    }
+  }, [sftp, addToast])
+
+  /** 压缩选中文件/目录 */
+  const handleCompress = useCallback(async () => {
+    const { selectedPaths, entries, currentPath } = useSftpStore.getState()
+    const selected = entries.filter(e => selectedPaths.has(e.path))
+    if (selected.length === 0) {
+      addToast('info', '请选择要压缩的文件')
+      return
+    }
+    const archiveName = prompt('压缩文件名', selected.length === 1 ? `${selected[0].name}.tar.gz` : 'archive.tar.gz')
+    if (!archiveName?.trim()) return
+    const names = selected.map(e => e.name).join(' ')
+    try {
+      const result = await sftp.exec(`cd "${currentPath}" && tar -czf "${archiveName.trim()}" ${names}`)
+      if (result.code !== 0) throw new Error(result.stderr || '压缩失败')
+      sftp.refresh()
+      addToast('success', `已压缩为 ${archiveName.trim()}`)
+    } catch (err) {
+      addToast('error', `压缩失败: ${(err as Error).message}`)
+    }
+  }, [sftp, addToast])
+
+  /** 解压缩 */
+  const handleDecompress = useCallback(async (entry: SftpFileEntry) => {
+    const { currentPath } = useSftpStore.getState()
+    const name = entry.name
+    const baseName = name.replace(/\.(tar\.gz|tgz|tar\.bz2|tar\.xz|zip|gz|bz2|xz)$/i, '')
+    const destDir = `${currentPath}/${baseName}`
+    let cmd: string
+    if (/\.zip$/i.test(name)) {
+      cmd = `cd "${currentPath}" && mkdir -p "${baseName}" && unzip -o "${name}" -d "${baseName}"`
+    } else if (/\.(tar\.gz|tgz|tar\.bz2|tar\.xz|tar)$/i.test(name)) {
+      cmd = `cd "${currentPath}" && mkdir -p "${baseName}" && tar -xf "${name}" -C "${baseName}"`
+    } else if (/\.gz$/i.test(name)) {
+      cmd = `cd "${currentPath}" && gunzip -k "${name}"`
+    } else {
+      addToast('error', '不支持的压缩格式')
+      return
+    }
+    try {
+      const result = await sftp.exec(cmd)
+      if (result.code !== 0) throw new Error(result.stderr || '解压失败')
+      sftp.refresh()
+      addToast('success', `已解压到 ${destDir}`)
+    } catch (err) {
+      addToast('error', `解压失败: ${(err as Error).message}`)
+    }
+  }, [sftp, addToast])
+
+  /** SCP 下载（通过 exec scp 命令） */
+  const handleScpDownload = useCallback(() => {
+    addToast('info', 'SCP 传输功能开发中')
+  }, [addToast])
+
+  /** SCP 上传（通过 exec scp 命令） */
+  const handleScpUpload = useCallback(() => {
+    addToast('info', 'SCP 传输功能开发中')
+  }, [addToast])
+
   return useMemo(() => ({
     handleNavigate,
     handleUpload,
@@ -240,6 +326,7 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
     handleNewFile,
     handleDelete,
     handleRename,
+    handleRenameSubmit,
     handleEdit,
     handleCopyPath,
     handleCopy,
@@ -248,9 +335,18 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
     handleLocate,
     handleChmod,
     handleBookmark,
+    handleLocalOpen,
+    handleDownloadTo,
+    handleUploadFolder,
+    handleCompress,
+    handleDecompress,
+    handleScpDownload,
+    handleScpUpload,
   }), [
     handleNavigate, handleUpload, handleDownload, handleMkdir, handleNewFile,
-    handleDelete, handleRename, handleEdit, handleCopyPath,
+    handleDelete, handleRename, handleRenameSubmit, handleEdit, handleCopyPath,
     handleCopy, handleCut, handlePaste, handleLocate, handleChmod, handleBookmark,
+    handleLocalOpen, handleDownloadTo, handleUploadFolder,
+    handleCompress, handleDecompress, handleScpDownload, handleScpUpload,
   ])
 }

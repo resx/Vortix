@@ -1,5 +1,5 @@
 import { registerMenu } from '../../../registries/context-menu.registry'
-import { MenuItem, MenuDivider } from '../components/MenuParts'
+import { MenuItem, MenuDivider, ActionButton } from '../components/MenuParts'
 import { NewConnectionSubmenu } from '../components/NewConnectionSubmenu'
 import { useAssetStore } from '../../../stores/useAssetStore'
 import { useTabStore } from '../../../stores/useTabStore'
@@ -138,16 +138,22 @@ export function registerSidebarAssetMenu(): () => void {
       // ── 文件夹 / 空白区域右键菜单 ──
       return (
         <>
-          <div className="px-4 py-1 text-[11px] text-text-1 font-medium">操作</div>
+          <div className="flex items-center justify-between px-3 py-[4px] mb-1 border-b border-border/50">
+            <span className="text-[11px] text-text-1 font-medium tracking-wide">操作</span>
+            <div className="flex items-center bg-bg-base rounded border border-border p-[2px]">
+              <ActionButton icon={icons.clipboard} tooltip="粘贴(Ctrl+V)" disabled={!connClipboard} onClick={connClipboard ? () => { hideContextMenu(); const cb = connClipboard!; const targetFolderId = isFolder ? item!.id : null; setConnClipboard(null); ;(async () => { for (const id of cb.ids) { if (cb.op === 'cut') { await api.updateConnection(id, { folder_id: targetFolderId }) } else { const conn = await api.getConnection(id); await api.createConnection({ name: conn.name + ' (副本)', host: conn.host, port: conn.port, username: conn.username, protocol: conn.protocol, auth_method: conn.auth_method, remark: conn.remark, color_tag: conn.color_tag, folder_id: targetFolderId }) } } fetchAssets(); addToast('success', cb.op === 'cut' ? '已移动' : '已粘贴') })() } : undefined} />
+              <div className="w-px h-3 bg-border mx-[1px]" />
+              <ActionButton icon={icons.scissors} tooltip="剪切(Ctrl+X)" disabled={!isItem} onClick={isItem ? () => { hideContextMenu(); setConnClipboard({ ids: [item!.id], op: 'cut' }); addToast('success', '已剪切') } : undefined} />
+              <div className="w-px h-3 bg-border mx-[1px]" />
+              <ActionButton icon={icons.copy} tooltip="复制(Ctrl+C)" disabled={!isItem} onClick={isItem ? () => { hideContextMenu(); setConnClipboard({ ids: [item!.id], op: 'copy' }); addToast('success', '已复制') } : undefined} />
+            </div>
+          </div>
           {newDirItem}
           {newConnItem}
           {isFolder && <MenuItem icon={icons.link} label="批量打开" onClick={() => { hideContextMenu(); const children = item!.children ?? []; children.forEach(c => { if (c.type === 'connection') { const row = tableData.find(r => r.id === c.id); if (row) openAssetTab(row) } }) }} />}
           <MenuDivider />
           <MenuItem icon={icons.fileX} label="删除" disabled={!isFolder} onClick={isFolder ? () => handleDelete(item!.id, 'folder') : undefined} />
           <MenuItem icon={icons.edit} label="重命名" disabled={!isFolder} onClick={isFolder ? () => handleRename(item!.id, 'folder', item!.name) : undefined} />
-          <MenuItem icon={icons.copy} label="复制" disabled={!isItem} onClick={isItem ? () => { hideContextMenu(); setConnClipboard({ ids: [item!.id], op: 'copy' }); addToast('success', '已复制') } : undefined} />
-          <MenuItem icon={icons.scissors} label="剪切" disabled={!isItem} onClick={isItem ? () => { hideContextMenu(); setConnClipboard({ ids: [item!.id], op: 'cut' }); addToast('success', '已剪切') } : undefined} />
-          <MenuItem icon={icons.clipboard} label="粘贴" disabled={!connClipboard} onClick={connClipboard ? () => { hideContextMenu(); const cb = connClipboard!; const targetFolderId = isFolder ? item!.id : null; setConnClipboard(null); ;(async () => { for (const id of cb.ids) { if (cb.op === 'cut') { await api.updateConnection(id, { folder_id: targetFolderId }) } else { const conn = await api.getConnection(id); await api.createConnection({ name: conn.name + ' (副本)', host: conn.host, port: conn.port, username: conn.username, protocol: conn.protocol, auth_method: conn.auth_method, remark: conn.remark, color_tag: conn.color_tag, folder_id: targetFolderId }) } } fetchAssets(); addToast('success', cb.op === 'cut' ? '已移动' : '已粘贴') })() } : undefined} />
           {refreshItem}
           <MenuDivider />
           <MenuItem icon={icons.fileDown} label="导入" onClick={() => { hideContextMenu(); pickJsonFile().then(async (data) => { const conns = parseImportedConnections(data); let count = 0; for (const c of conns) { if (c.name && c.host) { await api.createConnection({ name: c.name, host: c.host, port: c.port, username: c.username ?? '', protocol: c.protocol, auth_method: c.auth_method, remark: c.remark, color_tag: c.color_tag, folder_id: isFolder ? item!.id : null }); count++ } } fetchAssets(); addToast('success', `成功导入 ${count} 条连接`) }).catch(() => {}) }} />

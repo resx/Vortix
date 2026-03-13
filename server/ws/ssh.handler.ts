@@ -15,8 +15,8 @@ const ESC = '\\u001b'
 const BRACKETED_PASTE_START_RE = new RegExp(`${ESC}\\[200~`, 'g')
 const BRACKETED_PASTE_END_RE = new RegExp(`${ESC}\\[201~`, 'g')
 
-export function setupWebSocket(server: http.Server): WebSocketServer {
-  const wss = new WebSocketServer({ server, path: '/ws/ssh' })
+export function setupWebSocket(_server: http.Server): WebSocketServer {
+  const wss = new WebSocketServer({ noServer: true })
 
   wss.on('connection', (ws: WebSocket) => {
     let sshClient: Client | null = null
