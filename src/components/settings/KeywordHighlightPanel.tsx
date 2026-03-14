@@ -68,7 +68,7 @@ export default function KeywordHighlightPanel({ profileId }: { profileId?: strin
   return (
     <div>
       <div className="text-[13px] font-medium text-text-1 mb-3">关键词高亮配色</div>
-      <div className="grid grid-cols-2 gap-x-8 gap-y-3">
+      <div className="grid grid-cols-1 min-[480px]:grid-cols-2 gap-x-6 gap-y-3">
         {HIGHLIGHT_ITEMS.map(item => (
           <div key={item.key} className="flex items-center justify-between">
             <div className="min-w-0">

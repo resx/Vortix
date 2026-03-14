@@ -19,12 +19,28 @@ import { useTabStore } from './stores/useTabStore'
 import { useUIStore } from './stores/useUIStore'
 import { TooltipProvider } from './components/ui/tooltip'
 import { bootstrap } from './bootstrap'
-import { useAppInit, useThemeEffect, useUIFontEffect, useZoomEffect, useAnimationEffect, useGlobalShortcuts } from './hooks/useAppEffects'
+import { useAppInit, useThemeEffect, useUIFontEffect, useZoomEffect, useAnimationEffect, useGlobalShortcuts, useConfigChangedListener, useWindowReady } from './hooks/useAppEffects'
+import DetachedTerminalView from './components/windows/DetachedTerminalView'
 
 // 注册所有插槽模块
 bootstrap()
 
+// 检测 URL 参数决定渲染模式
+const params = new URLSearchParams(window.location.search)
+const detachMode = params.get('detach')
+const detachConnectionId = params.get('id')
+const detachTabId = params.get('tab')
+
 export default function App() {
+  // 独立终端窗口模式：跳过完整 App 布局
+  if (detachMode === 'terminal' && detachConnectionId) {
+    return <DetachedTerminalView connectionId={detachConnectionId} tabId={detachTabId ?? undefined} />
+  }
+
+  return <MainApp />
+}
+
+function MainApp() {
   const isAssetHidden = useAssetStore((s) => s.isAssetHidden)
   const isSidebarOpen = useUIStore((s) => s.isSidebarOpen)
   const tabs = useTabStore((s) => s.tabs)
@@ -39,6 +55,8 @@ export default function App() {
   useZoomEffect()
   useAnimationEffect()
   useGlobalShortcuts()
+  useConfigChangedListener()
+  useWindowReady()
 
   const activeTab = tabs.find(t => t.id === activeTabId)
   const isListView = activeTab?.type === 'list'

@@ -16,6 +16,7 @@ import SftpChmodModal from './sftp/SftpChmodModal'
 import { uploadFiles } from '../../services/transfer-engine'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTabStore } from '../../stores/useTabStore'
+import { useToastStore } from '../../stores/useToastStore'
 import * as api from '../../api/client'
 import type { SftpFileEntry } from '../../types/sftp'
 

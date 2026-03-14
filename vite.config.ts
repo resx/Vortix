@@ -4,15 +4,36 @@ import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 import pkg from './package.json' with { type: 'json' }
 
+// Tauri 开发模式通过环境变量 TAURI_DEV 标识
+const isTauri = !!process.env.TAURI_ENV_PLATFORM
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // Tauri 生产模式需要相对路径加载资源
+  base: isTauri ? './' : '/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Tauri 开发模式需要固定端口
+  server: {
+    port: 5173,
+    strictPort: true,
+    // 排除 Tauri Rust 编译产物，避免频繁 HMR reload
+    watch: {
+      ignored: ['**/src-tauri/**'],
+    },
+  },
+  // 清除 Tauri Rust 端的 env 变量，避免泄露到前端
+  envPrefix: ['VITE_'],
   build: {
     rollupOptions: {
+      // 多页面入口：主应用 + 设置窗口
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        settings: path.resolve(__dirname, 'settings.html'),
+      },
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return

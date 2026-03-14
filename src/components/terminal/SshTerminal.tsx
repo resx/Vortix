@@ -65,6 +65,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
   const termRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
+  const connectWsRef = useRef<((session: TerminalSession, conn: NonNullable<SshTerminalProps['connection']>) => void) | null>(null)
   const [cellHeight, setCellHeight] = useState(0)
   const [isDarkMode, setIsDarkMode] = useState(() =>
     document.documentElement.classList.contains('dark'),
@@ -72,7 +73,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
 
   // 用 ref 保持回调最新引用，避免闭包陈旧
   const onStatusChangeRef = useRef(onStatusChange)
-  onStatusChangeRef.current = onStatusChange
+  useEffect(() => { onStatusChangeRef.current = onStatusChange })
 
   /** 安全 fit：仅在容器有有效尺寸时才调用 fitAddon.fit() */
   const safeFit = useCallback((fitAddon: FitAddon) => {
@@ -253,7 +254,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         onStatusChangeRef.current?.('connecting')
         session.reconnectTimer = setTimeout(() => {
           session.reconnectTimer = null
-          if (session.ws === ws) connectWs(session, conn)
+          if (session.ws === ws) connectWsRef.current?.(session, conn)
         }, interval)
       } else {
         // 自动重连耗尽，提示按任意键手动重连
@@ -264,7 +265,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           session.reconnectInputDisposable = null
           session.reconnectCount = 0
           onStatusChangeRef.current?.('connecting')
-          connectWs(session, conn)
+          connectWsRef.current?.(session, conn)
         })
       }
     }
@@ -275,6 +276,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     }
 
   }, [connectionId, getProposedDimensions, resolvedWsUrl, safeFit, sendHighlightConfig, tabId])
+  useEffect(() => { connectWsRef.current = connectWs }, [connectWs])
 
   // 主 effect：挂载恢复 / 首次创建
   useEffect(() => {
@@ -336,7 +338,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           window.open(uri, '_blank', 'noopener')
         }
       }, {
-        hover: (_e, uri, _loc) => {
+        hover: (_e, uri) => {
           const isMac = navigator.platform.toUpperCase().includes('MAC')
           const modifier = isMac ? 'Cmd' : 'Ctrl'
           term.element?.setAttribute('title', `${modifier}+Click 打开链接: ${uri}`)
@@ -394,8 +396,9 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         updateCellHeight()
       }, 50)
 
-      // 字体加载完成后重新 fit（Nerd Font 等特殊字体会改变字符宽度）
+      // 字体加载完成后强制重绘 + 重新 fit（修复 Canvas 渲染器缓存错误的字符宽度）
       document.fonts.ready.then(() => {
+        term.refresh(0, term.rows - 1)
         safeFit(fitAddon)
         updateCellHeight()
       })
@@ -602,7 +605,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     }
     wrapper.addEventListener('keydown', handler, true)  // capture phase 确保最先执行
     return () => wrapper.removeEventListener('keydown', handler, true)
-  }, [])
+  }, [paneId])
 
   // 鼠标中键操作（none/copy/paste/menu/copy-paste）
   useEffect(() => {

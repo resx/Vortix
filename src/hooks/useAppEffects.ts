@@ -1,6 +1,8 @@
 /* ── App 全局副作用 hooks ── */
 
 import { useEffect } from 'react'
+import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useSettingsStore } from '../stores/useSettingsStore'
 import { useAssetStore } from '../stores/useAssetStore'
 import { useShortcutStore } from '../stores/useShortcutStore'
@@ -9,6 +11,7 @@ import { useTabStore } from '../stores/useTabStore'
 import { useUIStore } from '../stores/useUIStore'
 import { resolveFontChain } from '../lib/fonts'
 import { loadLocale } from '../i18n'
+import type { AssetRow } from '../types'
 
 /** 初始化：加载设置、资产、快捷命令、恢复标签页 */
 export function useAppInit() {
@@ -42,6 +45,60 @@ export function useAppInit() {
       }
       window.history.replaceState({}, '', window.location.pathname)
     }
+
+    // 检测 URL 参数 ?connect= 直接打开连接
+    const connectId = params.get('connect')
+    if (connectId) {
+      Promise.all([
+        useSettingsStore.getState().loadSettings(),
+        useAssetStore.getState().fetchAssets(),
+      ]).then(() => {
+        const row = useAssetStore.getState().tableData.find(
+          (r) => r.type === 'asset' && r.id === connectId
+        )
+        if (row) {
+          useTabStore.getState().openAssetTab(row)
+        } else {
+          // 动态导入避免污染设置窗口的模块图
+          import('../api/client').then(({ getConnection }) => {
+            getConnection(connectId).then((conn) => {
+              const assetRow: AssetRow = {
+                id: conn.id,
+                name: conn.name,
+                type: 'asset',
+                protocol: conn.protocol,
+                colorTag: conn.color_tag,
+                latency: '-',
+                host: conn.host,
+                user: conn.username,
+                created: '',
+                expire: '',
+                remark: conn.remark ?? '',
+                folderId: conn.folder_id,
+              }
+              useTabStore.getState().openAssetTab(assetRow)
+            }).catch(() => {
+              // 连接不存在，静默忽略
+            })
+          })
+        }
+      })
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+}
+
+/** 跨窗口配置变更监听 */
+export function useConfigChangedListener() {
+  useEffect(() => {
+    const unlisten = listen('config-changed', () => {
+      useSettingsStore.getState().loadSettings().then(() => {
+        useTerminalProfileStore.getState().loadProfiles()
+        const lang = useSettingsStore.getState().language
+        loadLocale(lang)
+      })
+    })
+    return () => { unlisten.then(fn => fn()) }
   }, [])
 }
 
@@ -181,5 +238,20 @@ export function useGlobalShortcuts() {
     }
     window.addEventListener('wheel', handler, { passive: false })
     return () => window.removeEventListener('wheel', handler)
+  }, [])
+}
+
+/**
+ * 窗口就绪后显示：配合 createWindow 的 visible:false 消除白屏闪烁。
+ * 在组件首次渲染后调用 show() + setFocus()，确保 HTML/CSS/JS 已加载。
+ */
+export function useWindowReady(): void {
+  useEffect(() => {
+    if (!('__TAURI_INTERNALS__' in window)) return
+    // requestAnimationFrame 确保首帧已绘制
+    requestAnimationFrame(() => {
+      const win = getCurrentWindow()
+      win.show().then(() => win.setFocus())
+    })
   }, [])
 }

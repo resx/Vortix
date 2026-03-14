@@ -85,8 +85,8 @@ export function SColumnSelect({ k, label }: { k: keyof SettingsState; label: str
   return (
     <SettingRow label={label}>
       <DropdownMenuPrimitive.Root open={open} onOpenChange={setOpen}>
-        <DropdownMenuPrimitive.Trigger className="flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded">
-          <span className="max-w-[200px] truncate">{selectedText || '未选择'}</span>
+        <DropdownMenuPrimitive.Trigger className="flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded max-w-[200px] overflow-hidden">
+          <span className="truncate">{selectedText || '未选择'}</span>
           {open ? <AppIcon icon={icons.chevronUp} size={14} className="shrink-0" /> : <AppIcon icon={icons.chevronDown} size={14} className="shrink-0" />}
         </DropdownMenuPrimitive.Trigger>
         <DropdownMenuPrimitive.Portal>
@@ -153,47 +153,148 @@ const PRESET_FONTS: FontItem[] = [
   { value: 'fantasy', label: '(内置)Fantasy', family: 'fantasy', fontWeight: 'bold' },
 ]
 
+/** 内置字体 value 集合 */
+const PRESET_FONT_VALUES = new Set(PRESET_FONTS.map(f => f.value))
+
+/** 获取字体的外部显示名（去掉内置前缀） */
+function getFontDisplayName(font: FontItem): string {
+  if (PRESET_FONT_VALUES.has(font.value)) {
+    return font.label.replace(/^\(内置\)/, '')
+  }
+  return font.label
+}
+
 /* ── 系统字体加载（全局缓存） ── */
 
 let _systemFontsCache: FontItem[] | null = null
+let _systemFontsNativeLoaded = false
+
+/** Tauri 环境检测 */
+function isTauri(): boolean {
+  return '__TAURI_INTERNALS__' in window
+}
+
+/** 检测字体是否实际可用（通过 document.fonts.check） */
+function filterAvailableFonts(fonts: FontItem[]): FontItem[] {
+  if (typeof document === 'undefined' || !document.fonts?.check) return fonts
+  return fonts.filter(f => {
+    try {
+      // 仅检测字体名称本身，不含 fallback 族名
+      return document.fonts.check(`12px "${f.value}"`)
+    } catch {
+      return true // 检测失败时保留
+    }
+  })
+}
+
+/** 常用系统字体回退列表（避免 queryLocalFonts 权限弹窗） */
+const SYSTEM_FONT_FALLBACK: FontItem[] = [
+  // 等宽字体
+  { value: 'Cascadia Code', label: 'Cascadia Code', family: '"Cascadia Code", monospace' },
+  { value: 'Cascadia Mono', label: 'Cascadia Mono', family: '"Cascadia Mono", monospace' },
+  { value: 'Consolas', label: 'Consolas', family: '"Consolas", monospace' },
+  { value: 'Courier New', label: 'Courier New', family: '"Courier New", monospace' },
+  { value: 'Lucida Console', label: 'Lucida Console', family: '"Lucida Console", monospace' },
+  { value: 'Monaco', label: 'Monaco', family: '"Monaco", monospace' },
+  { value: 'Menlo', label: 'Menlo', family: '"Menlo", monospace' },
+  { value: 'SF Mono', label: 'SF Mono', family: '"SF Mono", monospace' },
+  { value: 'DejaVu Sans Mono', label: 'DejaVu Sans Mono', family: '"DejaVu Sans Mono", monospace' },
+  { value: 'Liberation Mono', label: 'Liberation Mono', family: '"Liberation Mono", monospace' },
+  { value: 'Fira Code', label: 'Fira Code', family: '"Fira Code", monospace' },
+  { value: 'Source Code Pro', label: 'Source Code Pro', family: '"Source Code Pro", monospace' },
+  // 比例字体
+  { value: 'Microsoft YaHei', label: '微软雅黑', family: '"Microsoft YaHei", sans-serif' },
+  { value: 'SimHei', label: '黑体', family: '"SimHei", sans-serif' },
+  { value: 'SimSun', label: '宋体', family: '"SimSun", serif' },
+  { value: 'Segoe UI', label: 'Segoe UI', family: '"Segoe UI", sans-serif' },
+  { value: 'Arial', label: 'Arial', family: '"Arial", sans-serif' },
+  { value: 'Tahoma', label: 'Tahoma', family: '"Tahoma", sans-serif' },
+  { value: 'Verdana', label: 'Verdana', family: '"Verdana", sans-serif' },
+]
+
+// Tauri 桌面端：模块加载时先用静态回退列表预填充，后续异步替换为 Rust 原生枚举结果
+if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+  _systemFontsCache = filterAvailableFonts(SYSTEM_FONT_FALLBACK)
+}
+
+/** 字重/样式后缀，用于合并同族字体变体 */
+const WEIGHT_SUFFIXES = /\s+(Thin|ExtraLight|UltraLight|Light|Regular|Medium|SemiBold|DemiBold|Bold|ExtraBold|UltraBold|Black|Heavy|SemiLight|Condensed|Expanded|Narrow|Wide|Italic|Oblique|Variable)$/i
+
+/** 提取字体族根名称（去掉字重/样式后缀） */
+function getFontBaseName(family: string): string {
+  return family.replace(WEIGHT_SUFFIXES, '').trim()
+}
 
 async function getSystemFonts(): Promise<FontItem[]> {
-  if (_systemFontsCache) return _systemFontsCache
+  if (_systemFontsCache && _systemFontsNativeLoaded) return _systemFontsCache
+
+  // Tauri 桌面端：调用 Rust 原生字体枚举（font-kit），获取完整系统字体列表
+  if (isTauri()) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const families = await invoke<string[]>('list_system_fonts')
+      const presetValues = new Set(PRESET_FONTS.map(f => f.value))
+      const baseMap = new Map<string, string>()
+      for (const family of families) {
+        if (presetValues.has(family)) continue
+        const base = getFontBaseName(family)
+        if (!baseMap.has(base)) {
+          baseMap.set(base, family.length <= base.length ? family : base)
+        }
+      }
+      const result: FontItem[] = []
+      for (const [base, representative] of baseMap) {
+        result.push({ value: base, label: base, family: `"${representative}"` })
+      }
+      result.sort((a, b) => a.label.localeCompare(b.label))
+      _systemFontsCache = result
+      _systemFontsNativeLoaded = true
+      return result
+    } catch (e) {
+      console.warn('[Vortix] Rust 字体枚举失败，回退到静态列表:', e)
+      _systemFontsCache = filterAvailableFonts(SYSTEM_FONT_FALLBACK)
+      return _systemFontsCache
+    }
+  }
+
   try {
     const windowWithLocalFonts = window as WindowWithLocalFonts
     if (typeof windowWithLocalFonts.queryLocalFonts === 'function') {
       const fonts = await windowWithLocalFonts.queryLocalFonts()
-      const seen = new Set<string>()
+      const baseMap = new Map<string, string>() // baseName → 首次出现的原始 family
       const presetValues = new Set(PRESET_FONTS.map(f => f.value))
-      const result: FontItem[] = []
       for (const f of fonts) {
-        if (!seen.has(f.family) && !presetValues.has(f.family)) {
-          seen.add(f.family)
-          result.push({ value: f.family, label: f.family, family: `"${f.family}"` })
+        if (presetValues.has(f.family)) continue
+        const base = getFontBaseName(f.family)
+        if (!baseMap.has(base)) {
+          // 优先使用不带后缀的原始名称作为代表
+          baseMap.set(base, f.family.length <= base.length ? f.family : base)
         }
+      }
+      const result: FontItem[] = []
+      for (const [base, representative] of baseMap) {
+        // 使用根名称作为 value/label，确保 CSS 引用最通用的族名
+        const displayName = base
+        result.push({ value: displayName, label: displayName, family: `"${representative}"` })
       }
       result.sort((a, b) => a.label.localeCompare(b.label))
       _systemFontsCache = result
       return result
     }
   } catch { /* 权限被拒绝或不支持 */ }
-  _systemFontsCache = [
-    { value: 'Consolas', label: 'Consolas', family: '"Consolas", monospace' },
-    { value: 'Courier New', label: 'Courier New', family: '"Courier New", monospace' },
-    { value: 'Lucida Console', label: 'Lucida Console', family: '"Lucida Console", monospace' },
-    { value: 'Monaco', label: 'Monaco', family: '"Monaco", monospace' },
-    { value: 'Menlo', label: 'Menlo', family: '"Menlo", monospace' },
-    { value: 'SF Mono', label: 'SF Mono', family: '"SF Mono", monospace' },
-    { value: 'DejaVu Sans Mono', label: 'DejaVu Sans Mono', family: '"DejaVu Sans Mono", monospace' },
-    { value: 'Liberation Mono', label: 'Liberation Mono', family: '"Liberation Mono", monospace' },
-  ]
+
+  _systemFontsCache = filterAvailableFonts(SYSTEM_FONT_FALLBACK)
   return _systemFontsCache
 }
 
 function useSystemFonts(enabled: boolean) {
   const [fonts, setFonts] = useState<FontItem[]>(_systemFontsCache ?? [])
   useEffect(() => {
-    if (!enabled || _systemFontsCache) return
+    if (!enabled) return
+    // 已有原生枚举结果，无需再次加载
+    if (_systemFontsNativeLoaded && _systemFontsCache) return
+    // 非 Tauri 且已有缓存（queryLocalFonts 结果），无需再次加载
+    if (!isTauri() && _systemFontsCache) return
 
     let active = true
     void getSystemFonts().then((nextFonts) => {
@@ -350,13 +451,25 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
     return () => document.removeEventListener('mousedown', handler)
   }, [open])
 
-  /* 触发按钮展示：逗号分隔 */
-  const displayText = selectedFonts
-    .map(v => allFonts.find(f => f.value === v)?.label ?? v)
-    .join(', ')
+  /* 自动清理：移除 selectedFonts 中不存在于 allFonts 的幽灵值 */
+  useEffect(() => {
+    if (systemFonts.length === 0) return // 系统字体未加载，不做清理
+    const validValues = new Set(allFonts.map(f => f.value))
+    const cleaned = selectedFonts.filter(v => validValues.has(v))
+    if (cleaned.length < selectedFonts.length && cleaned.length > 0) {
+      updateFonts(cleaned)
+    }
+  }, [allFonts, selectedFonts, systemFonts.length, updateFonts])
 
-  /* 序号圆标 */
-  const NUM_BADGES = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩']
+  /* 触发按钮展示：最多显示前 2 个字体，超出部分用 +N 省略（外部显示去掉内置前缀） */
+  const displayText = (() => {
+    const names = selectedFonts.map(v => {
+      const font = allFonts.find(f => f.value === v)
+      return font ? getFontDisplayName(font) : v
+    })
+    if (names.length <= 2) return names.join(', ')
+    return `${names.slice(0, 2).join(', ')} +${names.length - 2}`
+  })()
 
   /* 拖拽排序回调 */
   const isDraggingRef = useRef(false)
@@ -373,7 +486,6 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
   )
 
   const renderSelectedFontItem = (font: FontItem) => {
-    const orderIdx = selectedFonts.indexOf(font.value)
     return (
       <Reorder.Item
         key={font.value}
@@ -391,11 +503,6 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
         )}>
           <AppIcon icon={icons.check} size={11} className="text-white group-hover:text-primary" />
         </div>
-        {orderIdx >= 0 && (
-          <span className="text-[10px] text-primary font-medium shrink-0 group-hover:text-white">
-            {NUM_BADGES[orderIdx] ?? `${orderIdx + 1}`}
-          </span>
-        )}
         <span
           className="text-[12px] text-text-1 group-hover:text-white select-none truncate"
           style={{ fontFamily: font.family, fontWeight: font.fontWeight || 'normal' }}
@@ -432,7 +539,7 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none max-w-[280px]"
+        className="flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none max-w-[200px] overflow-hidden"
         title={displayText}
       >
         <span className="truncate">{displayText}</span>

@@ -9,6 +9,7 @@ import { useToastStore } from '../../../stores/useToastStore'
 import * as api from '../../../api/client'
 import type { TableContextData, AssetRow } from '../../../types'
 import { downloadJson, pickJsonFile, connClipboard, setConnClipboard } from '../menu-utils'
+import { openConnectionInNewWindow } from '../../../lib/window'
 
 type ImportedConnection = {
   name?: string
@@ -87,7 +88,7 @@ export function registerTableMenu(): () => void {
           <MenuItem icon={icons.copyPlus} label="批量打开" disabled={isBlank} onClick={() => { ctx.close(); batchOpenSelected() }} />
           <MenuItem icon={icons.refresh} label="刷新" shortcut="F5" onClick={() => { ctx.close(); fetchAssets() }} />
           <MenuItem icon={icons.filePlus} label="新标签打开" shortcut="Alt+N" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? () => { ctx.close(); openAssetTab(rowData) } : undefined} />
-          <MenuItem icon={icons.externalLink} label="新窗口打开" shortcut="Ctrl+Shift+N" disabled={isBlank || isFolder} />
+          <MenuItem icon={icons.externalLink} label="新窗口打开" shortcut="Ctrl+Shift+N" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? () => { ctx.close(); openConnectionInNewWindow(rowData.id) } : undefined} />
           <MenuItem icon={icons.columns} label="同屏打开" disabled={isBlank || isFolder} onClick={!isBlank && !isFolder ? () => { ctx.close(); const rows: AssetRow[] = []; if (selectedRowIds.size > 0) { for (const id of selectedRowIds) { const r = tableData.find(row => row.id === id && row.type === 'asset'); if (r) rows.push(r) } } else if (rowData && rowData.type === 'asset') { rows.push(rowData) } if (rows.length > 0) openSplitTab(rows) } : undefined} />
           <MenuDivider />
           <MenuItem icon={icons.copy} label="克隆" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? () => { ctx.close(); cloneConnectionAction(rowData.id) } : undefined} />

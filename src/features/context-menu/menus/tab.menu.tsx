@@ -3,6 +3,7 @@ import { MenuItem, MenuDivider } from '../components/MenuParts'
 import { icons } from '../../../components/icons/AppIcon'
 import { useTabStore } from '../../../stores/useTabStore'
 import { useUIStore } from '../../../stores/useUIStore'
+import { openConnectionInNewWindow } from '../../../lib/window'
 import type { TabContextData } from '../../../types'
 
 export function registerTabMenu(): () => void {
@@ -46,7 +47,7 @@ export function registerTabMenu(): () => void {
           <MenuItem icon={icons.squareX} label="关闭右边" shortcut="Alt+R" disabled={!hasRight} onClick={hasRight ? () => { ctx.close(); closeRightTabs(tabId) } : undefined} />
           <MenuDivider />
           <MenuItem icon={icons.edit} label="重命名" onClick={handleRenameTab} />
-          <MenuItem icon={icons.externalLink} label="新窗口打开" disabled={!assetRow} />
+          <MenuItem icon={icons.externalLink} label="新窗口打开" disabled={!connectionId} onClick={connectionId ? () => { ctx.close(); openConnectionInNewWindow(connectionId) } : undefined} />
           <MenuItem icon={icons.filePlus} label="新标签页打开" disabled={!connectionId} onClick={connectionId ? () => { ctx.close(); duplicateTab(tabId) } : undefined} />
         </>
       )

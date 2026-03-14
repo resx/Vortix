@@ -1,0 +1,36 @@
+[package]
+name = "vortix"
+version = "0.1.0"
+description = "Vortix - SSH/服务器管理桌面工具"
+authors = ["Vortix"]
+edition = "2024"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Tauri
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-store = "2"
+tauri-plugin-notification = "2"
+
+# HTTP/WS 服务器（嵌入式）
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.6", features = ["cors"] }
+
+# 序列化
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# 日志
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# 工具
+thiserror = "2"
+
+# 字体枚举
+font-kit = "0.14"

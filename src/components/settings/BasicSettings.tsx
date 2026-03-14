@@ -25,7 +25,7 @@ function LockPasswordRow() {
           type={visible ? 'text' : 'password'}
           value={value}
           onChange={(e) => update('lockPassword', e.target.value)}
-          className="w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 outline-none text-[12px] text-text-1"
+          className="w-full max-w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 outline-none text-[12px] text-text-1"
         />
       </div>
     </SettingRow>
@@ -48,7 +48,7 @@ export default function BasicSettings() {
   return (
     <>
       <div className="text-[16px] font-medium text-text-1 mb-5">基本</div>
-      <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-start">
+      <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 items-start">
         {/* 左列 */}
         <SettingGroup>
           <SDropdown

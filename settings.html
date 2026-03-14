@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@700&display=swap" rel="stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>设置 - Vortix</title>
+    <script>
+      (function() {
+        var isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        try {
+          var t = localStorage.getItem('vortix-theme');
+          if (t === 'dark') isDark = true;
+          else if (t === 'light') isDark = false;
+        } catch(e) {}
+        if (isDark) document.documentElement.classList.add('dark');
+        document.documentElement.style.background = isDark ? '#17181A' : '#F2F3F5';
+      })();
+    </script>
+    <style>
+      body { margin: 0; background: inherit; }
+      #app-loader { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+      #app-loader svg { width: 24px; height: 24px; animation: spin 0.8s linear infinite; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div id="app-loader">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#86909C">
+        <path d="M12 2v4m0 12v4m-7.07-3.93l2.83-2.83m8.48-8.48l2.83-2.83M2 12h4m12 0h4m-3.93 7.07l-2.83-2.83M7.76 7.76L4.93 4.93" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/settings-main.tsx"></script>
+  </body>
+</html>

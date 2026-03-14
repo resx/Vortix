@@ -24,3 +24,14 @@ dist-ssr
 *.sln
 *.sw?
 .ace-tool/
+EnergyFrameworkDownloadCache/
+desktop/
+energy/
+vortix-backend/
+
+# Tauri Rust 编译产物
+src-tauri/target/
+
+# Claude 本地文件
+.claude/plan/
+.claude/settings.local.json

@@ -5,8 +5,8 @@ import { AppIcon, icons } from '../../../components/icons/AppIcon'
 import { useSettingsStore, buildSyncBody } from '../../../stores/useSettingsStore'
 import { useAssetStore } from '../../../stores/useAssetStore'
 import { useShortcutStore } from '../../../stores/useShortcutStore'
-import { useUIStore } from '../../../stores/useUIStore'
 import { useToastStore } from '../../../stores/useToastStore'
+import { openSettingsWindow } from '../../../lib/window'
 import * as api from '../../../api/client'
 
 const REPO_LABELS: Record<string, string> = {
@@ -70,9 +70,7 @@ export default function SyncQuickPopover({ onClose }: { onClose: () => void }) {
   }
 
   const openSyncSettings = () => {
-    const uiStore = useUIStore.getState()
-    uiStore.setSettingsInitialNav('sync')
-    if (!uiStore.settingsOpen) uiStore.toggleSettings()
+    openSettingsWindow('sync')
     onClose()
   }
 

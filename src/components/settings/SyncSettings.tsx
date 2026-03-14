@@ -36,7 +36,7 @@ function EncryptionKeyRow() {
           value={value}
           onChange={(e) => update('syncEncryptionKey', e.target.value)}
           placeholder="留空使用内置加密"
-          className="w-[240px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none"
+          className="w-full max-w-[240px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none"
         />
       </div>
     </SettingRow>
@@ -253,7 +253,7 @@ export default function SyncSettings() {
   }
 
   /* 通用输入框样式 */
-  const inputCls = "h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled shrink-0"
+  const inputCls = "h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled shrink min-w-0"
 
   return (
     <>
@@ -398,7 +398,7 @@ export default function SyncSettings() {
                     value={syncLocalPath}
                     onChange={(e) => update('syncLocalPath', e.target.value)}
                     placeholder="选择或输入同步目录"
-                    className={`${inputCls} w-[280px]`}
+                    className={`${inputCls} w-full max-w-[280px]`}
                   />
                 </div>
               </SettingRow>
@@ -415,7 +415,7 @@ export default function SyncSettings() {
                   value={gitUrl}
                   onChange={(e) => update('syncGitUrl', e.target.value)}
                   placeholder="https:// 或 git@"
-                  className={`${inputCls} w-[320px]`}
+                  className={`${inputCls} w-full max-w-[320px]`}
                 />
               </SettingRow>
               <SettingRow label="分支">
@@ -423,7 +423,7 @@ export default function SyncSettings() {
                   type="text"
                   value={gitBranch}
                   onChange={(e) => update('syncGitBranch', e.target.value)}
-                  className={`${inputCls} w-[200px]`}
+                  className={`${inputCls} w-full max-w-[200px]`}
                 />
               </SettingRow>
               <SettingRow label="存储路径" desc="同步文件固定存放在仓库的 Vortix/ 目录下">
@@ -436,7 +436,7 @@ export default function SyncSettings() {
                       type="text"
                       value={gitUsername}
                       onChange={(e) => update('syncGitUsername', e.target.value)}
-                      className={`${inputCls} w-[240px]`}
+                      className={`${inputCls} w-full max-w-[240px]`}
                     />
                   </SettingRow>
                   <SettingRow label="密码/Token" desc="建议使用 Personal Access Token">
@@ -444,7 +444,7 @@ export default function SyncSettings() {
                       type="password"
                       value={gitPassword}
                       onChange={(e) => update('syncGitPassword', e.target.value)}
-                      className={`${inputCls} w-[240px]`}
+                      className={`${inputCls} w-full max-w-[240px]`}
                     />
                   </SettingRow>
                   <TlsToggleRow />
@@ -478,7 +478,7 @@ export default function SyncSettings() {
                       value={gitSshKey}
                       onChange={(e) => update('syncGitSshKey', e.target.value)}
                       placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                      className={`${inputCls} w-[240px] font-mono`}
+                      className={`${inputCls} w-full max-w-[240px] font-mono`}
                     />
                   </div>
                 </SettingRow>
@@ -496,7 +496,7 @@ export default function SyncSettings() {
                   value={webdavEndpoint}
                   onChange={(e) => update('syncWebdavEndpoint', e.target.value)}
                   placeholder="http://webdav.com"
-                  className={`${inputCls} w-[320px]`}
+                  className={`${inputCls} w-full max-w-[320px]`}
                 />
               </SettingRow>
               <SettingRow label="路径">
@@ -504,7 +504,7 @@ export default function SyncSettings() {
                   type="text"
                   value={webdavPath}
                   onChange={(e) => update('syncWebdavPath', e.target.value)}
-                  className={`${inputCls} w-[240px]`}
+                  className={`${inputCls} w-full max-w-[240px]`}
                 />
               </SettingRow>
               <SettingRow label="用户名">
@@ -512,7 +512,7 @@ export default function SyncSettings() {
                   type="text"
                   value={webdavUsername}
                   onChange={(e) => update('syncWebdavUsername', e.target.value)}
-                  className={`${inputCls} w-[240px]`}
+                  className={`${inputCls} w-full max-w-[240px]`}
                 />
               </SettingRow>
               <SettingRow label="密码">
@@ -520,7 +520,7 @@ export default function SyncSettings() {
                   type="password"
                   value={webdavPassword}
                   onChange={(e) => update('syncWebdavPassword', e.target.value)}
-                  className={`${inputCls} w-[240px]`}
+                  className={`${inputCls} w-full max-w-[240px]`}
                 />
               </SettingRow>
               <EncryptionKeyRow />
@@ -547,7 +547,7 @@ export default function SyncSettings() {
                   type="text"
                   value={s3Endpoint}
                   onChange={(e) => update('syncS3Endpoint', e.target.value)}
-                  className={`${inputCls} w-[320px]`}
+                  className={`${inputCls} w-full max-w-[320px]`}
                 />
               </SettingRow>
               <SettingRow label="路径">
@@ -555,7 +555,7 @@ export default function SyncSettings() {
                   type="text"
                   value={s3Path}
                   onChange={(e) => update('syncS3Path', e.target.value)}
-                  className={`${inputCls} w-[240px]`}
+                  className={`${inputCls} w-full max-w-[240px]`}
                 />
               </SettingRow>
               <SettingRow label="Region">
@@ -563,7 +563,7 @@ export default function SyncSettings() {
                   type="text"
                   value={s3Region}
                   onChange={(e) => update('syncS3Region', e.target.value)}
-                  className={`${inputCls} w-[200px]`}
+                  className={`${inputCls} w-full max-w-[200px]`}
                 />
               </SettingRow>
               <SettingRow label="Bucket">
@@ -571,7 +571,7 @@ export default function SyncSettings() {
                   type="text"
                   value={s3Bucket}
                   onChange={(e) => update('syncS3Bucket', e.target.value)}
-                  className={`${inputCls} w-[240px]`}
+                  className={`${inputCls} w-full max-w-[240px]`}
                 />
               </SettingRow>
               <SettingRow label="AccessKey">
@@ -579,7 +579,7 @@ export default function SyncSettings() {
                   type="text"
                   value={s3AccessKey}
                   onChange={(e) => update('syncS3AccessKey', e.target.value)}
-                  className={`${inputCls} w-[240px]`}
+                  className={`${inputCls} w-full max-w-[240px]`}
                 />
               </SettingRow>
               <SettingRow label="SecretAccessKey">
@@ -587,7 +587,7 @@ export default function SyncSettings() {
                   type="password"
                   value={s3SecretKey}
                   onChange={(e) => update('syncS3SecretKey', e.target.value)}
-                  className={`${inputCls} w-[240px]`}
+                  className={`${inputCls} w-full max-w-[240px]`}
                 />
               </SettingRow>
               <EncryptionKeyRow />

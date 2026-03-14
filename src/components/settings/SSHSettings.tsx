@@ -95,15 +95,15 @@ export default function SSHSettings() {
     <>
       {/* SSH 区域 */}
       <div className="text-[16px] font-medium text-text-1 mb-5">SSH</div>
-      <div className="grid grid-cols-2 gap-x-10 gap-y-7 mb-10 items-start">
+      <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 mb-10 items-start">
         {/* 左列 */}
         <SettingGroup>
           <SettingRow label="终端主题">
             <button
               onClick={() => setThemePanelOpen(true)}
-              className="flex items-center gap-1.5 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none"
+              className="flex items-center gap-1.5 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none max-w-[200px] overflow-hidden"
             >
-              <span className="text-[11px] text-text-2 mr-1">{profile.name}</span>
+              <span className="text-[11px] text-text-2 mr-1 truncate">{profile.name}</span>
               <PreviewSwatches preset={lightPreset} />
               <span className="text-text-3 text-[11px]">/</span>
               <PreviewSwatches preset={darkPreset} />
@@ -173,7 +173,7 @@ export default function SSHSettings() {
                 value={termLogDir}
                 onChange={(e) => update('termLogDir', e.target.value)}
                 placeholder="不填则关闭日志录制"
-                className="w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled"
+                className="w-full max-w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled"
               />
             </div>
           </SettingRow>
@@ -182,7 +182,7 @@ export default function SSHSettings() {
 
       {/* 终端外观 */}
       <div className="text-[16px] font-medium text-text-1 mb-5">终端外观</div>
-      <div className="grid grid-cols-2 gap-x-10 gap-y-7 mb-10 items-start">
+      <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 mb-10 items-start">
         <SettingGroup>
           <SettingRow label="终端字体">
             <SFontSelect
@@ -222,7 +222,7 @@ export default function SSHSettings() {
 
       {/* SFTP 区域 */}
       <div className="text-[16px] font-medium text-text-1 mb-5">SFTP</div>
-      <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-start">
+      <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 items-start">
         {/* 左列 */}
         <SettingGroup>
           <SDropdown
@@ -271,7 +271,7 @@ export default function SSHSettings() {
                 value={sftpDefaultSavePath}
                 onChange={(e) => update('sftpDefaultSavePath', e.target.value)}
                 placeholder="不填则使用默认路径"
-                className="w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled"
+                className="w-full max-w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled"
               />
             </div>
           </SettingRow>

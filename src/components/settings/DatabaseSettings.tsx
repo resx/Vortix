@@ -7,7 +7,7 @@ export default function DatabaseSettings() {
     <>
       {/* 数据库区域 */}
       <div className="text-[16px] font-medium text-text-1 mb-5">数据库</div>
-      <div className="grid grid-cols-2 gap-x-10 gap-y-7 mb-10 items-start">
+      <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 mb-10 items-start">
         {/* 左列 */}
         <SettingGroup>
           <SFontSelect k="dbTableFont" label="表格字体" />
@@ -46,7 +46,7 @@ export default function DatabaseSettings() {
 
       {/* Redis 区域 */}
       <div className="text-[16px] font-medium text-text-1 mb-5">Redis</div>
-      <div className="grid grid-cols-2 gap-x-10 gap-y-7 items-start">
+      <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 items-start">
         {/* 左列 */}
         <SettingGroup>
           <SNumberInput k="redisMaxLoadCount" label="键列表-最大加载数据量" width="w-[80px]" />

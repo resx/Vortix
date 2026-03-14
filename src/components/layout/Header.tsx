@@ -11,6 +11,7 @@ import MainMenu from '../../features/header/MainMenu'
 import WindowControls from '../../features/header/WindowControls'
 import SyncQuickPopover from '../../features/header/popovers/SyncQuickPopover'
 import KeyPickerModal from '../settings/KeyPickerModal'
+import { handleTitleBarMouseDown, handleTitleBarDoubleClick } from '../../lib/window'
 
 export default function Header() {
   const activeTabId = useTabStore((s) => s.activeTabId)
@@ -45,7 +46,7 @@ export default function Header() {
   }, [showSyncPopover])
 
   return (
-    <header id="header" className="h-[48px] bg-bg-base flex items-center justify-between px-3 shrink-0 select-none z-10">
+    <header id="header" onMouseDown={handleTitleBarMouseDown} onDoubleClick={handleTitleBarDoubleClick} className="h-[48px] bg-bg-base flex items-center justify-between px-3 shrink-0 select-none z-10">
       {/* Logo 区域 */}
       <div id="header-logo" className="w-[330px] flex items-center gap-2 shrink-0">
         <button className="flex items-center" onClick={() => setActiveTab('list')}>

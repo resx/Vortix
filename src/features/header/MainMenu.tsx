@@ -7,7 +7,7 @@ import { useTabStore } from '../../stores/useTabStore'
 import { useUIStore } from '../../stores/useUIStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useT, useLocale } from '../../i18n'
-import { openNewWindow, cloneCurrentWindow, closeWindow } from '../../lib/window'
+import { openNewWindow, cloneCurrentWindow, closeWindow, openSettingsWindow } from '../../lib/window'
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -23,7 +23,6 @@ import {
 
 export default function MainMenu() {
   const menuVariant = useUIStore((s) => s.menuVariant)
-  const toggleSettings = useUIStore((s) => s.toggleSettings)
   const toggleQuickSearch = useUIStore((s) => s.toggleQuickSearch)
   const toggleUpdateDialog = useUIStore((s) => s.toggleUpdateDialog)
   const toggleClearDataDialog = useUIStore((s) => s.toggleClearDataDialog)
@@ -185,16 +184,14 @@ export default function MainMenu() {
         <DropdownMenuSeparator />
 
         <DropdownMenuItem onSelect={() => {
-          const uiStore = useUIStore.getState()
-          uiStore.setSettingsInitialNav('sync')
-          if (!uiStore.settingsOpen) uiStore.toggleSettings()
+          openSettingsWindow('sync')
         }}>
           <div className="flex items-center gap-2.5">
             <AppIcon icon={icons.cloudCog} size={14} className="text-text-2" />
             数据同步
           </div>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={toggleSettings}>
+        <DropdownMenuItem onSelect={() => openSettingsWindow()}>
           <div className="flex items-center gap-2.5">
             <AppIcon icon={icons.settings} size={14} className="text-text-2" />
             {t('menu.settings')}
