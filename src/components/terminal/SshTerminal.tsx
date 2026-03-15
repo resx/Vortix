@@ -7,11 +7,30 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 import { useMonitorStore } from '../../stores/useMonitorStore'
+import { useTabStore } from '../../stores/useTabStore'
 import { useKeywordHighlight } from './useKeywordHighlight'
-import { getSession, setSession, notifyInputListeners } from '../../stores/terminalSessionRegistry'
-import { getWsBaseUrl } from '../../api/client'
+import { getSession, setSession, notifyInputListeners, addInputListener, removeInputListener } from '../../stores/terminalSessionRegistry'
+import { getWsBaseUrl, addHistory, getHistory } from '../../api/client'
 import type { TerminalSession } from '../../stores/terminalSessionRegistry'
 import '@xterm/xterm/css/xterm.css'
+
+/** 使用 Web Audio API 播放终端铃声 */
+let bellAudioCtx: AudioContext | null = null
+function playBellSound() {
+  try {
+    if (!bellAudioCtx) bellAudioCtx = new AudioContext()
+    const ctx = bellAudioCtx
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.frequency.value = 800
+    gain.gain.value = 0.08
+    osc.start(ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12)
+    osc.stop(ctx.currentTime + 0.12)
+  } catch { /* 静默：用户未交互时 AudioContext 可能被阻止 */ }
+}
 
 /** SSH 连接参数 */
 interface SshConnection {
@@ -70,6 +89,8 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
   const [isDarkMode, setIsDarkMode] = useState(() =>
     document.documentElement.classList.contains('dark'),
   )
+  const [hintText, setHintText] = useState('')
+  const hintRef = useRef('')
 
   // 用 ref 保持回调最新引用，避免闭包陈旧
   const onStatusChangeRef = useRef(onStatusChange)
@@ -193,6 +214,13 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       switch (msg.type) {
         case 'output':
           term.write(msg.data)
+          // 非活跃标签页有输出时标记活动
+          if (tabId && useSettingsStore.getState().tabFlashNotify) {
+            const tabStore = useTabStore.getState()
+            if (tabStore.activeTabId !== tabId) {
+              tabStore.setTabActivity(tabId, true)
+            }
+          }
           break
         case 'status':
           if (msg.data === 'connected') {
@@ -360,6 +388,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         webglAddon: null,
         ws: null, reconnectTimer: null, reconnectCount: 0, isManualDisconnect: false,
         inputDisposable: null, reconnectInputDisposable: null,
+        commandBuffer: '', historyCache: [], lastRecordedCommand: '',
       }
       setSession(paneId, session)
       applyPerformanceMode(session, settings.termHighPerformance)
@@ -380,6 +409,11 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           current.ws.send(JSON.stringify({ type: 'input', data }))
         }
         notifyInputListeners(paneId, data)
+      })
+
+      // 终端铃声：监听 bell 事件，根据 termSound 设置播放
+      term.onBell(() => {
+        if (useSettingsStore.getState().termSound) playBellSound()
       })
 
       const isLocalConn = 'type' in connection && connection.type === 'local'
@@ -530,6 +564,19 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     s.term.attachCustomKeyEventHandler((e) => {
       // 调试模式下放行 F12（不让 xterm 吞掉）
       if (e.key === 'F12' && useSettingsStore.getState().debugMode) return false
+      // P6-3: Tab 键接受命令提示
+      if (e.key === 'Tab' && e.type === 'keydown' && hintRef.current) {
+        e.preventDefault()
+        const text = hintRef.current
+        hintRef.current = ''
+        setHintText('')
+        const cur = getSession(paneId)
+        if (cur?.ws?.readyState === WebSocket.OPEN) {
+          cur.ws.send(JSON.stringify({ type: 'input', data: text }))
+        }
+        if (cur) cur.commandBuffer += text
+        return false
+      }
       // 阻止 xterm 处理 Ctrl+Shift+C/V
       if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c' || e.key === 'V' || e.key === 'v') && e.type === 'keydown') {
         return false
@@ -694,6 +741,88 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     return () => { unsub1(); unsub2() }
   }, [sendHighlightConfig])
 
+  // P6-2: 命令历史记录 — 通过 inputListener 追踪输入缓冲区，Enter 时记录到后端
+  useEffect(() => {
+    if (!connectionId) return
+
+    const listener = (data: string) => {
+      const session = getSession(paneId)
+      if (!session) return
+
+      if (data === '\r') {
+        const cmd = session.commandBuffer.trim()
+        if (cmd && useSettingsStore.getState().sshHistoryEnabled && cmd !== session.lastRecordedCommand) {
+          session.lastRecordedCommand = cmd
+          addHistory(connectionId, cmd).catch(() => {})
+          // 同步到缓存（去重，置顶）
+          const idx = session.historyCache.indexOf(cmd)
+          if (idx !== -1) session.historyCache.splice(idx, 1)
+          session.historyCache.unshift(cmd)
+        }
+        session.commandBuffer = ''
+      } else if (data === '\x7f' || data === '\b') {
+        session.commandBuffer = session.commandBuffer.slice(0, -1)
+      } else if (data === '\x03' || data === '\x04') {
+        session.commandBuffer = ''
+      } else if (data.startsWith('\x1b')) {
+        // 方向键等转义序列 — 清空缓冲区（无法追踪 shell 内部状态）
+        session.commandBuffer = ''
+      } else {
+        session.commandBuffer += data
+      }
+    }
+
+    addInputListener(paneId, listener)
+    return () => removeInputListener(paneId, listener)
+  }, [paneId, connectionId])
+
+  // P6-2: 加载历史命令缓存（连接建立后）
+  useEffect(() => {
+    if (!connectionId) return
+    const loadCount = useSettingsStore.getState().sshHistoryLoadCount || 100
+    getHistory(connectionId, loadCount)
+      .then(history => {
+        const session = getSession(paneId)
+        if (session) session.historyCache = history.map(h => h.command)
+      })
+      .catch(() => {})
+  }, [paneId, connectionId])
+
+  // P6-3: 命令提示 — 基于输入缓冲区前缀匹配历史命令
+  const termCommandHint = useSettingsStore((s) => s.termCommandHint)
+  const sshHistoryEnabled = useSettingsStore((s) => s.sshHistoryEnabled)
+
+  useEffect(() => {
+    if (!termCommandHint || !sshHistoryEnabled) {
+      setHintText('')
+      return
+    }
+
+    let rafId = 0
+    const listener = () => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(() => {
+        const session = getSession(paneId)
+        if (!session || session.commandBuffer.length < 2) {
+          if (hintRef.current) { hintRef.current = ''; setHintText('') }
+          return
+        }
+        const buf = session.commandBuffer
+        const match = session.historyCache.find(cmd => cmd.startsWith(buf) && cmd !== buf)
+        const suffix = match ? match.slice(buf.length) : ''
+        if (suffix !== hintRef.current) {
+          hintRef.current = suffix
+          setHintText(suffix)
+        }
+      })
+    }
+
+    addInputListener(paneId, listener)
+    return () => { removeInputListener(paneId, listener); cancelAnimationFrame(rafId) }
+  }, [paneId, termCommandHint, sshHistoryEnabled])
+
+  // P6-3: Tab 键接受提示 — 已合并到 customKeyEventHandler 中
+
   const termStripeEnabled = useSettingsStore((s) => s.termStripeEnabled)
   const stripeBackgroundImage = termStripeEnabled && cellHeight > 0
     ? `repeating-linear-gradient(to bottom,
@@ -746,6 +875,27 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           className="absolute inset-0 pointer-events-none"
           style={{ backgroundImage: stripeBackgroundImage }}
         />
+      )}
+      {/* P6-3: 命令提示浮层 */}
+      {hintText && (
+        <div
+          className="absolute bottom-2 right-2 bg-bg-card/90 border border-border rounded-lg px-3 py-1.5 text-[12px] backdrop-blur-sm z-10 flex items-center gap-2 cursor-pointer select-none"
+          onClick={() => {
+            const session = getSession(paneId)
+            if (!session) return
+            const text = hintRef.current
+            hintRef.current = ''
+            setHintText('')
+            if (session.ws?.readyState === WebSocket.OPEN) {
+              session.ws.send(JSON.stringify({ type: 'input', data: text }))
+            }
+            session.commandBuffer += text
+            session.term.focus()
+          }}
+        >
+          <kbd className="px-1 py-0.5 rounded bg-bg-subtle border border-border text-[10px] text-text-3 font-mono">Tab</kbd>
+          <span className="text-text-1 font-mono truncate max-w-[300px]">{hintText}</span>
+        </div>
       )}
     </div>
   )

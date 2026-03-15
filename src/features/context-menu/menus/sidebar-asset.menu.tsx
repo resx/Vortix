@@ -123,7 +123,7 @@ export function registerSidebarAssetMenu(): () => void {
             <MenuItem icon={icons.fileEdit} label="批量编辑" onClick={() => { hideContextMenu(); openBatchEdit([item!.id]) }} />
             <MenuItem icon={icons.copyPlus} label="克隆" onClick={() => { hideContextMenu(); cloneConnectionAction(item!.id) }} />
             <MenuItem icon={icons.copy} label="复制 Host" onClick={() => { hideContextMenu(); const row = tableData.find(r => r.id === item!.id); if (row?.host) navigator.clipboard.writeText(row.host) }} />
-            <MenuItem icon={icons.globe} label="通过服务器代理 Chrome" disabled />
+            <MenuItem icon={icons.globe} label="通过服务器代理 Chrome" disabled onClick={() => { hideContextMenu(); addToast('info', 'Chrome 代理功能即将推出') }} />
             <MenuItem icon={icons.key} label="上传 SSH 公钥" onClick={() => { hideContextMenu(); api.getSshKeys().then(keys => { if (keys.length === 0) { addToast('error', '请先在密钥库中添加密钥'); return } const names = keys.map((k, i) => `${i + 1}. ${k.name}`).join('\n'); const idx = prompt(`选择要上传的公钥：\n${names}\n\n请输入序号`, '1'); if (!idx) return; const key = keys[parseInt(idx) - 1]; if (!key) { addToast('error', '无效的序号'); return } api.uploadSshKey(item!.id, key.id).then(r => addToast('success', r.message)).catch(e => addToast('error', (e as Error).message)) }) }} />
             <MenuItem icon={icons.fileX} label="删除" onClick={() => handleDelete(item!.id, 'connection')} />
             <MenuItem icon={icons.edit} label="重命名" onClick={() => handleRename(item!.id, 'connection', item!.name)} />

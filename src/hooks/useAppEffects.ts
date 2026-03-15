@@ -24,6 +24,20 @@ export function useAppInit() {
       useTerminalProfileStore.getState().loadProfiles()
       const lang = useSettingsStore.getState().language
       loadLocale(lang)
+
+      // restoreSession：从 localStorage 恢复上次的标签页状态
+      const settings = useSettingsStore.getState()
+      if (settings.restoreSession) {
+        const saved = localStorage.getItem('vortix-tab-state')
+        if (saved) {
+          useTabStore.getState().restoreTabState(saved)
+        }
+      }
+
+      // lockOnStart：启动时锁屏（需要已设置密码）
+      if (settings.lockOnStart && settings.lockPassword) {
+        useUIStore.getState().setLocked(true)
+      }
     })
 
     // 检测 URL 参数 ?restore= 恢复标签页状态
@@ -84,6 +98,47 @@ export function useAppInit() {
         }
       })
       window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+}
+
+/** 标签页状态持久化：restoreSession 开启时自动保存到 localStorage */
+export function useTabStatePersistence() {
+  useEffect(() => {
+    const unsub = useTabStore.subscribe((s, prev) => {
+      if (s.tabs === prev.tabs && s.activeTabId === prev.activeTabId) return
+      if (!useSettingsStore.getState().restoreSession) return
+      try {
+        localStorage.setItem('vortix-tab-state', useTabStore.getState().serializeTabState())
+      } catch { /* 存储满时静默 */ }
+    })
+    return () => unsub()
+  }, [])
+}
+
+/** 空闲锁屏：idleLockMinutes > 0 且已设置密码时，空闲超时自动锁屏 */
+export function useIdleLock() {
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const resetTimer = () => {
+      if (timer) clearTimeout(timer)
+      const { idleLockMinutes, lockPassword } = useSettingsStore.getState()
+      if (idleLockMinutes <= 0 || !lockPassword) return
+      timer = setTimeout(() => {
+        const { isLocked } = useUIStore.getState()
+        if (!isLocked) useUIStore.getState().setLocked(true)
+      }, idleLockMinutes * 60 * 1000)
+    }
+
+    const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'] as const
+    const handler = () => resetTimer()
+    events.forEach(e => window.addEventListener(e, handler, { passive: true }))
+    resetTimer()
+
+    return () => {
+      if (timer) clearTimeout(timer)
+      events.forEach(e => window.removeEventListener(e, handler))
     }
   }, [])
 }

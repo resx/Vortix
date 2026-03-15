@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSftpStore } from '../stores/useSftpStore'
+import { useSettingsStore } from '../stores/useSettingsStore'
 import { handleDownloadChunk, handleDownloadComplete, handleDownloadError } from '../services/transfer-engine'
 import type { SftpFileEntry, ExecResult } from '../types/sftp'
 
@@ -47,13 +48,14 @@ export function useSftpConnection() {
         reject,
       })
       ws.send(JSON.stringify({ type, data, requestId }))
-      // 超时 30s
+      // 超时：读取设置中的 sftpListTimeout（秒），默认 60s
+      const timeoutMs = (useSettingsStore.getState().sftpListTimeout || 60) * 1000
       setTimeout(() => {
         if (pendingRef.current.has(requestId)) {
           pendingRef.current.delete(requestId)
           reject(new Error('请求超时'))
         }
-      }, 30000)
+      }, timeoutMs)
     })
   }, [])
 

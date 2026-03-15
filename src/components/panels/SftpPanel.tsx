@@ -17,6 +17,9 @@ import { uploadFiles } from '../../services/transfer-engine'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTabStore } from '../../stores/useTabStore'
 import { useToastStore } from '../../stores/useToastStore'
+import { isTextFile } from '../../lib/file-icons'
+import { isBuiltinEditor, launchExternalEditor } from '../../services/editor-launcher'
+import type { EditorType } from '../../services/editor-launcher'
 import * as api from '../../api/client'
 import type { SftpFileEntry } from '../../types/sftp'
 
@@ -35,10 +38,11 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
   const sftp = useSftpConnection()
   const connectAttempted = useRef(false)
 
-  // 面板挂载时根据全局设置初始化路径联动开关
+  // 面板挂载时根据全局设置初始化路径联动开关和隐藏文件显示
   useEffect(() => {
-    const { sshSftpPathSync } = useSettingsStore.getState()
-    useSftpStore.getState().setPathSyncEnabled(sshSftpPathSync)
+    const settings = useSettingsStore.getState()
+    useSftpStore.getState().setPathSyncEnabled(settings.sshSftpPathSync)
+    useSftpStore.getState().setShowHidden(settings.sftpShowHidden)
   }, [])
 
   // 自动连接：面板挂载时解析当前标签页的 SSH 凭据并建立 SFTP 连接
@@ -185,11 +189,29 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
       }
     }
   }, [connected, sftp, addToast])
-  // 双击文件 → 编辑
+  // 双击文件 → 根据 sftpDoubleClickAction 和 sftpDefaultEditor 分发行为
   const handleDoubleClick = useCallback((entry: SftpFileEntry) => {
     if (entry.type !== 'file') return
-    actions.handleEdit(entry)
-  }, [actions])
+    const { sftpDoubleClickAction, sftpDefaultEditor } = useSettingsStore.getState()
+
+    const shouldEdit =
+      sftpDoubleClickAction === 'edit' ||
+      (sftpDoubleClickAction === 'auto' && isTextFile(entry.name))
+
+    if (shouldEdit) {
+      // 编辑模式：根据 sftpDefaultEditor 选择内置或外部编辑器
+      if (isBuiltinEditor(sftpDefaultEditor as EditorType)) {
+        actions.handleEdit(entry)
+      } else {
+        launchExternalEditor(entry.path, {
+          type: sftpDefaultEditor as EditorType,
+        }).catch(err => addToast('error', `启动编辑器失败: ${(err as Error).message}`))
+      }
+    } else {
+      // 打开模式：下载到本地并用系统默认程序打开
+      actions.handleLocalOpen(entry)
+    }
+  }, [actions, addToast])
 
   // 编辑器保存
   const handleEditorSave = useCallback(async (content: string) => {

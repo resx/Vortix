@@ -3,6 +3,7 @@ import { MenuItem, MenuDivider, ActionButton } from '../components/MenuParts'
 import { useTabStore } from '../../../stores/useTabStore'
 import { useWorkspaceStore, collectLeafIds } from '../../../stores/useWorkspaceStore'
 import { useToastStore } from '../../../stores/useToastStore'
+import { useUIStore } from '../../../stores/useUIStore'
 import { getSession } from '../../../stores/terminalSessionRegistry'
 import { icons } from '../../../components/icons/AppIcon'
 import type { TerminalContextData } from '../../../types'
@@ -93,7 +94,7 @@ export function registerTerminalMenu(): () => void {
             <MenuItem icon={icons.search} label="Bing" onClick={() => handleSearch('bing')} />
             <MenuItem icon={icons.search} label="百度" onClick={() => handleSearch('baidu')} />
           </MenuItem>
-          <MenuItem icon={icons.appWindow} label="通过服务器代理 Chrome" />
+          <MenuItem icon={icons.appWindow} label="通过服务器代理 Chrome" disabled onClick={() => { hideContextMenu(); addToast('info', 'Chrome 代理功能即将推出') }} />
           <MenuDivider />
           <MenuItem icon={icons.squareArrowOutUpRight} label="新终端窗口" shortcut="Ctrl+Shift+N" disabled={!termTabId} onClick={termTabId ? () => { hideContextMenu(); duplicateTab(termTabId) } : undefined} />
           <MenuItem icon={icons.refresh} label="重新连接" shortcut="Ctrl+Shift+R" disabled={!termTabId} onClick={termTabId ? () => { hideContextMenu(); reconnectTab(termTabId) } : undefined} />
@@ -110,8 +111,22 @@ export function registerTerminalMenu(): () => void {
             <MenuItem icon={icons.clock} label={termPaneId && recordingPanes.has(termPaneId) ? "停止记录日志" : "开始记录日志"} onClick={() => { hideContextMenu(); if (!termPaneId) return; const session = getSession(termPaneId); if (!session?.term) return; if (recordingPanes.has(termPaneId)) { const startLine = recordingPanes.get(termPaneId)!; recordingPanes.delete(termPaneId); const buf = session.term.buffer.active; const lines: string[] = []; for (let i = startLine; i < buf.length; i++) { const line = buf.getLine(i); if (line) lines.push(line.translateToString(true)) } const blob = new Blob([lines.join('\n')], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `terminal-record-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.log`; a.click(); URL.revokeObjectURL(url); addToast('success', '日志已保存') } else { recordingPanes.set(termPaneId, session.term.buffer.active.baseY + session.term.buffer.active.cursorY); addToast('success', '开始记录日志') } }} />
             <MenuItem icon={icons.save} label="保存为日志" onClick={() => { hideContextMenu(); if (!termPaneId) return; const session = getSession(termPaneId); if (!session?.term) return; const buf = session.term.buffer.active; const lines: string[] = []; for (let i = 0; i < buf.length; i++) { const line = buf.getLine(i); if (line) lines.push(line.translateToString(true)) } const blob = new Blob([lines.join('\n')], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `terminal-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.log`; a.click(); URL.revokeObjectURL(url) }} />
             <MenuItem icon={icons.terminalSquare} label="批量执行命令" onClick={() => { hideContextMenu(); const cmd = prompt('请输入要在所有终端中执行的命令'); if (!cmd) return; const allTabs = useTabStore.getState().tabs; const wsStore = useWorkspaceStore.getState(); let count = 0; for (const t of allTabs) { if (t.type !== 'asset') continue; const pids = wsStore.getAllPaneIds(t.id); for (const pid of pids) { const s = getSession(pid); if (s?.ws?.readyState === WebSocket.OPEN) { s.ws.send(JSON.stringify({ type: 'input', data: cmd + '\n' })); count++ } } } addToast('success', `命令已发送到 ${count} 个终端`) }} />
-            <MenuItem icon={icons.fileDown} label="SCP 下载" shortcut="Ctrl+Shift+D" />
-            <MenuItem icon={icons.fileUp} label="SCP 上传" shortcut="Ctrl+Shift+U" />
+            <MenuItem icon={icons.fileDown} label="SCP 下载" shortcut="Ctrl+Shift+D" onClick={() => {
+              hideContextMenu()
+              const remotePath = prompt('请输入远程文件路径')
+              if (!remotePath) return
+              // 打开 SFTP 面板，用户可通过 SFTP 面板导航并下载
+              const ui = useUIStore.getState()
+              if (!ui.sftpOpen) ui.toggleSftp()
+              addToast('info', `请在 SFTP 面板中导航到 ${remotePath} 进行下载`)
+            }} />
+            <MenuItem icon={icons.fileUp} label="SCP 上传" shortcut="Ctrl+Shift+U" onClick={() => {
+              hideContextMenu()
+              // 打开 SFTP 面板，用户可通过拖拽或 SFTP 面板上传
+              const ui = useUIStore.getState()
+              if (!ui.sftpOpen) ui.toggleSftp()
+              addToast('info', '请将文件拖入 SFTP 面板或使用面板工具栏上传')
+            }} />
           </MenuItem>
         </>
       )

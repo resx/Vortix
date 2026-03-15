@@ -227,6 +227,14 @@ html.reduce-motion *::after {
   100% { left: 150%; }
 }
 
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
 /* ── Apple Liquid Glass 液态玻璃（深色叠加层） ── */
 .glass-dropdown {
   background: rgba(255, 255, 255, 0.12);

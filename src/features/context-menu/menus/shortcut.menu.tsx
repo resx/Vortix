@@ -24,7 +24,7 @@ export function registerShortcutMenu(): () => void {
         <>
           <div className="px-4 py-1 text-[11px] text-text-1 font-medium">操作</div>
           <MenuItem icon={icons.link} label="新建快捷命令" onClick={() => { hideContextMenu(); openShortcutDialog('create') }} />
-          <MenuItem icon={icons.folderPlus} label="新建分组" />
+          <MenuItem icon={icons.folderPlus} label="新建分组" onClick={() => { hideContextMenu(); addToast('info', '分组功能即将推出') }} />
           <MenuDivider />
           <MenuItem icon={icons.terminal} label="执行" disabled={!hasCommand} onClick={hasCommand ? () => { hideContextMenu(); executeShortcut(item!.command!, 'execute') } : undefined} />
           <MenuItem icon={icons.clipboard} label="粘贴到终端" disabled={!hasCommand} onClick={hasCommand ? () => { hideContextMenu(); executeShortcut(item!.command!, 'paste') } : undefined} />

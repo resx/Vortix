@@ -20,6 +20,22 @@ if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
   getCurrentWindow().isAlwaysOnTop().then(v => { pinned = v }).catch(() => {})
 }
 
+// 窗口聚焦追踪：区分"聚焦点击"和"拖拽意图"
+let justFocused = false
+let focusTimer: ReturnType<typeof setTimeout> | null = null
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('focus', () => {
+    justFocused = true
+    if (focusTimer) clearTimeout(focusTimer)
+    focusTimer = setTimeout(() => { justFocused = false }, 200)
+  })
+  window.addEventListener('blur', () => {
+    justFocused = false
+    if (focusTimer) { clearTimeout(focusTimer); focusTimer = null }
+  })
+}
+
 /** 检测是否在 Tauri 环境中运行 */
 function isTauri(): boolean {
   return '__TAURI_INTERNALS__' in window
@@ -93,6 +109,8 @@ export function handleTitleBarMouseDown(e: ReactMouseEvent): void {
   const target = e.target as HTMLElement
   if (target.closest(INTERACTIVE_SELECTOR)) return
   if (!isTauri()) return
+  // 窗口刚获得焦点时（200ms 内），跳过拖拽，避免聚焦点击误触发拖动
+  if (justFocused) return
   getCurrentWindow().startDragging()
 }
 

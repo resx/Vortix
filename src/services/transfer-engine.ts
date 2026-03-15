@@ -3,6 +3,7 @@
 
 import { useTransferStore } from '../stores/useTransferStore'
 import { useSftpStore } from '../stores/useSftpStore'
+import { useSettingsStore } from '../stores/useSettingsStore'
 
 const CHUNK_SIZE = 64 * 1024
 const PROGRESS_THROTTLE = 200
@@ -235,14 +236,15 @@ export function getDownloadBlob(transferId: string): Blob | null {
   return completedBlobs.get(transferId)?.blob ?? null
 }
 
-/** 保存已完成的下载到本地默认目录（~/Downloads/vortix-download/） */
+/** 保存已完成的下载到本地默认目录（优先使用设置中的 sftpDefaultSavePath） */
 export async function saveDownload(transferId: string): Promise<string | null> {
   const entry = completedBlobs.get(transferId)
   if (!entry) return null
 
   try {
     const { saveDownloadToLocal } = await import('../api/client')
-    const savedPath = await saveDownloadToLocal(entry.blob, entry.fileName)
+    const defaultPath = useSettingsStore.getState().sftpDefaultSavePath
+    const savedPath = await saveDownloadToLocal(entry.blob, entry.fileName, defaultPath || undefined)
     completedBlobs.delete(transferId)
     return savedPath
   } catch (err) {

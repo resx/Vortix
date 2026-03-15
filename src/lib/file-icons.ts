@@ -81,6 +81,38 @@ const extMap: Record<string, FileIconResult> = {
   pub: { icon: icons.key, color: 'text-red-400' },
 }
 
+/** 可在内置编辑器中打开的文本文件扩展名 */
+const TEXT_EXTENSIONS = new Set([
+  // 代码
+  'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'go', 'rs', 'java', 'c', 'cpp', 'h',
+  'vue', 'svelte', 'rb', 'php', 'css', 'scss', 'less', 'html', 'htm', 'kt', 'swift',
+  // 配置
+  'json', 'jsonc', 'yml', 'yaml', 'toml', 'env', 'ini', 'conf', 'xml', 'properties',
+  // 文档
+  'md', 'txt', 'rtf', 'rst', 'adoc',
+  // 脚本
+  'sh', 'bash', 'zsh', 'bat', 'ps1', 'fish', 'makefile', 'dockerfile',
+  // 数据
+  'sql', 'csv', 'tsv', 'graphql', 'gql',
+  // 日志
+  'log',
+  // 密钥（文本格式）
+  'pem', 'pub', 'crt', 'cer',
+])
+
+/** 判断文件是否为文本文件（可在编辑器中打开） */
+export function isTextFile(name: string): boolean {
+  const lower = name.toLowerCase()
+  // 无扩展名的常见文本文件
+  const baseName = lower.split('/').pop() ?? lower
+  if (['makefile', 'dockerfile', 'rakefile', 'gemfile', 'procfile', '.gitignore', '.env'].includes(baseName)) {
+    return true
+  }
+  const ext = baseName.includes('.') ? baseName.split('.').pop()! : ''
+  if (!ext) return true // 无扩展名默认当文本处理
+  return TEXT_EXTENSIONS.has(ext)
+}
+
 const defaultFile: FileIconResult = { icon: icons.file, color: 'text-text-3' }
 const dirIcon: FileIconResult = { icon: icons.folderOpen, color: 'text-icon-folder' }
 const symlinkIcon: FileIconResult = { icon: icons.link, color: 'text-primary/70' }

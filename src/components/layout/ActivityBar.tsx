@@ -10,12 +10,14 @@ function TooltipButton({
   icon,
   iconNode,
   isActive,
+  disabled,
   tooltipText,
   onClick,
 }: {
   icon?: string
   iconNode?: ReactNode
   isActive: boolean
+  disabled?: boolean
   tooltipText: string
   onClick: () => void
 }) {
@@ -23,9 +25,12 @@ function TooltipButton({
     <Tooltip>
       <TooltipTrigger asChild>
         <button
-          onClick={onClick}
+          onClick={disabled ? undefined : onClick}
+          disabled={disabled}
           className={`w-[32px] h-[32px] rounded-[10px] transition-colors flex items-center justify-center ${
-            isActive ? 'bg-border text-text-1' : 'text-text-3 hover:bg-border/60'
+            disabled
+              ? 'text-text-3/40 cursor-not-allowed'
+              : isActive ? 'bg-border text-text-1' : 'text-text-3 hover:bg-border/60'
           }`}
         >
           {iconNode ?? <AppIcon icon={icon!} size={18} />}
@@ -36,11 +41,11 @@ function TooltipButton({
   )
 }
 
-const filterItems: { key: ActiveFilter; icon: string; tooltip: string }[] = [
+const filterItems: { key: ActiveFilter; icon: string; tooltip: string; disabled?: boolean }[] = [
   { key: 'all', icon: icons.list, tooltip: '显示全部' },
   { key: 'ssh', icon: icons.terminal, tooltip: '显示终端/SSH资产' },
-  { key: 'db', icon: icons.database, tooltip: '显示数据库资产' },
-  { key: 'docker', icon: icons.container, tooltip: '显示Docker资产' },
+  { key: 'db', icon: icons.database, tooltip: '数据库（即将推出）', disabled: true },
+  { key: 'docker', icon: icons.container, tooltip: 'Docker（即将推出）', disabled: true },
 ]
 
 export default function ActivityBar() {
@@ -68,12 +73,13 @@ export default function ActivityBar() {
       <div className="w-[24px] h-px bg-border mb-2" />
 
       <div className="flex flex-col gap-1.5 w-full items-center">
-        {filterItems.map(({ key, icon, tooltip }) => (
+        {filterItems.map(({ key, icon, tooltip, disabled }) => (
           <TooltipButton
             key={key}
             icon={key === 'docker' ? undefined : icon}
             iconNode={key === 'docker' ? <ProtocolIcon protocol="docker" size={18} mono /> : undefined}
             isActive={activeFilter === key}
+            disabled={disabled}
             onClick={() => setActiveFilter(key)}
             tooltipText={tooltip}
           />

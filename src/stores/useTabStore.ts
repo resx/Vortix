@@ -27,7 +27,11 @@ interface TabState {
   openSplitTab: (rows: AssetRow[]) => void
   /** 删除连接时关闭对应标签页 */
   closeTabsByConnectionId: (connectionId: string) => void
+  /** 标记标签页有新活动（非活跃标签页终端输出） */
+  setTabActivity: (tabId: string, hasActivity: boolean) => void
   serializeTabState: () => string
+  /** 从序列化数据恢复标签页状态 */
+  restoreTabState: (data: string) => void
 }
 
 export const useTabStore = create<TabState>((set, get) => ({
@@ -69,7 +73,10 @@ export const useTabStore = create<TabState>((set, get) => ({
     return { tabs: newTabs, activeTabId: newActiveId }
   }),
 
-  setActiveTab: (id) => set({ activeTabId: id }),
+  setActiveTab: (id) => set((s) => ({
+    activeTabId: id,
+    tabs: s.tabs.map(t => t.id === id && t.hasActivity ? { ...t, hasActivity: false } : t),
+  })),
   setListViewMode: (mode) => set({ listViewMode: mode }),
 
   reorderTab: (fromId, toId) => set((s) => {
@@ -233,6 +240,10 @@ export const useTabStore = create<TabState>((set, get) => ({
     return { tabs: newTabs, activeTabId: newActiveId }
   }),
 
+  setTabActivity: (tabId, hasActivity) => set((s) => ({
+    tabs: s.tabs.map(t => t.id === tabId ? { ...t, hasActivity } : t),
+  })),
+
   serializeTabState: () => {
     const { tabs, activeTabId } = get()
     const serializable = tabs.map(t => {
@@ -247,5 +258,22 @@ export const useTabStore = create<TabState>((set, get) => ({
       }
     })
     return JSON.stringify({ tabs: serializable, activeTabId })
+  },
+
+  restoreTabState: (data) => {
+    try {
+      const parsed = JSON.parse(data)
+      if (!parsed.tabs || !Array.isArray(parsed.tabs)) return
+      const { openAssetTab } = get()
+      for (const tab of parsed.tabs) {
+        if (tab.type === 'asset' && tab.assetRow && typeof tab.assetRow.id === 'string') {
+          openAssetTab(tab.assetRow)
+        }
+      }
+      // 恢复活跃标签页
+      if (parsed.activeTabId && get().tabs.some(t => t.id === parsed.activeTabId)) {
+        set({ activeTabId: parsed.activeTabId })
+      }
+    } catch { /* 解析失败静默忽略 */ }
   },
 }))

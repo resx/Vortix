@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { AppIcon, icons } from '../../icons/AppIcon'
 import { useSftpStore } from '../../../stores/useSftpStore'
+import { useSettingsStore } from '../../../stores/useSettingsStore'
 import { getFileTypeIcon } from '../../../lib/file-icons'
 import SftpInlineRename from './SftpInlineRename'
 import type { SftpFileEntry, SftpSortField } from '../../../types/sftp'
@@ -19,6 +20,22 @@ function formatDate(iso: string): string {
   if (isNaN(d.getTime())) return '-'
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** 获取文件扩展名（用于 type 列显示） */
+function getFileExt(name: string, type: string): string {
+  if (type === 'dir') return '目录'
+  if (type === 'symlink') return '链接'
+  const ext = name.includes('.') ? name.split('.').pop()!.toUpperCase() : '-'
+  return ext
+}
+
+/** 列定义映射 */
+const COLUMN_DEFS: Record<string, { field: SftpSortField | null; label: string; width: string; align: string }> = {
+  name: { field: 'name', label: '名称', width: 'flex-1', align: 'text-left' },
+  size: { field: 'size', label: '大小', width: 'w-[60px]', align: 'text-right' },
+  mtime: { field: 'modifiedAt', label: '修改时间', width: 'w-[110px]', align: 'text-right' },
+  type: { field: null, label: '类型', width: 'w-[50px]', align: 'text-right' },
 }
 
 interface Props {
@@ -40,6 +57,7 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
   const entries = useSftpStore(s => s.entries)
   const loading = useSftpStore(s => s.loading)
   const showHidden = useSftpStore(s => s.showHidden)
+  const currentPath = useSftpStore(s => s.currentPath)
   const sortField = useSftpStore(s => s.sortField)
   const sortOrder = useSftpStore(s => s.sortOrder)
   const toggleSort = useSftpStore(s => s.toggleSort)
@@ -53,6 +71,13 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
   const renamingPath = useSftpStore(s => s.renamingPath)
   const connected = useSftpStore(s => s.connected)
   const connecting = useSftpStore(s => s.connecting)
+
+  // 读取 SFTP 设置
+  const sftpParentDirClick = useSettingsStore(s => s.sftpParentDirClick)
+  const sftpRemoteColumns = useSettingsStore(s => s.sftpRemoteColumns)
+
+  // 解析可见列（name 始终显示）
+  const visibleColumns = sftpRemoteColumns.filter(c => c in COLUMN_DEFS && c !== 'name')
 
   const lastClickRef = useRef<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
@@ -152,8 +177,10 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
     e.dataTransfer.effectAllowed = 'copy'
   }, [])
 
-  // 过滤隐藏文件
-  const visible = showHidden ? entries : entries.filter(e => !e.name.startsWith('.'))
+  // 过滤隐藏文件（排除服务端返回的 . 和 ..，由组件自行渲染 ..）
+  const visible = entries.filter(e =>
+    e.name !== '.' && e.name !== '..' && (showHidden || !e.name.startsWith('.'))
+  )
 
   // 搜索过滤
   const filtered = searchQuery
@@ -205,6 +232,19 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
       onDoubleClick(entry)
     }
   }, [onNavigate, onDoubleClick])
+
+  /** 上级目录（..）点击处理：根据 sftpParentDirClick 决定单击/双击导航 */
+  const handleParentClick = useCallback(() => {
+    if (sftpParentDirClick) {
+      const parent = currentPath.replace(/\/[^/]+\/?$/, '') || '/'
+      onNavigate(parent)
+    }
+  }, [sftpParentDirClick, currentPath, onNavigate])
+
+  const handleParentDoubleClick = useCallback(() => {
+    const parent = currentPath.replace(/\/[^/]+\/?$/, '') || '/'
+    onNavigate(parent)
+  }, [currentPath, onNavigate])
 
   /** 键盘快捷键 */
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -258,8 +298,9 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
     }
   }, [sorted, selectedPaths, selectAll, clearSelection, selectPath, onCopy, onCut, onPaste, onDelete, onRenameStart, onRefresh, onNavigate, onDoubleClick])
 
-  const renderSortHeader = (field: SftpSortField, label: string, className?: string) => (
+  const renderSortHeader = (field: SftpSortField, label: string, className?: string, key?: string) => (
     <button
+      key={key}
       className={`flex items-center gap-0.5 text-[10px] text-text-3 font-medium hover:text-text-1 transition-colors ${className || ''}`}
       onClick={() => toggleSort(field)}
     >
@@ -325,12 +366,35 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
       {/* 列头 */}
       <div className="flex items-center px-3 py-1 border-b border-border/50 bg-bg-subtle/50 shrink-0">
         {renderSortHeader('name', '名称', 'flex-1')}
-        {renderSortHeader('size', '大小', 'w-[60px] justify-end')}
-        {renderSortHeader('modifiedAt', '修改时间', 'w-[110px] justify-end')}
+        {visibleColumns.map(col => {
+          const def = COLUMN_DEFS[col]
+          return def.field
+            ? renderSortHeader(def.field, def.label, `${def.width} justify-end`, col)
+            : (
+              <span key={col} className={`text-[10px] text-text-3 font-medium ${def.width} ${def.align}`}>
+                {def.label}
+              </span>
+            )
+        })}
       </div>
 
       {/* 文件列表 */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {/* 上级目录 .. 条目 */}
+        {currentPath !== '/' && (
+          <div
+            className="flex items-center gap-2 px-3 py-1 cursor-pointer text-[12px] transition-colors hover:bg-bg-hover text-text-3"
+            onClick={handleParentClick}
+            onDoubleClick={handleParentDoubleClick}
+          >
+            <AppIcon icon={icons.folderOpen} size={14} className="shrink-0 text-icon-folder" />
+            <span className="flex-1 truncate">..</span>
+            {visibleColumns.map(col => {
+              const def = COLUMN_DEFS[col]
+              return <span key={col} className={`${def.width} ${def.align} text-[10px] text-text-3 shrink-0`}>-</span>
+            })}
+          </div>
+        )}
         {sorted.map(entry => {
           const selected = selectedPaths.has(entry.path)
           return (
@@ -358,12 +422,28 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
               ) : (
                 <span className="flex-1 truncate">{entry.name}</span>
               )}
-              <span className="w-[60px] text-right text-[10px] text-text-3 shrink-0">
-                {entry.type === 'dir' ? '-' : formatSize(entry.size)}
-              </span>
-              <span className="w-[110px] text-right text-[10px] text-text-3 shrink-0">
-                {formatDate(entry.modifiedAt)}
-              </span>
+              {visibleColumns.map(col => {
+                const def = COLUMN_DEFS[col]
+                let content: string
+                switch (col) {
+                  case 'size':
+                    content = entry.type === 'dir' ? '-' : formatSize(entry.size)
+                    break
+                  case 'mtime':
+                    content = formatDate(entry.modifiedAt)
+                    break
+                  case 'type':
+                    content = getFileExt(entry.name, entry.type)
+                    break
+                  default:
+                    content = '-'
+                }
+                return (
+                  <span key={col} className={`${def.width} ${def.align} text-[10px] text-text-3 shrink-0`}>
+                    {content}
+                  </span>
+                )
+              })}
             </div>
           )
         })}

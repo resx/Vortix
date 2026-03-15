@@ -19,6 +19,12 @@ export interface TerminalSession {
   isManualDisconnect: boolean
   inputDisposable: IDisposable | null
   reconnectInputDisposable: IDisposable | null
+  /** 当前输入缓冲区（命令历史记录 + 提示） */
+  commandBuffer: string
+  /** 缓存的历史命令（命令提示用） */
+  historyCache: string[]
+  /** 上一条已记录命令（去重） */
+  lastRecordedCommand: string
 }
 
 const sessions = new Map<string, TerminalSession>()

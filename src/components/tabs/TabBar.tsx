@@ -16,6 +16,7 @@ export default function TabBar() {
   const reorderTab = useTabStore((s) => s.reorderTab)
   const showContextMenu = useUIStore((s) => s.showContextMenu)
   const closeLeft = !useSettingsStore((s) => s.tabCloseButtonLeft)
+  const tabMultiLine = useSettingsStore((s) => s.tabMultiLine)
 
   const [showMenu, setShowMenu] = useState(false)
   const [searchText, setSearchText] = useState('')
@@ -59,7 +60,7 @@ export default function TabBar() {
   const showHome = !searchText || '首页'.includes(searchText)
 
   return (
-    <div id="tab-bar" className="h-[38px] bg-bg-subtle rounded-t-xl flex items-center shrink-0">
+    <div id="tab-bar" className={`bg-bg-subtle rounded-t-xl flex items-center shrink-0 ${tabMultiLine ? 'min-h-[38px] flex-wrap' : 'h-[38px]'}`}>
       {/* 左上角下拉触发按钮 */}
       <div ref={menuRef} className="relative h-full">
         <div className="h-full flex items-center rounded-tl-xl overflow-hidden">
@@ -155,7 +156,7 @@ export default function TabBar() {
 
       {/* 右侧标签指示区 - 显示当前活跃的资产标签状态，支持拖拽 */}
       <div
-        className={`flex-1 flex items-center h-full transition-colors ${dropHighlight ? 'border-b border-primary bg-primary/5' : ''}`}
+        className={`flex-1 flex items-center h-full transition-colors ${tabMultiLine ? 'flex-wrap' : 'overflow-x-auto'} ${dropHighlight ? 'border-b border-primary bg-primary/5' : ''}`}
         onDragOver={(e) => {
           // 接受来自分屏面板的拖拽
           if (e.dataTransfer.types.includes('text/pane-id')) {
@@ -256,6 +257,11 @@ export default function TabBar() {
                     <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${getColorTagDotClass(tab.assetRow?.colorTag)}`} />
                   )}
                   <span className="max-w-[80px] truncate">{tab.label}</span>
+
+                  {/* 活动指示器：非活跃标签页有新输出时闪烁 */}
+                  {!isActive && tab.hasActivity && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shrink-0" />
+                  )}
 
                   {/* 关闭按钮 - 右侧 */}
                   {!closeLeft && closeBtn}

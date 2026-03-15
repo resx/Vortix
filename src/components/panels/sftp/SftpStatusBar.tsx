@@ -23,7 +23,9 @@ export default function SftpStatusBar() {
   const showHidden = useSftpStore(s => s.showHidden)
   const tasks = useTransferStore(s => s.tasks)
 
-  const visibleEntries = showHidden ? entries : entries.filter(e => !e.name.startsWith('.'))
+  const visibleEntries = entries.filter(e =>
+    e.name !== '.' && e.name !== '..' && (showHidden || !e.name.startsWith('.'))
+  )
   const dirs = visibleEntries.filter(e => e.type === 'dir').length
   const files = visibleEntries.filter(e => e.type !== 'dir').length
   const selectedCount = selectedPaths.size

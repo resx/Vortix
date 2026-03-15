@@ -42,6 +42,8 @@ export interface AppTab {
   errorMessage?: string
   /** 重连 key，递增触发组件重新挂载 */
   reconnectKey?: number
+  /** 非活跃标签页有新终端输出时标记 */
+  hasActivity?: boolean
 }
 
 export type ListViewMode = 'list' | 'card' | 'thumbnail'

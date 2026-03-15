@@ -30,11 +30,13 @@ export default function ContextMenuShell() {
     return () => cancelAnimationFrame(frame)
   }, [contextMenu.visible, contextMenu.x, contextMenu.y, adjustPosition])
 
+  // Esc 键关闭
   useEffect(() => {
-    const close = () => hideContextMenu()
-    window.addEventListener('click', close)
-    return () => window.removeEventListener('click', close)
-  }, [hideContextMenu])
+    if (!contextMenu.visible) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') hideContextMenu() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [contextMenu.visible, hideContextMenu])
 
   const provider = useMemo(
     () => contextMenu.type ? getMenuProvider(contextMenu.type) : null,
@@ -62,15 +64,25 @@ export default function ContextMenuShell() {
   const minWidthPx = minWidth === 'min-w-[260px]' ? 260 : 210
 
   return (
-    <div
-      ref={menuRef}
-      className={`fixed glass-context rounded-xl py-1 ${minWidth} z-[100]`}
-      style={{ top: resolvedPosition.top, left: resolvedPosition.left, '--ctx-menu-w': `${minWidthPx}px` } as React.CSSProperties}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <MenuGroup>
-        {content}
-      </MenuGroup>
-    </div>
+    <>
+      {/* 全屏透明遮罩：拦截菜单外的所有鼠标事件 */}
+      <div
+        className="fixed inset-0 z-[99]"
+        onMouseDown={hideContextMenu}
+        onContextMenu={(e) => { e.preventDefault(); hideContextMenu() }}
+      />
+      <div
+        ref={menuRef}
+        className={`fixed glass-context rounded-xl py-1 ${minWidth} z-[100]`}
+        style={{ top: resolvedPosition.top, left: resolvedPosition.left, '--ctx-menu-w': `${minWidthPx}px` } as React.CSSProperties}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.stopPropagation()}
+      >
+        <MenuGroup>
+          {content}
+        </MenuGroup>
+      </div>
+    </>
   )
 }

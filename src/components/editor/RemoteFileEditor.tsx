@@ -9,6 +9,30 @@ import { AppIcon, icons } from '../icons/AppIcon'
 import { getLanguageExtension, getLanguageName } from './useEditorLanguage'
 import { useToastStore } from '../../stores/useToastStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { resolveFontChain } from '../../lib/fonts'
+
+/** 根据 editorLineEnding 设置转换换行符 */
+function normalizeLineEnding(text: string, lineEnding: string): string {
+  // CodeMirror 内部统一使用 \n，保存时按设置转换
+  switch (lineEnding) {
+    case 'crlf':
+      return text.replace(/\n/g, '\r\n')
+    case 'cr':
+      return text.replace(/\n/g, '\r')
+    default: // 'lf'
+      return text
+  }
+}
+
+/** 根据 editorTabMode 获取 tab 大小 */
+function getTabSize(tabMode: string): number {
+  switch (tabMode) {
+    case 'two-spaces': return 2
+    case 'tab': return 4
+    case 'four-spaces':
+    default: return 4
+  }
+}
 
 interface Props {
   filePath: string
@@ -28,28 +52,44 @@ export default function RemoteFileEditor({ filePath, content, onSave, onClose }:
   const fileName = filePath.split('/').pop() || filePath
   const langName = getLanguageName(fileName)
 
-  // 初始化编辑器
+  // 初始化编辑器（读取设置 store 中的编辑器配置）
   useEffect(() => {
     if (!editorRef.current) return
 
     let view: EditorView
 
     const setup = async () => {
+      const settings = useSettingsStore.getState()
+      const fontFamily = resolveFontChain(settings.editorFontFamily)
+      const fontSize = settings.editorFontSize
+      const wordWrap = settings.editorWordWrap
+      const tabMode = settings.editorTabMode
+      const ligatures = settings.fontLigatures
+
       const extensions = [
         lineNumbers(),
         highlightActiveLine(),
         highlightActiveLineGutter(),
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
+        EditorState.tabSize.of(getTabSize(tabMode)),
         EditorView.updateListener.of((update: ViewUpdate) => {
           if (update.docChanged) setDirty(true)
         }),
         EditorView.theme({
-          '&': { height: '100%', fontSize: '13px' },
-          '.cm-scroller': { overflow: 'auto', fontFamily: 'monospace' },
-          '.cm-content': { padding: '8px 0' },
+          '&': { height: '100%', fontSize: `${fontSize}px` },
+          '.cm-scroller': { overflow: 'auto', fontFamily },
+          '.cm-content': {
+            padding: '8px 0',
+            fontFamily,
+            fontVariantLigatures: ligatures ? 'normal' : 'none',
+          },
+          '.cm-gutters': { fontFamily },
         }),
       ]
+
+      // 自动换行
+      if (wordWrap) extensions.push(EditorView.lineWrapping)
 
       if (isDark) extensions.push(oneDark)
 
@@ -74,7 +114,10 @@ export default function RemoteFileEditor({ filePath, content, onSave, onClose }:
     if (!view) return
     setSaving(true)
     try {
-      await onSave(view.state.doc.toString())
+      const raw = view.state.doc.toString()
+      const lineEnding = useSettingsStore.getState().editorLineEnding
+      const normalized = normalizeLineEnding(raw, lineEnding)
+      await onSave(normalized)
       setDirty(false)
       addToast('success', '文件已保存')
     } catch (err) {

@@ -19,6 +19,8 @@ addCollection(streamlineLogosIcons)
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const icons = {
+  lock: 'ph:lock-simple',
+  lockOpen: 'ph:lock-simple-open',
   copy: 'ph:copy',
   clipboard: 'ph:clipboard',
   clipboardText: 'ph:clipboard-text',

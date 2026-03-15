@@ -19,8 +19,9 @@ import { useTabStore } from './stores/useTabStore'
 import { useUIStore } from './stores/useUIStore'
 import { TooltipProvider } from './components/ui/tooltip'
 import { bootstrap } from './bootstrap'
-import { useAppInit, useThemeEffect, useUIFontEffect, useZoomEffect, useAnimationEffect, useGlobalShortcuts, useConfigChangedListener, useWindowReady } from './hooks/useAppEffects'
+import { useAppInit, useThemeEffect, useUIFontEffect, useZoomEffect, useAnimationEffect, useGlobalShortcuts, useConfigChangedListener, useWindowReady, useTabStatePersistence, useIdleLock } from './hooks/useAppEffects'
 import DetachedTerminalView from './components/windows/DetachedTerminalView'
+import LockScreen from './components/lock/LockScreen'
 
 // 注册所有插槽模块
 bootstrap()
@@ -47,6 +48,7 @@ function MainApp() {
   const activeTabId = useTabStore((s) => s.activeTabId)
   const sftpOpen = useUIStore((s) => s.sftpOpen)
   const serverPanelOpen = useUIStore((s) => s.serverPanelOpen)
+  const isLocked = useUIStore((s) => s.isLocked)
 
   // 全局副作用
   useAppInit()
@@ -56,6 +58,8 @@ function MainApp() {
   useAnimationEffect()
   useGlobalShortcuts()
   useConfigChangedListener()
+  useTabStatePersistence()
+  useIdleLock()
   useWindowReady()
 
   const activeTab = tabs.find(t => t.id === activeTabId)
@@ -123,6 +127,7 @@ function MainApp() {
       <ContextMenu />
       <DialogRenderer />
       <ToastContainer />
+      {isLocked && <LockScreen />}
     </div>
     </TooltipProvider>
   )

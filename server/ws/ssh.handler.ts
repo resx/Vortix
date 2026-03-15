@@ -4,12 +4,60 @@ import { WebSocketServer, WebSocket } from 'ws'
 import { Client } from 'ssh2'
 import type { IPty } from 'node-pty'
 import type http from 'http'
+import { createWriteStream, mkdirSync, type WriteStream } from 'fs'
+import { join } from 'path'
 import { HighlightInterceptor } from '../highlight-interceptor'
 import type { HighlightConfig } from '../highlight-interceptor'
 import { createLocalPty } from './local.handler'
 import * as logRepo from '../repositories/log.repository.js'
 import * as historyRepo from '../repositories/history.repository.js'
 import * as settingsRepo from '../repositories/settings.repository.js'
+
+/** ANSI 转义序列正则（用于日志清洗） */
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?(?:\x07|\x1b\\)|\x1b[()][0-9A-B]|\x1b[>=<]|\x1b\[[\?]?[0-9;]*[hlsr]/g
+
+/** 终端日志写入器：缓冲 + 定时刷新，避免高频 I/O */
+class TerminalLogger {
+  private stream: WriteStream
+  private buffer = ''
+  private timer: ReturnType<typeof setInterval>
+  private closed = false
+
+  constructor(dir: string, connectionId: string, host: string) {
+    mkdirSync(dir, { recursive: true })
+    const ts = new Date().toISOString().replace(/[:.]/g, '-')
+    const safeName = (connectionId || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_')
+    const filePath = join(dir, `${safeName}_${ts}.log`)
+    this.stream = createWriteStream(filePath, { flags: 'a', encoding: 'utf-8' })
+    this.stream.write(`# Vortix Terminal Log\n# Host: ${host}\n# Started: ${new Date().toISOString()}\n\n`)
+    // 每秒刷新一次缓冲区
+    this.timer = setInterval(() => this.flush(), 1000)
+  }
+
+  /** 追加终端输出（去除 ANSI 转义） */
+  append(data: string): void {
+    if (this.closed) return
+    this.buffer += data.replace(ANSI_RE, '')
+    // 缓冲区超过 8KB 立即刷新
+    if (this.buffer.length > 8192) this.flush()
+  }
+
+  private flush(): void {
+    if (!this.buffer || this.closed) return
+    this.stream.write(this.buffer)
+    this.buffer = ''
+  }
+
+  destroy(): void {
+    if (this.closed) return
+    this.closed = true
+    clearInterval(this.timer)
+    this.flush()
+    this.stream.write(`\n# Ended: ${new Date().toISOString()}\n`)
+    this.stream.end()
+  }
+}
 
 const ESC = '\\u001b'
 const BRACKETED_PASTE_START_RE = new RegExp(`${ESC}\\[200~`, 'g')
@@ -27,6 +75,7 @@ export function setupWebSocket(_server: http.Server): WebSocketServer {
     let currentConnectionId: string | null = null
     let cmdBuffer = '' // 命令累积缓冲区
     let cachedHistoryEnabled: boolean | null = null // 缓存 sshHistoryEnabled 设置
+    let termLogger: TerminalLogger | null = null // 终端日志录制
 
     // pwd 查询状态
     let pwdRequestId: string | null = null
@@ -139,6 +188,11 @@ export function setupWebSocket(_server: http.Server): WebSocketServer {
           try {
             cachedHistoryEnabled = settingsRepo.get('sshHistoryEnabled') !== false
           } catch { cachedHistoryEnabled = true }
+          // 终端日志录制：读取 termLogDir，非空则启动
+          try {
+            const logDir = settingsRepo.get('termLogDir') as string
+            if (logDir) termLogger = new TerminalLogger(logDir, connectionId || 'unknown', host)
+          } catch { /* 日志初始化失败不影响连接 */ }
           sshClient = new Client()
           const connectStartTime = Date.now()
 
@@ -192,6 +246,9 @@ export function setupWebSocket(_server: http.Server): WebSocketServer {
                   }
                   pwdSuppressUntil = 0
 
+                  // 终端日志录制
+                  termLogger?.append(text)
+
                   if (highlightInterceptor) {
                     highlightInterceptor.processChunk(text)
                   } else {
@@ -201,6 +258,7 @@ export function setupWebSocket(_server: http.Server): WebSocketServer {
 
                 stream.stderr.on('data', (chunk: Buffer) => {
                   const text = chunk.toString('utf-8')
+                  termLogger?.append(text)
                   if (highlightInterceptor) {
                     highlightInterceptor.processChunk(text)
                   } else {
@@ -328,6 +386,7 @@ export function setupWebSocket(_server: http.Server): WebSocketServer {
         case 'disconnect': {
           if (monitorTimer) { clearInterval(monitorTimer); monitorTimer = null }
           if (ptyProcess) { ptyProcess.kill(); ptyProcess = null }
+          termLogger?.destroy(); termLogger = null
           sshStream = null
           sshClient?.end()
           sshClient = null
@@ -550,6 +609,7 @@ export function setupWebSocket(_server: http.Server): WebSocketServer {
     ws.on('close', () => {
       clearInterval(heartbeatInterval)
       if (monitorTimer) { clearInterval(monitorTimer); monitorTimer = null }
+      termLogger?.destroy(); termLogger = null
       highlightInterceptor?.destroy()
       highlightInterceptor = null
       if (ptyProcess) { ptyProcess.kill(); ptyProcess = null }

@@ -71,6 +71,10 @@ interface UIState {
   batchEditIds: string[]
   openBatchEdit: (ids: string[]) => void
   closeBatchEdit: () => void
+
+  // 锁屏
+  isLocked: boolean
+  setLocked: (v: boolean) => void
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -146,4 +150,8 @@ export const useUIStore = create<UIState>((set) => ({
   batchEditIds: [],
   openBatchEdit: (ids) => set({ batchEditOpen: true, batchEditIds: ids }),
   closeBatchEdit: () => set({ batchEditOpen: false, batchEditIds: [] }),
+
+  // 锁屏
+  isLocked: false,
+  setLocked: (v) => set({ isLocked: v }),
 }))
