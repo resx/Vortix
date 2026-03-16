@@ -17,6 +17,7 @@ export default function TabBar() {
   const showContextMenu = useUIStore((s) => s.showContextMenu)
   const closeLeft = !useSettingsStore((s) => s.tabCloseButtonLeft)
   const tabMultiLine = useSettingsStore((s) => s.tabMultiLine)
+  const middleClickCloseTab = useSettingsStore((s) => s.middleClickCloseTab)
 
   const [showMenu, setShowMenu] = useState(false)
   const [searchText, setSearchText] = useState('')
@@ -238,6 +239,13 @@ export default function TabBar() {
                     setDragIndicator(null)
                   }}
                   onClick={() => setActiveTab(tab.id)}
+                  onMouseDown={(e) => {
+                    if (e.button === 1 && middleClickCloseTab) {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      closeTab(tab.id)
+                    }
+                  }}
                   onContextMenu={(e) => {
                     e.preventDefault()
                     e.stopPropagation()

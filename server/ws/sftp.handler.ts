@@ -126,6 +126,22 @@ export function setupSftpWebSocket(_server: http.Server): WebSocketServer {
             const d = msg.data as SftpListData
             const entries = await sftpService.listDir(d.path)
             send(ws, 'sftp-list-result', { path: d.path, entries }, rid)
+            const pendingDirs = entries.filter(e => e.type === 'dir' && e.size < 0)
+            if (pendingDirs.length > 0) {
+              void (async () => {
+                for (const entry of pendingDirs) {
+                  if (ws.readyState !== WebSocket.OPEN) return
+                  try {
+                    const size = await sftpService!.computeDirSize(entry.path)
+                    if (ws.readyState === WebSocket.OPEN) {
+                      send(ws, 'sftp-dir-size', { path: entry.path, size })
+                    }
+                  } catch {
+                    // 忽略统计失败
+                  }
+                }
+              })()
+            }
             break
           }
 

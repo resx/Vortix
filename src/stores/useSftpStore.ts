@@ -69,8 +69,13 @@ interface SftpState {
   setSearchActive: (active: boolean) => void
   setPathSyncEnabled: (enabled: boolean) => void
   setRenamingPath: (path: string | null) => void
+  removeHistoryPath: (path: string) => void
+  clearHistory: () => void
+  updateEntrySize: (path: string, size: number) => void
   reset: () => void
 }
+
+const MAX_HISTORY = 200
 
 const initialState = {
   connected: false,
@@ -105,13 +110,24 @@ export const useSftpStore = create<SftpState>((set, get) => ({
   setHomePath: (home) => set({ homePath: home }),
 
   navigateTo: (path) => {
-    const { pathHistory, historyIndex } = get()
+    const { pathHistory, historyIndex, currentPath } = get()
+    if (path === currentPath) return
     // 截断前进历史，追加新路径
-    const newHistory = [...pathHistory.slice(0, historyIndex + 1), path]
+    const baseHistory = pathHistory.slice(0, historyIndex + 1)
+    const nextHistory = baseHistory[baseHistory.length - 1] === path
+      ? baseHistory
+      : [...baseHistory, path]
+    let nextIndex = nextHistory.length - 1
+    // 控制历史长度，避免无上限增长
+    if (nextHistory.length > MAX_HISTORY) {
+      const overflow = nextHistory.length - MAX_HISTORY
+      nextHistory.splice(0, overflow)
+      nextIndex = Math.max(0, nextIndex - overflow)
+    }
     set({
       currentPath: path,
-      pathHistory: newHistory,
-      historyIndex: newHistory.length - 1,
+      pathHistory: nextHistory,
+      historyIndex: nextIndex,
       selectedPaths: new Set(),
     })
   },
@@ -184,6 +200,30 @@ export const useSftpStore = create<SftpState>((set, get) => ({
   setSearchActive: (active) => set(active ? { searchActive: true } : { searchActive: false, searchQuery: '' }),
   setPathSyncEnabled: (enabled) => set({ pathSyncEnabled: enabled }),
   setRenamingPath: (path) => set({ renamingPath: path }),
+
+  removeHistoryPath: (path) => {
+    const { pathHistory, historyIndex, currentPath } = get()
+    if (path === currentPath) return
+    const nextHistory = pathHistory.filter(p => p !== path)
+    if (nextHistory.length === 0) {
+      set({ pathHistory: [currentPath], historyIndex: 0 })
+      return
+    }
+    const removedBefore = pathHistory.slice(0, historyIndex).filter(p => p === path).length
+    const nextIndex = Math.min(nextHistory.length - 1, Math.max(0, historyIndex - removedBefore))
+    set({ pathHistory: nextHistory, historyIndex: nextIndex })
+  },
+
+  clearHistory: () => {
+    const { currentPath } = get()
+    set({ pathHistory: [currentPath], historyIndex: 0 })
+  },
+
+  updateEntrySize: (path, size) => {
+    set((state) => ({
+      entries: state.entries.map(e => (e.path === path ? { ...e, size } : e)),
+    }))
+  },
 
   reset: () => set({ ...initialState, selectedPaths: new Set() }),
 }))

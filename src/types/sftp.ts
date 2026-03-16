@@ -39,6 +39,12 @@ export interface SftpMessage<T = unknown> {
   requestId?: string
 }
 
+/** 目录大小更新（懒计算结果） */
+export interface SftpDirSizeData {
+  path: string
+  size: number
+}
+
 /** 排序字段 */
 export type SftpSortField = 'name' | 'size' | 'modifiedAt'
 

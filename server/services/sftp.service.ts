@@ -21,9 +21,13 @@ function getFileType(attrs: { isDirectory(): boolean; isSymbolicLink(): boolean 
   return 'file'
 }
 
+const DIR_SIZE_TTL_MS = 5 * 60 * 1000
+
 export class SftpService {
   private sftp: SFTPWrapper | null = null
   private client: Client
+  private dirSizeCache = new Map<string, { size: number; at: number }>()
+  private dirSizeInFlight = new Map<string, Promise<number>>()
 
   constructor(client: Client) {
     this.client = client
@@ -46,8 +50,8 @@ export class SftpService {
     return this.sftp
   }
 
-  /** 列出目录内容 */
-  async listDir(dirPath: string): Promise<SftpFileEntry[]> {
+  /** 列出目录内容（不计算目录大小） */
+  private async listDirRaw(dirPath: string): Promise<SftpFileEntry[]> {
     const sftp = this.getSftp()
     return new Promise((resolve, reject) => {
       sftp.readdir(dirPath, (err, list) => {
@@ -65,6 +69,66 @@ export class SftpService {
         resolve(entries)
       })
     })
+  }
+
+  /** 递归统计目录大小（最佳努力，子目录不可访问则跳过） */
+  private async getDirSizeRaw(dirPath: string, visited = new Set<string>()): Promise<number> {
+    if (visited.has(dirPath)) return 0
+    visited.add(dirPath)
+    let total = 0
+    const entries = await this.listDirRaw(dirPath)
+    for (const entry of entries) {
+      if (entry.type === 'dir') {
+        try {
+          total += await this.getDirSizeRaw(entry.path, visited)
+        } catch {
+          // 跳过不可访问子目录
+        }
+      } else {
+        total += entry.size
+      }
+    }
+    return total
+  }
+
+  private getCachedDirSize(dirPath: string): number | null {
+    const cached = this.dirSizeCache.get(dirPath)
+    if (!cached) return null
+    if (Date.now() - cached.at > DIR_SIZE_TTL_MS) {
+      this.dirSizeCache.delete(dirPath)
+      return null
+    }
+    return cached.size
+  }
+
+  /** 递归统计目录大小（含缓存与去重） */
+  async computeDirSize(dirPath: string): Promise<number> {
+    const cached = this.getCachedDirSize(dirPath)
+    if (cached !== null) return cached
+    const inflight = this.dirSizeInFlight.get(dirPath)
+    if (inflight) return inflight
+    const task = this.getDirSizeRaw(dirPath, new Set<string>())
+      .then((size) => {
+        this.dirSizeCache.set(dirPath, { size, at: Date.now() })
+        return size
+      })
+      .finally(() => {
+        this.dirSizeInFlight.delete(dirPath)
+      })
+    this.dirSizeInFlight.set(dirPath, task)
+    return task
+  }
+
+  /** 列出目录内容（目录大小懒计算） */
+  async listDir(dirPath: string): Promise<SftpFileEntry[]> {
+    const entries = await this.listDirRaw(dirPath)
+    for (const entry of entries) {
+      if (entry.type === 'dir') {
+        const cached = this.getCachedDirSize(entry.path)
+        entry.size = cached !== null ? cached : -1
+      }
+    }
+    return entries
   }
 
   /** 创建目录 */

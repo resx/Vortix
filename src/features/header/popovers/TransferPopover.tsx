@@ -32,7 +32,8 @@ function formatSpeed(bps: number): string {
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`
 }
 
 function ProgressBar({ task }: { task: TransferTask }) {
@@ -104,7 +105,7 @@ function TaskRow({ task }: { task: TransferTask }) {
       </div>
       <ProgressBar task={task} />
       <div className="flex items-center justify-between mt-0.5 text-[10px] text-text-3">
-        <span>{formatSize(task.bytesTransferred)} / {formatSize(task.fileSize)} ({pct}%)</span>
+        <span className="tabular-nums">{formatSize(task.bytesTransferred)} / {formatSize(task.fileSize)} ({pct}%)</span>
         <span>
           {isActive && task.speed > 0 && formatSpeed(task.speed)}
           {isPaused && '已暂停'}

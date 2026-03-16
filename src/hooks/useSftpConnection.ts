@@ -4,7 +4,7 @@ import { useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSftpStore } from '../stores/useSftpStore'
 import { useSettingsStore } from '../stores/useSettingsStore'
 import { handleDownloadChunk, handleDownloadComplete, handleDownloadError } from '../services/transfer-engine'
-import type { SftpFileEntry, ExecResult } from '../types/sftp'
+import type { SftpFileEntry, ExecResult, SftpDirSizeData } from '../types/sftp'
 
 /** 获取后端 WebSocket 地址 */
 function getSftpWsUrl(): string {
@@ -89,6 +89,13 @@ export function useSftpConnection() {
 
     // 无 requestId 的广播消息
     switch (msg.type) {
+      case 'sftp-dir-size': {
+        const d = msg.data as SftpDirSizeData
+        if (d?.path && typeof d.size === 'number') {
+          store.getState().updateEntrySize(d.path, d.size)
+        }
+        break
+      }
       case 'sftp-error': {
         const errMsg = (msg.data as { message: string })?.message || '未知错误'
         store.getState().setError(errMsg)

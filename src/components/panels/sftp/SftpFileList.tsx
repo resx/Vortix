@@ -1,6 +1,6 @@
-/* ── SFTP 文件列表 ── */
+/* ── SFTP 文件列表（岛屿风格版 - Grid 布局） ── */
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppIcon, icons } from '../../icons/AppIcon'
 import { useSftpStore } from '../../../stores/useSftpStore'
 import { useSettingsStore } from '../../../stores/useSettingsStore'
@@ -22,20 +22,20 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-/** 获取文件扩展名（用于 type 列显示） */
 function getFileExt(name: string, type: string): string {
-  if (type === 'dir') return '目录'
+  if (type === 'dir') return '文件夹'
   if (type === 'symlink') return '链接'
-  const ext = name.includes('.') ? name.split('.').pop()!.toUpperCase() : '-'
-  return ext
+  return name.includes('.') ? name.split('.').pop()!.toLowerCase() : '文件'
 }
 
 /** 列定义映射 */
-const COLUMN_DEFS: Record<string, { field: SftpSortField | null; label: string; width: string; align: string }> = {
-  name: { field: 'name', label: '名称', width: 'flex-1', align: 'text-left' },
-  size: { field: 'size', label: '大小', width: 'w-[60px]', align: 'text-right' },
-  mtime: { field: 'modifiedAt', label: '修改时间', width: 'w-[110px]', align: 'text-right' },
-  type: { field: null, label: '类型', width: 'w-[50px]', align: 'text-right' },
+const COLUMN_DEFS: Record<string, { field: SftpSortField | null; label: string; minWidth: number; align: string }> = {
+  name: { field: 'name', label: '名称', minWidth: 180, align: 'text-left' },
+  mtime: { field: 'modifiedAt', label: '修改时间', minWidth: 150, align: 'text-center' },
+  type: { field: null, label: '类型', minWidth: 80, align: 'text-center' },
+  size: { field: 'size', label: '大小', minWidth: 80, align: 'text-center' },
+  perm: { field: null, label: '权限', minWidth: 80, align: 'text-center' },
+  owner: { field: null, label: '用户/组', minWidth: 80, align: 'text-center' },
 }
 
 interface Props {
@@ -72,276 +72,141 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
   const connected = useSftpStore(s => s.connected)
   const connecting = useSftpStore(s => s.connecting)
 
-  // 读取 SFTP 设置
   const sftpParentDirClick = useSettingsStore(s => s.sftpParentDirClick)
   const sftpRemoteColumns = useSettingsStore(s => s.sftpRemoteColumns)
 
-  // 解析可见列（name 始终显示）
   const visibleColumns = sftpRemoteColumns.filter(c => c in COLUMN_DEFS && c !== 'name')
+  const columnKeys = ['name', ...visibleColumns]
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    const initial: Record<string, number> = {}
+    for (const [key, def] of Object.entries(COLUMN_DEFS)) {
+      initial[key] = def.minWidth
+    }
+    return initial
+  })
 
-  const lastClickRef = useRef<string | null>(null)
-  const [dragOver, setDragOver] = useState(false)
+  const minTableWidth = columnKeys.reduce((sum, col) => sum + (columnWidths[col] ?? COLUMN_DEFS[col].minWidth), 0)
+  const gridTemplateColumns = columnKeys.map((col) => {
+    const def = COLUMN_DEFS[col]
+    const width = columnWidths[col] ?? def.minWidth
+    return `minmax(${width}px, 1fr)`
+  }).join(' ')
 
-  // 拖入：本地文件拖入 SftpPanel
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes('Files')) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'copy'
-    setDragOver(true)
+  const resizingRef = useRef<{ col: string; startX: number; startWidth: number } | null>(null)
+  const startResize = useCallback((col: string, e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation()
+    const width = columnWidths[col] ?? COLUMN_DEFS[col].minWidth
+    resizingRef.current = { col, startX: e.clientX, startWidth: width }
+  }, [columnWidths])
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent) => {
+      if (!resizingRef.current) return
+      const { col, startX, startWidth } = resizingRef.current
+      const def = COLUMN_DEFS[col]
+      if (!def) return
+      const next = Math.max(def.minWidth, Math.round(startWidth + (e.clientX - startX)))
+      setColumnWidths(prev => ({ ...prev, [col]: next }))
+    }
+    const handleUp = () => { resizingRef.current = null }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
   }, [])
 
+  const [dragOver, setDragOver] = useState(false)
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return
+    e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setDragOver(true)
+  }, [])
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    // 只在离开容器时取消
     if (e.currentTarget.contains(e.relatedTarget as Node)) return
     setDragOver(false)
   }, [])
-
   const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
+    e.preventDefault(); setDragOver(false)
     if (!onFileDrop) return
-
-    const items = e.dataTransfer.items
-    if (!items || items.length === 0) return
-
-    // 尝试使用 webkitGetAsEntry 递归读取文件夹
-    const entries: FileSystemEntry[] = []
-    for (let i = 0; i < items.length; i++) {
-      const entry = items[i].webkitGetAsEntry?.()
-      if (entry) entries.push(entry)
-    }
-
-    if (entries.length > 0) {
-      // 递归读取所有文件（含文件夹内文件）
-      const readEntry = (entry: FileSystemEntry): Promise<File[]> => {
-        if (entry.isFile) {
-          return new Promise((resolve) => {
-            (entry as FileSystemFileEntry).file(
-              (f) => {
-                // 保留相对路径信息
-                Object.defineProperty(f, 'webkitRelativePath', {
-                  value: entry.fullPath.replace(/^\//, ''),
-                  writable: false,
-                })
-                resolve([f])
-              },
-              () => resolve([]),
-            )
-          })
-        }
-        if (entry.isDirectory) {
-          return new Promise((resolve) => {
-            const reader = (entry as FileSystemDirectoryEntry).createReader()
-            const allFiles: File[] = []
-            const readBatch = () => {
-              reader.readEntries(
-                (batch) => {
-                  if (batch.length === 0) {
-                    resolve(allFiles)
-                    return
-                  }
-                  Promise.all(batch.map(readEntry)).then((results) => {
-                    for (const files of results) allFiles.push(...files)
-                    readBatch()
-                  })
-                },
-                () => resolve(allFiles),
-              )
-            }
-            readBatch()
-          })
-        }
-        return Promise.resolve([])
-      }
-
-      Promise.all(entries.map(readEntry)).then((results) => {
-        const files = results.flat()
-        if (files.length > 0) onFileDrop(files)
-      })
-    } else {
-      // 回退：直接读取 dataTransfer.files
-      const files: File[] = []
-      for (let i = 0; i < e.dataTransfer.files.length; i++) {
-        files.push(e.dataTransfer.files[i])
-      }
-      if (files.length > 0) onFileDrop(files)
-    }
+    const files: File[] = []
+    for (let i = 0; i < e.dataTransfer.files.length; i++) files.push(e.dataTransfer.files[i])
+    if (files.length > 0) onFileDrop(files)
   }, [onFileDrop])
 
-  // 拖出：SftpPanel 文件拖出（设置拖拽数据）
   const handleEntryDragStart = useCallback((e: React.DragEvent, entry: SftpFileEntry) => {
-    e.dataTransfer.setData('text/sftp-path', entry.path)
-    e.dataTransfer.setData('text/sftp-name', entry.name)
-    e.dataTransfer.setData('text/sftp-type', entry.type)
-    e.dataTransfer.setData('text/sftp-size', String(entry.size))
-    e.dataTransfer.effectAllowed = 'copy'
+    e.dataTransfer.setData('text/sftp-path', entry.path); e.dataTransfer.effectAllowed = 'copy'
   }, [])
 
-  // 过滤隐藏文件（排除服务端返回的 . 和 ..，由组件自行渲染 ..）
-  const visible = entries.filter(e =>
-    e.name !== '.' && e.name !== '..' && (showHidden || !e.name.startsWith('.'))
-  )
-
-  // 搜索过滤
-  const filtered = searchQuery
-    ? visible.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : visible
-
-  // 排序：目录始终在前
+  const visible = entries.filter(e => e.name !== '.' && e.name !== '..' && (showHidden || !e.name.startsWith('.')))
+  const filtered = searchQuery ? visible.filter(e => e.name.toLowerCase().includes(searchQuery.toLowerCase())) : visible
   const sorted = [...filtered].sort((a, b) => {
-    // 目录优先
     if (a.type === 'dir' && b.type !== 'dir') return -1
     if (a.type !== 'dir' && b.type === 'dir') return 1
-
     let cmp = 0
     switch (sortField) {
-      case 'name':
-        cmp = a.name.localeCompare(b.name, 'zh-CN')
-        break
-      case 'size':
+      case 'name': cmp = a.name.localeCompare(b.name, 'zh-CN'); break
+      case 'size': {
+        const aUnknown = a.type === 'dir' && a.size < 0
+        const bUnknown = b.type === 'dir' && b.size < 0
+        if (aUnknown || bUnknown) {
+          if (aUnknown && bUnknown) return 0
+          return aUnknown ? 1 : -1
+        }
         cmp = a.size - b.size
         break
-      case 'modifiedAt':
-        cmp = new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime()
-        break
+      }
+      case 'modifiedAt': cmp = new Date(a.modifiedAt).getTime() - new Date(b.modifiedAt).getTime(); break
     }
     return sortOrder === 'asc' ? cmp : -cmp
   })
 
+  const SortIcon = ({ field }: { field: SftpSortField }) => (
+    <div className={`inline-flex flex-col ml-1 items-center justify-center align-middle transition-opacity shrink-0 ${sortField === field ? 'opacity-100' : 'opacity-25'}`}>
+      <AppIcon icon={icons.chevronUp} size={10} className={`-mb-1.5 ${sortField === field && sortOrder === 'asc' ? 'text-blue-500' : ''}`} />
+      <AppIcon icon={icons.chevronDown} size={10} className={`${sortField === field && sortOrder === 'desc' ? 'text-blue-500' : ''}`} />
+    </div>
+  )
+
+  const lastClickRef = useRef<string | null>(null)
   const handleClick = useCallback((e: React.MouseEvent, entry: SftpFileEntry) => {
-    if (e.ctrlKey || e.metaKey) {
-      toggleSelect(entry.path)
-    } else if (e.shiftKey && lastClickRef.current) {
+    if (e.ctrlKey || e.metaKey) toggleSelect(entry.path)
+    else if (e.shiftKey && lastClickRef.current) {
       const lastIdx = sorted.findIndex(f => f.path === lastClickRef.current)
       const curIdx = sorted.findIndex(f => f.path === entry.path)
       if (lastIdx >= 0 && curIdx >= 0) {
-        const start = Math.min(lastIdx, curIdx)
-        const end = Math.max(lastIdx, curIdx)
+        const start = Math.min(lastIdx, curIdx), end = Math.max(lastIdx, curIdx)
         selectRange(sorted.slice(start, end + 1).map(f => f.path))
       }
-    } else {
-      selectPath(entry.path)
-    }
+    } else selectPath(entry.path)
     lastClickRef.current = entry.path
   }, [sorted, toggleSelect, selectRange, selectPath])
 
-  const handleDoubleClick = useCallback((entry: SftpFileEntry) => {
-    if (entry.type === 'dir') {
-      onNavigate(entry.path)
-    } else {
-      onDoubleClick(entry)
-    }
-  }, [onNavigate, onDoubleClick])
-
-  /** 上级目录（..）点击处理：根据 sftpParentDirClick 决定单击/双击导航 */
-  const handleParentClick = useCallback(() => {
-    if (sftpParentDirClick) {
-      const parent = currentPath.replace(/\/[^/]+\/?$/, '') || '/'
-      onNavigate(parent)
-    }
-  }, [sftpParentDirClick, currentPath, onNavigate])
-
-  const handleParentDoubleClick = useCallback(() => {
-    const parent = currentPath.replace(/\/[^/]+\/?$/, '') || '/'
-    onNavigate(parent)
-  }, [currentPath, onNavigate])
-
-  /** 键盘快捷键 */
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    const ctrl = e.ctrlKey || e.metaKey
-    const key = e.key
-
-    if (ctrl && key === 'c') { e.preventDefault(); onCopy?.(); return }
-    if (ctrl && key === 'x') { e.preventDefault(); onCut?.(); return }
-    if (ctrl && key === 'v') { e.preventDefault(); onPaste?.(); return }
+    const ctrl = e.ctrlKey || e.metaKey, key = e.key
     if (ctrl && key === 'a') { e.preventDefault(); selectAll(); return }
-    if (key === 'F5') { e.preventDefault(); onRefresh?.(); return }
     if (key === 'Escape') { clearSelection(); return }
-
-    // 需要选中项的操作
     const selectedArr = sorted.filter(f => selectedPaths.has(f.path))
-    if (key === 'Delete' || key === 'Backspace') {
-      if (selectedArr.length === 1) {
-        e.preventDefault()
-        onDelete?.(selectedArr[0].path, selectedArr[0].type === 'dir')
-      }
-      return
-    }
-    if (key === 'F2' && selectedArr.length === 1) {
-      e.preventDefault()
-      onRenameStart?.(selectedArr[0])
-      return
-    }
     if (key === 'Enter' && selectedArr.length === 1) {
-      e.preventDefault()
-      const entry = selectedArr[0]
+      e.preventDefault(); const entry = selectedArr[0]
       if (entry.type === 'dir') onNavigate(entry.path)
       else onDoubleClick(entry)
-      return
     }
-
-    // 上下箭头移动选中
-    if (key === 'ArrowDown' || key === 'ArrowUp') {
-      e.preventDefault()
-      if (sorted.length === 0) return
-      const currentIdx = sorted.findIndex(f => selectedPaths.has(f.path))
-      let nextIdx: number
-      if (currentIdx < 0) {
-        nextIdx = key === 'ArrowDown' ? 0 : sorted.length - 1
-      } else {
-        nextIdx = key === 'ArrowDown'
-          ? Math.min(currentIdx + 1, sorted.length - 1)
-          : Math.max(currentIdx - 1, 0)
-      }
-      selectPath(sorted[nextIdx].path)
-      lastClickRef.current = sorted[nextIdx].path
-    }
-  }, [sorted, selectedPaths, selectAll, clearSelection, selectPath, onCopy, onCut, onPaste, onDelete, onRenameStart, onRefresh, onNavigate, onDoubleClick])
-
-  const renderSortHeader = (field: SftpSortField, label: string, className?: string, key?: string) => (
-    <button
-      key={key}
-      className={`flex items-center gap-0.5 text-[10px] text-text-3 font-medium hover:text-text-1 transition-colors ${className || ''}`}
-      onClick={() => toggleSort(field)}
-    >
-      {label}
-      {sortField === field && (
-        <AppIcon icon={sortOrder === 'asc' ? icons.chevronUp : icons.chevronDown} size={10} />
-      )}
-    </button>
-  )
+  }, [sorted, selectedPaths, selectAll, clearSelection, onNavigate, onDoubleClick])
 
   if (connecting || (!connected && !loading)) {
     return (
-      <div
-        className="flex-1 flex flex-col items-center justify-center text-text-3 gap-2"
-        onContextMenu={(e) => e.preventDefault()}
-      >
+      <div className="flex-1 flex flex-col items-center justify-center text-gray-400 gap-2">
         <AppIcon icon={icons.loader} size={24} className="opacity-40 animate-spin" />
-        <span className="text-[12px] opacity-60">正在连接 SFTP...</span>
+        <span className="text-[13px]">正在连接 SFTP...</span>
       </div>
     )
   }
 
   if (loading) {
     return (
-      <div
-        className="flex-1 flex items-center justify-center text-text-3"
-        onContextMenu={(e) => e.preventDefault()}
-      >
-        <AppIcon icon={icons.loader} size={20} className="opacity-50" />
-      </div>
-    )
-  }
-
-  if (sorted.length === 0) {
-    return (
-      <div
-        className="flex-1 flex flex-col items-center justify-center text-text-3"
-        onContextMenu={(e) => { e.preventDefault(); onBlankContextMenu(e) }}
-      >
-        <AppIcon icon={icons.folder} size={32} className="opacity-20 mb-2" />
-        <span className="text-[12px]">空目录</span>
+      <div className="flex-1 flex items-center justify-center text-gray-400">
+        <AppIcon icon={icons.loader} size={20} className="opacity-50 animate-spin" />
       </div>
     )
   }
@@ -357,96 +222,112 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* 拖拽覆盖层 */}
       {dragOver && (
-        <div className="absolute inset-0 z-20 bg-primary/10 border-2 border-dashed border-primary/40 rounded-md flex items-center justify-center pointer-events-none">
-          <span className="text-[13px] text-primary font-medium">释放以上传</span>
+        <div className="absolute inset-0 z-20 bg-blue-50/50 border-2 border-dashed border-blue-200 rounded-xl flex items-center justify-center pointer-events-none backdrop-blur-[1px]">
+          <span className="text-[13px] text-blue-600 font-medium">释放以上传</span>
         </div>
       )}
-      {/* 列头 */}
-      <div className="flex items-center px-3 py-1 border-b border-border/50 bg-bg-subtle/50 shrink-0">
-        {renderSortHeader('name', '名称', 'flex-1')}
-        {visibleColumns.map(col => {
-          const def = COLUMN_DEFS[col]
-          return def.field
-            ? renderSortHeader(def.field, def.label, `${def.width} justify-end`, col)
-            : (
-              <span key={col} className={`text-[10px] text-text-3 font-medium ${def.width} ${def.align}`}>
-                {def.label}
-              </span>
-            )
-        })}
-      </div>
+      <div className="flex-1 overflow-hidden">
+        <div className="h-full overflow-x-auto custom-scrollbar">
+          <div style={{ minWidth: `${minTableWidth}px` }}>
+            <div className="sticky top-0 z-10 bg-white border-b border-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+              <div className="grid text-[13px] text-gray-500 font-medium" style={{ gridTemplateColumns }}>
+                {columnKeys.map((col) => {
+                  const def = COLUMN_DEFS[col]
+                  return (
+                    <div
+                      key={col}
+                      className="py-2.5 px-4 font-normal cursor-pointer hover:bg-gray-50 transition-colors relative group select-none min-w-0"
+                      onClick={() => def.field && toggleSort(def.field)}
+                    >
+                      <div className="flex items-center gap-1 overflow-hidden justify-start">
+                        <span className="truncate">{def.label}</span>
+                        {def.field ? <SortIcon field={def.field} /> : col === 'type' ? <AppIcon icon={icons.chevronDown} size={11} className="opacity-40 shrink-0" /> : null}
+                      </div>
+                      <div
+                        className="absolute right-0 top-0 h-full w-2 cursor-col-resize z-20"
+                        onMouseDown={(e) => startResize(col, e)}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <span className="absolute right-0 top-2 bottom-2 w-px bg-gray-200 group-hover:bg-blue-400" />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
 
-      {/* 文件列表 */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {/* 上级目录 .. 条目 */}
-        {currentPath !== '/' && (
-          <div
-            className="flex items-center gap-2 px-3 py-1 cursor-pointer text-[12px] transition-colors hover:bg-bg-hover text-text-3"
-            onClick={handleParentClick}
-            onDoubleClick={handleParentDoubleClick}
-          >
-            <AppIcon icon={icons.folderOpen} size={14} className="shrink-0 text-icon-folder" />
-            <span className="flex-1 truncate">..</span>
-            {visibleColumns.map(col => {
-              const def = COLUMN_DEFS[col]
-              return <span key={col} className={`${def.width} ${def.align} text-[10px] text-text-3 shrink-0`}>-</span>
-            })}
-          </div>
-        )}
-        {sorted.map(entry => {
-          const selected = selectedPaths.has(entry.path)
-          return (
-            <div
-              key={entry.path}
-              draggable
-              className={`flex items-center gap-2 px-3 py-1 cursor-pointer text-[12px] transition-colors
-                ${selected ? 'bg-primary/10 text-text-1' : 'hover:bg-bg-hover text-text-1'}`}
-              onClick={(e) => { e.stopPropagation(); handleClick(e, entry) }}
-              onDoubleClick={() => handleDoubleClick(entry)}
-              onContextMenu={(e) => {
-                e.preventDefault(); e.stopPropagation()
-                if (!selectedPaths.has(entry.path)) selectPath(entry.path)
-                onContextMenu(e, entry)
-              }}
-              onDragStart={(e) => handleEntryDragStart(e, entry)}
-            >
-              <AppIcon icon={getFileTypeIcon(entry.name, entry.type).icon} size={14} className={`shrink-0 ${getFileTypeIcon(entry.name, entry.type).color}`} />
-              {renamingPath === entry.path && onRename ? (
-                <SftpInlineRename
-                  name={entry.name}
-                  path={entry.path}
-                  onRename={onRename}
-                />
-              ) : (
-                <span className="flex-1 truncate">{entry.name}</span>
+            <div className="text-[13px]">
+              {currentPath !== '/' && (
+                <div
+                  className="grid border-b border-gray-50 cursor-pointer hover:bg-blue-50/30 even:bg-gray-50/30 odd:bg-white"
+                  style={{ gridTemplateColumns }}
+                  onClick={() => sftpParentDirClick && onNavigate(currentPath.replace(/\/[^/]+\/?$/, '') || '/')}
+                  onDoubleClick={() => onNavigate(currentPath.replace(/\/[^/]+\/?$/, '') || '/')}
+                >
+                  {columnKeys.map((col) => {
+                    if (col === 'name') {
+                      return (
+                        <div key={col} className="py-2 px-4 flex items-center gap-3 text-left min-w-0">
+                          <AppIcon icon={icons.folder} size={20} className="shrink-0 text-yellow-400 fill-yellow-400" />
+                          <span className="truncate font-medium text-gray-700">..</span>
+                        </div>
+                      )
+                    }
+                    return (
+                      <div key={col} className="py-2 px-4 text-center text-gray-300 opacity-50">-</div>
+                    )
+                  })}
+                </div>
               )}
-              {visibleColumns.map(col => {
-                const def = COLUMN_DEFS[col]
-                let content: string
-                switch (col) {
-                  case 'size':
-                    content = entry.type === 'dir' ? '-' : formatSize(entry.size)
-                    break
-                  case 'mtime':
-                    content = formatDate(entry.modifiedAt)
-                    break
-                  case 'type':
-                    content = getFileExt(entry.name, entry.type)
-                    break
-                  default:
-                    content = '-'
-                }
+              {sorted.map((entry) => {
+                const selected = selectedPaths.has(entry.path)
+                const iconInfo = getFileTypeIcon(entry.name, entry.type)
                 return (
-                  <span key={col} className={`${def.width} ${def.align} text-[10px] text-text-3 shrink-0`}>
-                    {content}
-                  </span>
+                  <div
+                    key={entry.path}
+                    draggable
+                    className={`grid border-b border-gray-50 transition-colors cursor-pointer ${selected ? 'bg-blue-50/80! text-blue-700' : 'hover:bg-blue-50/50 even:bg-gray-50/30 odd:bg-white'}`}
+                    style={{ gridTemplateColumns }}
+                    onClick={(e) => { e.stopPropagation(); handleClick(e, entry) }}
+                    onDoubleClick={() => entry.type === 'dir' ? onNavigate(entry.path) : onDoubleClick(entry)}
+                    onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); if (!selectedPaths.has(entry.path)) selectPath(entry.path); onContextMenu(e, entry) }}
+                    onDragStart={(e) => handleEntryDragStart(e, entry)}
+                  >
+                    {columnKeys.map(col => {
+                      if (col === 'name') {
+                        return (
+                          <div key={col} className="py-2 px-4 flex items-center gap-3 text-left min-w-0">
+                            <AppIcon icon={iconInfo.icon} size={20} className={`shrink-0 ${iconInfo.color} ${entry.type === 'dir' ? 'fill-yellow-400' : 'fill-current opacity-80'}`} />
+                            {renamingPath === entry.path && onRename
+                              ? <SftpInlineRename name={entry.name} path={entry.path} onRename={onRename} />
+                              : <span className={`truncate ${entry.type === 'dir' ? 'font-medium text-gray-700' : 'text-gray-800'}`}>{entry.name}</span>}
+                          </div>
+                        )
+                      }
+                      let val = '-'
+                      switch (col) {
+                        case 'size':
+                          val = entry.type === 'dir' && entry.size < 0 ? '-' : formatSize(entry.size)
+                          break
+                        case 'mtime': val = formatDate(entry.modifiedAt); break
+                        case 'type': val = getFileExt(entry.name, entry.type); break
+                        case 'perm': val = entry.permissions || '-'; break
+                        case 'owner': val = entry.owner !== undefined && entry.group !== undefined ? `${entry.owner}:${entry.group}` : '-'; break
+                      }
+                      const isMono = col === 'mtime' || col === 'perm' || col === 'owner' || col === 'size'
+                      return (
+                        <div key={col} className={`py-2 px-4 text-center text-gray-600 truncate ${isMono ? 'font-mono text-[13px]' : ''}`}>
+                          {val}
+                        </div>
+                      )
+                    })}
+                  </div>
                 )
               })}
             </div>
-          )
-        })}
+          </div>
+        </div>
       </div>
     </div>
   )

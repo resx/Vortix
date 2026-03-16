@@ -1,0 +1,36 @@
+diff --git a/lib/conpty_console_list_agent.js b/lib/conpty_console_list_agent.js
+index 8c4fca9022a6d6f015bca87f61625cde2278f428..6d6cb7138cb9ca2839b5e8c7f601af4f24b4c0c9 100644
+--- a/lib/conpty_console_list_agent.js
++++ b/lib/conpty_console_list_agent.js
+@@ -10,7 +10,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
+ var utils_1 = require("./utils");
+ var getConsoleProcessList = utils_1.loadNativeModule('conpty_console_list').module.getConsoleProcessList;
+ var shellPid = parseInt(process.argv[2], 10);
+-var consoleProcessList = getConsoleProcessList(shellPid);
+-process.send({ consoleProcessList: consoleProcessList });
++try {
++    var consoleProcessList = getConsoleProcessList(shellPid);
++    process.send({ consoleProcessList: consoleProcessList });
++} catch (e) {
++    process.send({ consoleProcessList: [shellPid] });
++}
+ process.exit(0);
+ //# sourceMappingURL=conpty_console_list_agent.js.map
+\ No newline at end of file
+diff --git a/src/conpty_console_list_agent.ts b/src/conpty_console_list_agent.ts
+index 181ccabbbe9c4948a9725fb1db907a68e9de01fc..341c686e543d82feedc6e27c0691bb0ab3fa66ea 100644
+--- a/src/conpty_console_list_agent.ts
++++ b/src/conpty_console_list_agent.ts
+@@ -10,6 +10,10 @@ import { loadNativeModule } from './utils';
+ 
+ const getConsoleProcessList = loadNativeModule('conpty_console_list').module.getConsoleProcessList;
+ const shellPid = parseInt(process.argv[2], 10);
+-const consoleProcessList = getConsoleProcessList(shellPid);
+-process.send!({ consoleProcessList });
++try {
++  const consoleProcessList = getConsoleProcessList(shellPid);
++  process.send!({ consoleProcessList });
++} catch {
++  process.send!({ consoleProcessList: [shellPid] });
++}
+ process.exit(0);

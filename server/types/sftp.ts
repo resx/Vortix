@@ -56,6 +56,7 @@ export type SftpClientMessageType =
 export type SftpServerMessageType =
   | 'sftp-ready'
   | 'sftp-list-result'
+  | 'sftp-dir-size'
   | 'sftp-stat-result'
   | 'sftp-error'
   | 'sftp-upload-progress'
@@ -93,6 +94,11 @@ export interface SftpConnectData {
 
 export interface SftpListData {
   path: string
+}
+
+export interface SftpDirSizeData {
+  path: string
+  size: number
 }
 
 export interface SftpMkdirData {

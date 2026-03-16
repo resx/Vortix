@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { useTabStore } from '../../stores/useTabStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useUIStore } from '../../stores/useUIStore'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../ui/tooltip'
 import VortixLogoGroup from '../../features/header/VortixLogo'
 import HeaderToolbar from '../../features/header/HeaderToolbar'
@@ -18,7 +19,9 @@ export default function Header() {
   const tabs = useTabStore((s) => s.tabs)
   const setActiveTab = useTabStore((s) => s.setActiveTab)
   const themeMode = useSettingsStore((s) => s.theme)
+  const lockPassword = useSettingsStore((s) => s.lockPassword)
   const updateSetting = useSettingsStore((s) => s.updateSetting)
+  const setLocked = useUIStore((s) => s.setLocked)
 
   const activeTab = tabs.find(t => t.id === activeTabId)
   const isAssetTab = activeTab?.type === 'asset'
@@ -73,6 +76,18 @@ export default function Header() {
           {/* 动态连接工具 — 仅在资产已连接时显示 */}
           {isAssetTab && isConnected && (
             <HeaderToolbar activeTabId={activeTabId} connectionId={activeTab?.connectionId} assetLabel={activeTab?.label ?? ''} />
+          )}
+
+          {/* 锁屏手动控制 */}
+          {lockPassword && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button onClick={() => setLocked(true)} className="hover:text-text-1 transition-colors mr-1">
+                  <AppIcon icon={icons.lock} size={15} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>立即锁屏</TooltipContent>
+            </Tooltip>
           )}
 
           {/* 主题切换 */}

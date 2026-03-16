@@ -595,17 +595,6 @@ export default function SyncSettings() {
             </>
           )}
 
-          {/* 测试同步 */}
-          <SettingRow label="测试同步" desc="使用临时文件验证连通性，不影响真实同步数据">
-            <button
-              disabled={testing || syncing}
-              onClick={handleTest}
-              className="flex items-center gap-1 px-2.5 py-1 bg-bg-base text-text-2 rounded text-[11px] hover:bg-border transition-colors disabled:opacity-50 shrink-0"
-            >
-              {testing ? <AppIcon icon={icons.loader} size={11} className="animate-spin" /> : <AppIcon icon={icons.zap} size={11} />}
-              测试同步
-            </button>
-          </SettingRow>
         </SettingGroup>
       </div>
 

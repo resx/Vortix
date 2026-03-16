@@ -164,20 +164,22 @@ export default function SettingsWindow() {
         {/* 底部操作栏 */}
         <div className="h-[52px] flex items-center justify-between px-6 shrink-0 border-t border-border">
           <div className="flex items-center gap-2 text-[12px]">
-            {syncTestResult && (
+            {activeNav === 'sync' && syncTestResult && (
               <span className={syncTestResult.ok ? 'text-status-success' : 'text-status-error'}>
                 {syncTestResult.msg}
               </span>
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleTestSync}
-              disabled={syncTesting}
-              className="px-3 py-1.5 text-[13px] rounded border border-border text-text-2 hover:bg-bg-1 transition-colors disabled:opacity-50"
-            >
-              {syncTesting ? '测试中…' : '测试同步'}
-            </button>
+            {activeNav === 'sync' && (
+              <button
+                onClick={handleTestSync}
+                disabled={syncTesting}
+                className="px-3 py-1.5 text-[13px] rounded border border-chart-green/40 bg-chart-green/15 text-chart-green hover:bg-chart-green/25 transition-colors disabled:opacity-50"
+              >
+                {syncTesting ? '测试中…' : '测试同步'}
+              </button>
+            )}
             <button
               onClick={resetToDefaults}
               className="px-3 py-1.5 text-[13px] rounded border border-border text-text-2 hover:bg-bg-1 transition-colors"

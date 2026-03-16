@@ -15,6 +15,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-shell = "2"
 tauri-plugin-store = "2"
 tauri-plugin-notification = "2"
+window-vibrancy = "0.5"
 
 # HTTP/WS 服务器（嵌入式）
 axum = { version = "0.8", features = ["ws"] }
@@ -34,3 +35,6 @@ thiserror = "2"
 
 # 字体枚举
 font-kit = "0.14"
+
+[package.metadata.bundle.windows]
+dpi-aware = true

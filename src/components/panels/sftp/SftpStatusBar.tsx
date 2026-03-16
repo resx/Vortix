@@ -1,4 +1,4 @@
-/* ── SFTP 状态栏 ── */
+/* ── SFTP 状态栏（岛屿风格版） ── */
 
 import { AppIcon, icons } from '../../icons/AppIcon'
 import { useSftpStore } from '../../../stores/useSftpStore'
@@ -29,9 +29,7 @@ export default function SftpStatusBar() {
   const dirs = visibleEntries.filter(e => e.type === 'dir').length
   const files = visibleEntries.filter(e => e.type !== 'dir').length
   const selectedCount = selectedPaths.size
-  const selectedSize = entries
-    .filter(e => selectedPaths.has(e.path) && e.type !== 'dir')
-    .reduce((sum, e) => sum + e.size, 0)
+  const totalSize = visibleEntries.reduce((sum, e) => sum + (e.size >= 0 ? e.size : 0), 0)
 
   const activeTasks = tasks.filter(t => t.status === 'active' || t.status === 'queued')
   const activeTask = tasks.find(t => t.status === 'active')
@@ -40,26 +38,21 @@ export default function SftpStatusBar() {
     : 0
 
   return (
-    <div className="h-[24px] flex items-center justify-between px-3 border-t border-border bg-bg-subtle shrink-0 text-[10px] text-text-3 gap-2">
-      <span className="truncate">{dirs} 个目录, {files} 个文件</span>
-
-      <div className="flex items-center gap-2 shrink-0">
+    <div className="text-center py-2 text-[12px] text-text-3 border-b border-border-subtle bg-bg-subtle/30 shrink-0">
+      <div className="flex items-center justify-center gap-1.5 relative px-4">
+        <span>共 {files} 个文件，{dirs} 个文件夹，{formatSize(totalSize)}</span>
+        {selectedCount > 0 && (
+          <span className="text-primary font-medium ml-1">（已选 {selectedCount} 项）</span>
+        )}
+        
         {/* 传输进度胶囊 */}
         {activeTasks.length > 0 && (
-          <div className="flex items-center gap-1.5 px-1.5 py-0.5 rounded-full bg-primary/10 text-primary">
-            <AppIcon icon={icons.loader} size={10} />
-            <span className="text-[10px] font-medium">
-              {activeTasks.length} 传输中
-              {activeTask && ` ${progress}%`}
+          <div className="absolute right-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+            <AppIcon icon={icons.loader} size={10} className="animate-spin" />
+            <span className="text-[10px] font-semibold whitespace-nowrap">
+              {activeTasks.length} 传输中 {progress}%
             </span>
-            {activeTask && activeTask.speed > 0 && (
-              <span className="text-[9px] opacity-70">{formatSpeed(activeTask.speed)}</span>
-            )}
           </div>
-        )}
-
-        {selectedCount > 0 && (
-          <span>已选 {selectedCount} 项{selectedSize > 0 ? ` (${formatSize(selectedSize)})` : ''}</span>
         )}
       </div>
     </div>

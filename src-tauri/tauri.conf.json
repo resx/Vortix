@@ -14,12 +14,10 @@
     "windows": [
       {
         "title": "Vortix",
-        "width": 1440,
-        "height": 900,
-        "minWidth": 960,
-        "minHeight": 600,
+        "minWidth": 1100,
+        "minHeight": 700,
         "decorations": false,
-        "transparent": false,
+        "transparent": true,
         "center": true
       }
     ],

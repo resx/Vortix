@@ -137,9 +137,12 @@ export default function BasicSettings() {
             k="idleLockMinutes" label="自动锁屏时间"
             options={[
               { value: 0, label: '关闭' },
+              { value: 1, label: '1分钟' },
               { value: 5, label: '5分钟' },
+              { value: 10, label: '10分钟' },
               { value: 15, label: '15分钟' },
               { value: 30, label: '30分钟' },
+              { value: 60, label: '1小时' },
             ]}
           />
           <LockPasswordRow />

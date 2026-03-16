@@ -271,7 +271,7 @@ export default function SettingsPanel() {
                   <button
                     disabled={syncTesting}
                     onClick={handleTestSync}
-                    className="flex items-center gap-1.5 px-5 py-2 bg-bg-base text-text-2 rounded-lg text-[13px] hover:bg-border transition-colors font-medium disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-5 py-2 bg-chart-green/15 text-chart-green rounded-lg text-[13px] hover:bg-chart-green/25 transition-colors font-medium disabled:opacity-50"
                   >
                     {syncTesting ? <AppIcon icon={icons.loader} size={14} className="animate-spin" /> : null}
                     {syncTesting ? '同步中...' : '测试同步'}
