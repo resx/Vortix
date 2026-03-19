@@ -9,10 +9,12 @@ import TermThemePreview from './TermThemePreview'
 import TermThemeGrid from './TermThemeGrid'
 import KeywordHighlightPanel from './KeywordHighlightPanel'
 import * as api from '../../api/client'
+import { handleTitleBarMouseDown, handleTitleBarDoubleClick } from '../../lib/window'
 
 interface TermThemePanelProps {
   isOpen: boolean
   onClose: () => void
+  windowMode?: boolean
 }
 
 /** Light / Dark 切换 Tab */
@@ -31,7 +33,7 @@ function ModeTab({
       className={`px-3 py-1 rounded-md text-[12px] font-medium transition-colors ${
         active
           ? 'bg-primary text-white'
-          : 'text-text-2 hover:bg-border/60'
+          : 'text-text-2 hover:bg-bg-hover/70'
       }`}
     >
       {mode === 'light' ? '☀ Light' : '● Dark'}
@@ -55,7 +57,7 @@ function ProfileSelector({
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 h-[28px] px-2.5 rounded-md border border-border bg-bg-card text-[12px] text-text-1 hover:border-primary/50 transition-colors min-w-[100px]"
+        className="island-control inline-flex items-center gap-1.5 h-[28px] px-2.5 text-[12px] text-text-1 transition-colors min-w-[100px]"
       >
         <span className="truncate">{current?.name ?? '默认'}</span>
         <AppIcon icon={icons.chevronDown} size={12} className={`shrink-0 text-text-3 transition-transform ${open ? 'rotate-180' : ''}`} />
@@ -63,7 +65,7 @@ function ProfileSelector({
       {open && (
         <>
           <div className="fixed inset-0 z-[1]" onClick={() => setOpen(false)} />
-          <div className="absolute top-full left-0 mt-1 z-[2] min-w-[140px] bg-bg-card border border-border rounded-lg shadow-lg py-1">
+          <div className="absolute top-full left-0 mt-1 z-[2] min-w-[140px] island-surface rounded-lg py-1">
             {profiles.map(p => (
               <button
                 key={p.id}
@@ -82,7 +84,7 @@ function ProfileSelector({
   )
 }
 
-export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps) {
+export default function TermThemePanel({ isOpen, onClose, windowMode = false }: TermThemePanelProps) {
   const profileStore = useTerminalProfileStore()
   const themeStore = useThemeStore()
   const allProfiles = profileStore.getAllProfiles()
@@ -230,6 +232,96 @@ export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps)
     profileStore.setActiveProfileId(id)
   }
 
+  if (windowMode) {
+    return (
+      <div className="h-full w-full island-surface rounded-[12px] flex flex-col overflow-hidden">
+        <div
+          className="h-[46px] flex items-center justify-between px-5 shrink-0 select-none cursor-default border-b border-border/60 bg-bg-card/45"
+          onMouseDown={handleTitleBarMouseDown}
+          onDoubleClick={handleTitleBarDoubleClick}
+        >
+          <span className="text-[14px] font-medium text-text-1">终端主题管理器</span>
+          <button
+            onClick={onClose}
+            className="island-btn w-[28px] h-[28px] flex items-center justify-center rounded-md text-text-3 hover:text-text-1 transition-colors"
+          >
+            <AppIcon icon={icons.close} size={14} />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 px-6 py-3 shrink-0 border-b border-border/50 bg-bg-card/35">
+          <span className="text-[12px] text-text-2 shrink-0">配置:</span>
+          <ProfileSelector profiles={allProfiles} activeId={selectedProfileId} onChange={handleProfileChange} />
+          <button onClick={handleCreate} className="island-btn flex items-center gap-1 h-[28px] px-2 rounded-md text-[11px] text-text-2 transition-colors" title="新建">
+            <AppIcon icon={icons.plus} size={13} /> 新建
+          </button>
+          <button onClick={handleDuplicate} className="island-btn flex items-center gap-1 h-[28px] px-2 rounded-md text-[11px] text-text-2 transition-colors" title="复制">
+            <AppIcon icon={icons.copy} size={13} /> 复制
+          </button>
+          {selectedProfileId !== DEFAULT_PROFILE_ID && (
+            <button onClick={handleDelete} className="h-[28px] px-2 rounded-md text-[11px] text-status-error border border-status-error/30 bg-status-error/5 hover:bg-status-error/10 transition-colors inline-flex items-center gap-1" title="删除">
+              <AppIcon icon={icons.trash} size={13} /> 删除
+            </button>
+          )}
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-6 pb-6">
+          <TermThemePreview preset={currentPreset} cursorStyle={profile.cursorStyle} cursorBlink={profile.cursorBlink} />
+
+          <div className="flex items-center justify-between mt-4 mb-3 gap-3">
+            <div className="island-surface inline-flex items-center gap-1 rounded-lg p-0.5">
+              <ModeTab mode="light" active={editingMode === 'light'} onClick={() => setEditingMode('light')} />
+              <ModeTab mode="dark" active={editingMode === 'dark'} onClick={() => setEditingMode('dark')} />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleCreateTheme(false)}
+                disabled={themeBusy}
+                className="island-btn h-[28px] px-2.5 rounded-md text-[11px] text-text-2 transition-colors disabled:opacity-50"
+              >
+                新建主题
+              </button>
+              <button
+                onClick={() => handleCreateTheme(true)}
+                disabled={themeBusy}
+                className="island-btn h-[28px] px-2.5 rounded-md text-[11px] text-text-2 transition-colors disabled:opacity-50"
+              >
+                复制主题
+              </button>
+              <button
+                onClick={handleImportTheme}
+                disabled={themeBusy}
+                className="island-btn h-[28px] px-2.5 rounded-md text-[11px] text-text-2 transition-colors disabled:opacity-50"
+              >
+                导入
+              </button>
+              <button
+                onClick={handleExportTheme}
+                disabled={themeBusy || !canManageCurrentTheme}
+                className="island-btn h-[28px] px-2.5 rounded-md text-[11px] text-text-2 transition-colors disabled:opacity-50"
+              >
+                导出
+              </button>
+              <button
+                onClick={handleDeleteTheme}
+                disabled={themeBusy || !canManageCurrentTheme}
+                className="h-[28px] px-2.5 rounded-md text-[11px] text-status-error border border-status-error/30 bg-status-error/5 hover:bg-status-error/10 transition-colors disabled:opacity-50"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+
+          <TermThemeGrid mode={editingMode} selectedId={currentId} onSelect={handleSelect} />
+
+          <div className="mt-5">
+            <KeywordHighlightPanel profileId={selectedProfileId} />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <motion.div
       ref={constraintRef}
@@ -250,12 +342,12 @@ export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps)
         animate={{ scale: 1 }}
         exit={{ scale: 0.96 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
-        className="pointer-events-auto w-[960px] max-w-[95vw] h-[700px] max-h-[95vh] bg-bg-base rounded-2xl shadow-[0_16px_48px_rgba(0,0,0,0.16),0_4px_12px_rgba(0,0,0,0.08)] flex flex-col overflow-hidden"
+        className="pointer-events-auto w-[960px] max-w-[95vw] h-[700px] max-h-[95vh] island-surface rounded-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header 拖拽区 */}
         <div
-          className="h-[44px] flex items-center justify-between px-5 shrink-0 select-none cursor-default"
+          className="h-[46px] flex items-center justify-between px-5 shrink-0 select-none cursor-default border-b border-border/60 bg-bg-card/45"
           onPointerDown={(e) => {
             if (!(e.target as HTMLElement).closest('button')) dragControls.start(e)
           }}
@@ -263,24 +355,24 @@ export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps)
           <span className="text-[14px] font-medium text-text-1">终端主题配置</span>
           <button
             onClick={onClose}
-            className="w-[28px] h-[28px] flex items-center justify-center rounded-md text-text-3 hover:text-text-1 hover:bg-[#FEE2E2] transition-colors"
+            className="island-btn w-[28px] h-[28px] flex items-center justify-center rounded-md text-text-3 hover:text-text-1 transition-colors"
           >
             <AppIcon icon={icons.close} size={14} />
           </button>
         </div>
 
         {/* Profile 工具栏 */}
-        <div className="flex items-center gap-2 px-6 pb-3 shrink-0">
+        <div className="flex items-center gap-2 px-6 py-3 shrink-0 border-b border-border/50 bg-bg-card/35">
           <span className="text-[12px] text-text-2 shrink-0">配置:</span>
           <ProfileSelector profiles={allProfiles} activeId={selectedProfileId} onChange={handleProfileChange} />
-          <button onClick={handleCreate} className="flex items-center gap-1 h-[28px] px-2 rounded-md text-[11px] text-text-2 hover:text-primary hover:bg-primary/5 transition-colors" title="新建">
+          <button onClick={handleCreate} className="island-btn flex items-center gap-1 h-[28px] px-2 rounded-md text-[11px] text-text-2 transition-colors" title="新建">
             <AppIcon icon={icons.plus} size={13} /> 新建
           </button>
-          <button onClick={handleDuplicate} className="flex items-center gap-1 h-[28px] px-2 rounded-md text-[11px] text-text-2 hover:text-primary hover:bg-primary/5 transition-colors" title="复制">
+          <button onClick={handleDuplicate} className="island-btn flex items-center gap-1 h-[28px] px-2 rounded-md text-[11px] text-text-2 transition-colors" title="复制">
             <AppIcon icon={icons.copy} size={13} /> 复制
           </button>
           {selectedProfileId !== DEFAULT_PROFILE_ID && (
-            <button onClick={handleDelete} className="flex items-center gap-1 h-[28px] px-2 rounded-md text-[11px] text-text-2 hover:text-red-500 hover:bg-red-50 transition-colors" title="删除">
+            <button onClick={handleDelete} className="h-[28px] px-2 rounded-md text-[11px] text-status-error border border-status-error/30 bg-status-error/5 hover:bg-status-error/10 transition-colors inline-flex items-center gap-1" title="删除">
               <AppIcon icon={icons.trash} size={13} /> 删除
             </button>
           )}
@@ -292,8 +384,8 @@ export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps)
           <TermThemePreview preset={currentPreset} cursorStyle={profile.cursorStyle} cursorBlink={profile.cursorBlink} />
 
           {/* Mode 切换 */}
-          <div className="flex items-center justify-between mt-4 mb-3">
-            <div className="flex items-center gap-1 bg-bg-base rounded-lg p-0.5 border border-border">
+          <div className="flex items-center justify-between mt-4 mb-3 gap-3">
+            <div className="island-surface inline-flex items-center gap-1 rounded-lg p-0.5">
               <ModeTab mode="light" active={editingMode === 'light'} onClick={() => setEditingMode('light')} />
               <ModeTab mode="dark" active={editingMode === 'dark'} onClick={() => setEditingMode('dark')} />
             </div>
@@ -301,28 +393,28 @@ export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps)
               <button
                 onClick={() => handleCreateTheme(false)}
                 disabled={themeBusy}
-                className="h-[28px] px-2.5 rounded-md text-[11px] text-text-2 border border-border bg-bg-card hover:bg-bg-base transition-colors disabled:opacity-50"
+                className="island-btn h-[28px] px-2.5 rounded-md text-[11px] text-text-2 transition-colors disabled:opacity-50"
               >
                 新建主题
               </button>
               <button
                 onClick={() => handleCreateTheme(true)}
                 disabled={themeBusy}
-                className="h-[28px] px-2.5 rounded-md text-[11px] text-text-2 border border-border bg-bg-card hover:bg-bg-base transition-colors disabled:opacity-50"
+                className="island-btn h-[28px] px-2.5 rounded-md text-[11px] text-text-2 transition-colors disabled:opacity-50"
               >
                 复制主题
               </button>
               <button
                 onClick={handleImportTheme}
                 disabled={themeBusy}
-                className="h-[28px] px-2.5 rounded-md text-[11px] text-text-2 border border-border bg-bg-card hover:bg-bg-base transition-colors disabled:opacity-50"
+                className="island-btn h-[28px] px-2.5 rounded-md text-[11px] text-text-2 transition-colors disabled:opacity-50"
               >
                 导入
               </button>
               <button
                 onClick={handleExportTheme}
                 disabled={themeBusy || !canManageCurrentTheme}
-                className="h-[28px] px-2.5 rounded-md text-[11px] text-text-2 border border-border bg-bg-card hover:bg-bg-base transition-colors disabled:opacity-50"
+                className="island-btn h-[28px] px-2.5 rounded-md text-[11px] text-text-2 transition-colors disabled:opacity-50"
               >
                 导出
               </button>

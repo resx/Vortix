@@ -130,8 +130,8 @@ export function SColumnSelect({ k, label }: { k: keyof SettingsState; label: str
           ref={triggerRef}
           title={selectedText || '未选择'}
           className={cn(
-            'flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded overflow-hidden',
-            isSftpColumnDisplay ? 'w-[176px] min-w-[120px] max-w-[176px] ml-auto justify-end' : 'w-[200px] max-w-[36vw] min-w-[96px]',
+            'island-control inline-flex h-[26px] px-2 items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[12px] outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded overflow-hidden',
+            isSftpColumnDisplay ? 'w-[176px] min-w-[120px] max-w-[176px] ml-auto justify-end' : 'w-[200px] max-w-[36vw] min-w-[96px] justify-between',
           )}
         >
           <span className={cn('truncate min-w-0', isSftpColumnDisplay && 'text-right')}>{displayText}</span>
@@ -592,7 +592,7 @@ export function SFontSelect({ k, label, desc, value: externalValue, onChangeFont
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none max-w-[200px] overflow-hidden"
+        className="island-control inline-flex h-[26px] px-2 items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[12px] outline-none max-w-[200px] overflow-hidden"
         title={displayText}
       >
         <span className="truncate">{displayText}</span>
@@ -684,7 +684,7 @@ export function SNumberInput({ k, label, desc, width = 'w-[60px]' }: {
           if (!isNaN(num)) update(k, num as never)
           else if (e.target.value === '') update(k, 0 as never)
         }}
-        className={`${width} h-[26px] border border-border bg-bg-card rounded px-2 text-right text-[12px] text-text-1 outline-none`}
+        className={`${width} island-control px-2 text-right text-[12px]`}
       />
     </SettingRow>
   )
@@ -704,7 +704,7 @@ export function STextInput({ k, label, desc, width = 'w-[60px]', placeholder }: 
         value={value}
         onChange={(e) => update(k, e.target.value as never)}
         placeholder={placeholder}
-        className={`${width} h-[26px] border border-border bg-bg-card rounded px-2 text-center text-[12px] text-text-1 outline-none placeholder-text-disabled`}
+        className={`${width} island-control px-2 text-center text-[12px] placeholder-text-disabled`}
       />
     </SettingRow>
   )

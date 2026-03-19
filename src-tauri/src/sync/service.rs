@@ -317,16 +317,37 @@ pub async fn sync_status(db: Db, body: SyncRequestBody) -> Result<Json<ApiRespon
     }
     let info = match provider.stat(SYNC_FILENAME).await {
         Ok(value) => value,
-        Err(_) if provider.name() == "git" => return Ok(ok(not_found)),
-        Err(e) => return Err(err(StatusCode::BAD_REQUEST, e)),
+        Err(e) => match provider.read(SYNC_FILENAME).await {
+            Ok(bytes) => Some(SyncFileInfo {
+                exists: true,
+                last_modified: None,
+                size: Some(bytes.len() as i64),
+            }),
+            Err(_) => return Err(err(StatusCode::BAD_REQUEST, e)),
+        },
     };
     if let Some(info) = info { return Ok(ok(info)); }
     let info = match provider.stat(SYNC_LEGACY_FILENAME).await {
         Ok(value) => value,
-        Err(_) if provider.name() == "git" => return Ok(ok(not_found)),
-        Err(e) => return Err(err(StatusCode::BAD_REQUEST, e)),
+        Err(e) => match provider.read(SYNC_LEGACY_FILENAME).await {
+            Ok(bytes) => Some(SyncFileInfo {
+                exists: true,
+                last_modified: None,
+                size: Some(bytes.len() as i64),
+            }),
+            Err(_) => return Err(err(StatusCode::BAD_REQUEST, e)),
+        },
     };
     Ok(ok(info.unwrap_or(not_found)))
+}
+
+pub async fn sync_local_state(db: Db) -> Result<Json<ApiResponse<SyncLocalState>>, ApiError> {
+    let state = get_sync_state(&db).await?;
+    Ok(ok(SyncLocalState {
+        local_dirty: state.local_dirty != 0,
+        last_sync_revision: state.last_sync_revision,
+        last_sync_at: state.last_sync_at,
+    }))
 }
 
 pub async fn sync_export(db: Db, body: SyncRequestBody) -> Result<Json<ApiResponse<Value>>, ApiError> {

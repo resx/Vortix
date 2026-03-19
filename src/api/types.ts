@@ -336,6 +336,12 @@ export interface SyncFileInfo {
   size: number | null
 }
 
+export interface SyncLocalState {
+  localDirty: boolean
+  lastSyncRevision: number
+  lastSyncAt: string | null
+}
+
 /** 导入结果统计 */
 export interface ImportResult {
   folders: number

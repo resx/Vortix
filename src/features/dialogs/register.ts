@@ -12,6 +12,7 @@ import ClearDataDialog from '../../components/dialogs/ClearDataDialog'
 import ReloadConfirmDialog from '../../components/dialogs/ReloadConfirmDialog'
 import ShortcutDialog from '../../components/dialogs/ShortcutDialog'
 import BatchEditModal from '../../components/dialogs/BatchEditModal'
+import SyncConflictDialog from '../../components/dialogs/SyncConflictDialog'
 
 export function registerDialogs(): () => void {
   const cleanups = [
@@ -24,6 +25,7 @@ export function registerDialogs(): () => void {
     registerDialog({ id: 'reload', component: ReloadConfirmDialog, isOpen: () => useUIStore.getState().reloadDialogOpen }),
     registerDialog({ id: 'shortcut', component: ShortcutDialog, isOpen: () => useShortcutStore.getState().shortcutDialogOpen }),
     registerDialog({ id: 'batch-edit', component: BatchEditModal, isOpen: () => useUIStore.getState().batchEditOpen }),
+    registerDialog({ id: 'sync-conflict', component: SyncConflictDialog, isOpen: () => useUIStore.getState().syncConflictOpen }),
   ]
   return () => cleanups.forEach(fn => fn())
 }

@@ -18,8 +18,8 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      'flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors',
-      'text-[13px] outline-none',
+      'island-control inline-flex items-center justify-between gap-1.5 px-2 cursor-pointer text-text-2 hover:text-text-1 transition-colors',
+      'text-[12px] outline-none',
       'focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded',
       className,
     )}
@@ -47,7 +47,7 @@ const SelectContent = React.forwardRef<
       align="end"
       sideOffset={4}
       className={cn(
-        'z-[1050] overflow-hidden glass-context rounded-lg',
+        'z-[1050] overflow-hidden glass-context rounded-xl',
         'animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95',
         'data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2',
         className,

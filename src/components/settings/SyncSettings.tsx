@@ -27,7 +27,7 @@ function EncryptionKeyRow() {
         <button
           type="button"
           onClick={() => setVisible(!visible)}
-          className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+          className="island-btn w-[26px] h-[26px] rounded-full flex items-center justify-center cursor-pointer transition-colors"
         >
           {visible ? <AppIcon icon={icons.eyeOff} size={13} className="text-text-2" /> : <AppIcon icon={icons.eye} size={13} className="text-text-2" />}
         </button>
@@ -36,7 +36,7 @@ function EncryptionKeyRow() {
           value={value}
           onChange={(e) => update('syncEncryptionKey', e.target.value)}
           placeholder="留空使用内置加密"
-          className="w-full max-w-[240px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none"
+          className="island-control w-full max-w-[240px] px-2 text-[11px]"
         />
       </div>
     </SettingRow>
@@ -242,7 +242,8 @@ export default function SyncSettings() {
 
   /* 连通性测试 */
   /* 通用输入框样式 */
-  const inputCls = "h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled shrink min-w-0"
+  const inputCls = "island-control px-2 text-[11px] placeholder-text-disabled shrink min-w-0"
+  const smallIslandBtn = 'island-btn h-[26px] px-2.5 text-[11px] text-text-2 inline-flex items-center justify-center transition-colors'
 
   return (
     <>
@@ -257,7 +258,7 @@ export default function SyncSettings() {
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   onClick={() => { setConfirmClear(false) }}
-                  className="px-2 py-1 bg-bg-base text-text-2 rounded text-[11px] hover:bg-border transition-colors"
+                  className={`${smallIslandBtn} px-2`}
                 >取消</button>
                 <button
                   onClick={async () => {
@@ -269,13 +270,13 @@ export default function SyncSettings() {
                     } catch (e) { addToast('error', (e as Error).message) }
                     setConfirmClear(false)
                   }}
-                  className="px-2 py-1 bg-status-error/10 text-status-error rounded text-[11px] font-medium hover:bg-status-error/20 transition-colors"
+                  className="h-[26px] px-2 rounded-lg border border-status-error/30 bg-status-error/10 text-status-error text-[11px] font-medium hover:bg-status-error/20 transition-colors"
                 >确认清除</button>
               </div>
             ) : (
               <button
                 onClick={() => setConfirmClear(true)}
-                className="px-2.5 py-1 bg-bg-base text-text-2 rounded text-[11px] hover:bg-border transition-colors shrink-0"
+                className={`${smallIslandBtn} shrink-0`}
               >清除本地数据</button>
             )}
           </div>
@@ -288,7 +289,7 @@ export default function SyncSettings() {
               <button
                 disabled={syncing || testing}
                 onClick={handleTest}
-                className="flex items-center gap-1 px-2.5 py-1 bg-bg-base text-text-2 rounded text-[11px] hover:bg-border transition-colors disabled:opacity-50"
+                className={`${smallIslandBtn} gap-1 disabled:opacity-50`}
               >
                 {testing ? <AppIcon icon={icons.loader} size={11} className="animate-spin" /> : <AppIcon icon={icons.cloudCog} size={11} />}
                 {testing ? '测试中...' : (repoSource === 'local' ? '检查路径' : '测试连接')}
@@ -296,7 +297,7 @@ export default function SyncSettings() {
               <button
                 disabled={syncing}
                 onClick={() => setConfirmImport(true)}
-                className="flex items-center gap-1 px-2.5 py-1 bg-bg-base text-text-2 rounded text-[11px] hover:bg-border transition-colors disabled:opacity-50"
+                className={`${smallIslandBtn} gap-1 disabled:opacity-50`}
               >
                 {syncing ? <AppIcon icon={icons.loader} size={11} className="animate-spin" /> : <AppIcon icon={icons.download} size={11} />}
                 拉取
@@ -307,7 +308,7 @@ export default function SyncSettings() {
                   if (fileInfo?.exists) setConfirmExport(true)
                   else handleExport()
                 }}
-                className="flex items-center gap-1 px-2.5 py-1 bg-bg-base text-text-2 rounded text-[11px] hover:bg-border transition-colors disabled:opacity-50"
+                className={`${smallIslandBtn} gap-1 disabled:opacity-50`}
               >
                 {syncing ? <AppIcon icon={icons.loader} size={11} className="animate-spin" /> : <AppIcon icon={icons.upload} size={11} />}
                 推送
@@ -321,19 +322,19 @@ export default function SyncSettings() {
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={() => setConfirmDeleteRemote(false)}
-                className="px-2 py-1 bg-bg-base text-text-2 rounded text-[11px] hover:bg-border transition-colors"
+                className={`${smallIslandBtn} px-2`}
               >取消</button>
               <button
                 disabled={syncing}
                 onClick={handleDeleteRemote}
-                className="px-2 py-1 bg-status-error/10 text-status-error rounded text-[11px] font-medium hover:bg-status-error/20 transition-colors disabled:opacity-50"
+                className="h-[26px] px-2 rounded-lg border border-status-error/30 bg-status-error/10 text-status-error text-[11px] font-medium hover:bg-status-error/20 transition-colors disabled:opacity-50"
               >{repoSource === 'local' ? '确认清理' : '确认删除'}</button>
             </div>
           ) : (
             <button
               disabled={syncing}
               onClick={() => setConfirmDeleteRemote(true)}
-              className="px-2.5 py-1 bg-bg-base text-text-2 rounded text-[11px] hover:bg-border transition-colors shrink-0 disabled:opacity-50"
+              className={`${smallIslandBtn} shrink-0 disabled:opacity-50`}
             >
               {repoSource === 'local' ? '清理本地同步文件' : `删除 ${REPO_LABELS[repoSource]} 仓库资产`}
             </button>
@@ -388,7 +389,7 @@ export default function SyncSettings() {
                       } catch { /* 静默 */ }
                       setPickingDir(false)
                     }}
-                    className={`w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors ${pickingDir ? 'animate-pulse' : ''}`}
+                    className={`island-btn w-[26px] h-[26px] rounded-full flex items-center justify-center cursor-pointer transition-colors ${pickingDir ? 'animate-pulse' : ''}`}
                   >
                     <AppIcon icon={icons.folder} size={13} className="text-text-2" />
                   </button>
@@ -456,7 +457,7 @@ export default function SyncSettings() {
                 </>
               ) : (
                 <SettingRow label="SSH私钥">
-                  <div className="w-full max-w-[460px] rounded-2xl border border-border/70 bg-gradient-to-b from-bg-card to-bg-subtle/80 p-2 shadow-[0_6px_18px_rgba(0,0,0,0.06)]">
+                  <div className="island-surface w-full max-w-[460px] rounded-2xl p-2">
                     <div className="flex items-center justify-between gap-2 px-1 pb-2">
                       <div className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-bg-base/70 px-2 py-0.5 text-[10px] font-medium tracking-[0.02em] text-text-2">
                         <AppIcon icon={icons.shield} size={11} className="text-primary" />
@@ -476,7 +477,7 @@ export default function SyncSettings() {
                           }
                         } catch { /* 静默 */ }
                       }}
-                      className="w-7 h-7 rounded-xl border border-border/70 bg-bg-base/80 flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+                      className="island-btn w-7 h-7 rounded-xl flex items-center justify-center cursor-pointer transition-colors"
                     >
                       <AppIcon icon={icons.fileText} size={13} className="text-text-2" />
                     </button>
@@ -484,7 +485,7 @@ export default function SyncSettings() {
                       type="button"
                       title="选择已配置的连接私钥"
                       onClick={() => setShowKeyPicker(true)}
-                      className="w-7 h-7 rounded-xl border border-border/70 bg-bg-base/80 flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+                      className="island-btn w-7 h-7 rounded-xl flex items-center justify-center cursor-pointer transition-colors"
                     >
                       <AppIcon icon={icons.key} size={13} className="text-text-2" />
                     </button>
@@ -493,7 +494,7 @@ export default function SyncSettings() {
                         type="button"
                         title={manualKeyVisible ? '隐藏私钥' : '显示私钥'}
                         onClick={() => setManualKeyVisible((v) => !v)}
-                        className="w-7 h-7 rounded-xl border border-border/70 bg-bg-base/80 flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+                        className="island-btn w-7 h-7 rounded-xl flex items-center justify-center cursor-pointer transition-colors"
                       >
                         <AppIcon icon={manualKeyVisible ? icons.eyeOff : icons.eye} size={13} className="text-text-2" />
                       </button>
@@ -502,7 +503,7 @@ export default function SyncSettings() {
                     </div>
                     {syncGitSshKeyMode === 'manager' ? (
                       hasManagerBinding ? (
-                        <div className="rounded-xl border border-border/70 bg-bg-card/90 px-3 py-2.5">
+                        <div className="island-surface rounded-xl px-3 py-2.5">
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
                               <div className="text-[11px] text-text-3">已选择密钥</div>
@@ -512,7 +513,7 @@ export default function SyncSettings() {
                               <button
                                 type="button"
                                 onClick={() => setShowKeyPicker(true)}
-                                className="px-2.5 py-1 rounded-lg border border-border/70 bg-bg-base/80 text-[11px] text-text-2 hover:bg-border transition-colors"
+                                className={`${smallIslandBtn}`}
                               >
                                 更换密钥
                               </button>
@@ -523,7 +524,7 @@ export default function SyncSettings() {
                                   update('syncGitSshKeyLabel', '')
                                   update('syncGitSshKeyMode', 'manager')
                                 }}
-                                className="px-2.5 py-1 rounded-lg border border-border/70 bg-bg-base/80 text-[11px] text-text-2 hover:bg-border transition-colors"
+                                className={`${smallIslandBtn}`}
                               >
                                 解除绑定
                               </button>
@@ -534,7 +535,7 @@ export default function SyncSettings() {
                                   update('syncGitSshKeyLabel', '')
                                   update('syncGitSshKeyMode', 'manual')
                                 }}
-                                className="px-2.5 py-1 rounded-lg border border-border/70 bg-bg-base/80 text-[11px] text-text-2 hover:bg-border transition-colors"
+                                className={`${smallIslandBtn}`}
                               >
                                 手动输入
                               </button>
@@ -548,7 +549,7 @@ export default function SyncSettings() {
                             <button
                               type="button"
                               onClick={() => setShowKeyPicker(true)}
-                              className="px-2.5 py-1 rounded-lg border border-border/70 bg-bg-base/80 text-[11px] text-text-2 hover:bg-border transition-colors"
+                              className={`${smallIslandBtn}`}
                             >
                               选择密钥管理器
                             </button>
@@ -559,7 +560,7 @@ export default function SyncSettings() {
                                 update('syncGitSshKeyLabel', '')
                                 update('syncGitSshKeyMode', 'manual')
                               }}
-                              className="px-2.5 py-1 rounded-lg border border-border/70 bg-bg-base/80 text-[11px] text-text-2 hover:bg-border transition-colors"
+                              className={`${smallIslandBtn}`}
                             >
                               手动输入
                             </button>
@@ -711,7 +712,7 @@ export default function SyncSettings() {
 
       {/* 同步文件状态 */}
       {fileInfo && (
-        <div className="mt-4 flex items-center gap-4 px-4 py-2.5 rounded-lg bg-bg-subtle text-[11px] text-text-2">
+        <div className="island-surface mt-4 flex items-center gap-4 px-4 py-2.5 rounded-xl text-[11px] text-text-2">
           <span className="flex items-center gap-1">
             {fileInfo.exists
               ? <><AppIcon icon={icons.checkCircle} size={12} className="text-chart-green" /> 同步文件已存在，如需恢复数据请点击「拉取」</>
@@ -733,7 +734,7 @@ export default function SyncSettings() {
       {/* 导入确认弹窗 */}
       {confirmImport && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-          <div className="bg-bg-card rounded-xl shadow-2xl border border-border/60 w-full max-w-sm animate-in fade-in zoom-in duration-200 overflow-hidden">
+          <div className="island-surface rounded-xl w-full max-w-sm animate-in fade-in zoom-in duration-200 overflow-hidden">
             <div className="flex items-start gap-3 px-5 pt-5 pb-3">
               <div className="w-8 h-8 rounded-full bg-[#FFD666]/15 flex items-center justify-center shrink-0 mt-0.5">
                 <AppIcon icon={icons.alertTriangle} size={16} className="text-[#E6A23C]" />
@@ -744,7 +745,7 @@ export default function SyncSettings() {
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 px-5 py-3.5">
-              <button onClick={() => setConfirmImport(false)} className="px-3.5 py-1.5 bg-bg-base text-text-2 rounded-lg text-[12px] font-medium hover:bg-border transition-colors">取消</button>
+              <button onClick={() => setConfirmImport(false)} className="island-btn px-3.5 py-1.5 text-text-2 rounded-lg text-[12px] font-medium transition-colors">取消</button>
               <button onClick={() => handleImport()} className="px-3.5 py-1.5 bg-primary text-white rounded-lg text-[12px] font-medium hover:opacity-90 transition-opacity">确认拉取</button>
             </div>
           </div>
@@ -754,7 +755,7 @@ export default function SyncSettings() {
       {/* 推送确认弹窗 */}
       {confirmExport && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-          <div className="bg-bg-card rounded-xl shadow-2xl border border-border/60 w-full max-w-sm animate-in fade-in zoom-in duration-200 overflow-hidden">
+          <div className="island-surface rounded-xl w-full max-w-sm animate-in fade-in zoom-in duration-200 overflow-hidden">
             <div className="flex items-start gap-3 px-5 pt-5 pb-3">
               <div className="w-8 h-8 rounded-full bg-[#FFD666]/15 flex items-center justify-center shrink-0 mt-0.5">
                 <AppIcon icon={icons.alertTriangle} size={16} className="text-[#E6A23C]" />
@@ -765,7 +766,7 @@ export default function SyncSettings() {
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 px-5 py-3.5">
-              <button onClick={() => setConfirmExport(false)} className="px-3.5 py-1.5 bg-bg-base text-text-2 rounded-lg text-[12px] font-medium hover:bg-border transition-colors">取消</button>
+              <button onClick={() => setConfirmExport(false)} className="island-btn px-3.5 py-1.5 text-text-2 rounded-lg text-[12px] font-medium transition-colors">取消</button>
               <button onClick={() => { setConfirmExport(false); handleExport() }} className="px-3.5 py-1.5 bg-primary text-white rounded-lg text-[12px] font-medium hover:opacity-90 transition-opacity">确认推送</button>
             </div>
           </div>
@@ -775,7 +776,7 @@ export default function SyncSettings() {
       {/* 冲突检测弹窗 */}
       {conflictInfo && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/20 backdrop-blur-[1px]">
-          <div className="bg-bg-card rounded-xl shadow-2xl border border-border/60 w-full max-w-sm animate-in fade-in zoom-in duration-200 overflow-hidden">
+          <div className="island-surface rounded-xl w-full max-w-sm animate-in fade-in zoom-in duration-200 overflow-hidden">
             <div className="flex items-start gap-3 px-5 pt-5 pb-3">
               <div className="w-8 h-8 rounded-full bg-[#FF4D4F]/10 flex items-center justify-center shrink-0 mt-0.5">
                 <AppIcon icon={icons.alertTriangle} size={16} className="text-status-error" />
@@ -794,7 +795,7 @@ export default function SyncSettings() {
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 px-5 py-3.5">
-              <button onClick={() => setConflictInfo(null)} className="px-3.5 py-1.5 bg-bg-base text-text-2 rounded-lg text-[12px] font-medium hover:bg-border transition-colors">取消</button>
+              <button onClick={() => setConflictInfo(null)} className="island-btn px-3.5 py-1.5 text-text-2 rounded-lg text-[12px] font-medium transition-colors">取消</button>
               <button onClick={handleConflictUseRemote} className="px-3.5 py-1.5 bg-[#FF4D4F]/10 text-[#FF4D4F] rounded-lg text-[12px] font-medium hover:bg-[#FF4D4F]/20 transition-colors">使用远端数据</button>
               <button onClick={handleConflictUseLocal} className="px-3.5 py-1.5 bg-primary text-white rounded-lg text-[12px] font-medium hover:opacity-90 transition-opacity">使用本地数据</button>
             </div>
@@ -803,7 +804,7 @@ export default function SyncSettings() {
       )}
 
       {/* 安全提示 */}
-      <div className="mt-6 flex items-start gap-2 px-4 py-3 rounded-lg bg-bg-subtle text-[11px] text-text-3">
+      <div className="island-surface mt-6 flex items-start gap-2 px-4 py-3 rounded-xl text-[11px] text-text-3">
         <AppIcon icon={icons.info} size={13} className="shrink-0 mt-0.5" />
         <span>同步数据始终加密传输。未设置自定义密钥时使用内置加密（防止明文泄露），设置后使用强加密（跨设备恢复需要密钥）。Git 仓库仅保留最新一次同步记录。</span>
       </div>

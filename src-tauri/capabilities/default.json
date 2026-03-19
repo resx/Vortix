@@ -1,7 +1,7 @@
 {
   "identifier": "default",
   "description": "默认权限集",
-  "windows": ["main", "settings", "terminal-*", "clone-*", "connection-*"],
+  "windows": ["main", "settings", "theme-manager", "terminal-*", "clone-*", "connection-*"],
   "permissions": [
     "core:default",
     "core:window:default",

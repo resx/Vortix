@@ -33,6 +33,7 @@ export default defineConfig({
       input: {
         main: path.resolve(__dirname, 'index.html'),
         settings: path.resolve(__dirname, 'settings.html'),
+        themeManager: path.resolve(__dirname, 'theme-manager.html'),
       },
       output: {
         manualChunks(id) {

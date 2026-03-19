@@ -440,6 +440,10 @@ export async function getSyncStatus(body: import('./types').SyncRequestBody): Pr
   })
 }
 
+export async function getSyncLocalState(): Promise<import('./types').SyncLocalState> {
+  return request<import('./types').SyncLocalState>('/sync/local-state')
+}
+
 export async function deleteSyncRemote(body: import('./types').SyncRequestBody): Promise<void> {
   return request<void>('/sync/remote', {
     method: 'DELETE',

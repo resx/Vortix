@@ -80,6 +80,84 @@
   --icon-action: #FFD06B;
 }
 
+/* Settings: 岛屿风格基础原子类 */
+.island-surface {
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 248, 251, 0.86));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.dark .island-surface {
+  border-color: rgba(255, 255, 255, 0.09);
+  background: linear-gradient(180deg, rgba(45, 47, 53, 0.9), rgba(36, 38, 43, 0.88));
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.island-row {
+  min-height: 42px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.7);
+  transition: background-color 0.16s ease, border-color 0.16s ease;
+}
+
+.island-row:hover {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.dark .island-row {
+  background: rgba(42, 43, 48, 0.7);
+}
+
+.dark .island-row:hover {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(42, 43, 48, 0.9);
+}
+
+.island-control {
+  height: 26px;
+  border: 1px solid rgba(31, 35, 41, 0.12);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--text-1);
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.island-control:focus-visible {
+  outline: none;
+  border-color: rgba(64, 128, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(64, 128, 255, 0.14);
+}
+
+.dark .island-control {
+  border-color: rgba(229, 230, 235, 0.12);
+  background: rgba(36, 37, 41, 0.92);
+}
+
+.island-btn {
+  border: 1px solid rgba(31, 35, 41, 0.1);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.82);
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.island-btn:hover {
+  border-color: rgba(64, 128, 255, 0.35);
+  background: rgba(232, 240, 255, 0.9);
+}
+
+.dark .island-btn {
+  border-color: rgba(229, 230, 235, 0.1);
+  background: rgba(36, 37, 41, 0.84);
+}
+
+.dark .island-btn:hover {
+  border-color: rgba(91, 143, 255, 0.4);
+  background: rgba(30, 58, 110, 0.35);
+}
+
 /* ── @theme 注册 ── */
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -143,6 +221,18 @@ html.settings-window {
 html.settings-window body,
 html.settings-window #root,
 html.settings-window .settings-window-root {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+html.theme-manager-window {
+  border-radius: 12px !important;
+}
+
+html.theme-manager-window body,
+html.theme-manager-window #root,
+html.theme-manager-window .theme-manager-window-root {
   border-radius: 12px !important;
   overflow: hidden !important;
   background: transparent !important;

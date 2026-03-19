@@ -369,6 +369,16 @@ pub struct SyncFileInfo {
 }
 
 #[derive(Serialize)]
+pub struct SyncLocalState {
+    #[serde(rename = "localDirty")]
+    pub local_dirty: bool,
+    #[serde(rename = "lastSyncRevision")]
+    pub last_sync_revision: i64,
+    #[serde(rename = "lastSyncAt")]
+    pub last_sync_at: Option<String>,
+}
+
+#[derive(Serialize)]
 pub struct SyncImportResult {
     pub folders: usize,
     pub connections: usize,

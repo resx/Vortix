@@ -229,6 +229,40 @@ export async function openSettingsWindow(nav?: string): Promise<void> {
   }
 }
 
+/* 独立主题管理器窗口 */
+export async function openThemeManagerWindow(): Promise<void> {
+  if (!isTauri()) {
+    console.warn('[Vortix] 非 Tauri 环境，无法打开主题管理器窗口')
+    return
+  }
+
+  const label = 'theme-manager'
+  const existing = await WebviewWindow.getByLabel(label)
+  if (existing) {
+    try {
+      await existing.show()
+      await existing.setFocus()
+    } catch {
+      try { await existing.close() } catch { /* noop */ }
+      setTimeout(() => void openThemeManagerWindow(), 200)
+    }
+    return
+  }
+
+  createWindow(label, {
+    url: 'theme-manager.html',
+    title: '终端主题管理器 - Vortix',
+    width: 1040,
+    height: 760,
+    minWidth: 880,
+    minHeight: 620,
+    decorations: false,
+    transparent: true,
+    shadow: false,
+    center: true,
+  })
+}
+
 /* ── 新窗口打开指定连接 ── */
 
 export function openConnectionInNewWindow(connectionId: string): void {

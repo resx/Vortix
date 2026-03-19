@@ -71,6 +71,7 @@ pub async fn start(port: u16, db: Db) {
         .route("/api/sync/export", post(routes::sync::sync_export))
         .route("/api/sync/import", post(routes::sync::sync_import))
         .route("/api/sync/status", post(routes::sync::sync_status))
+        .route("/api/sync/local-state", get(routes::sync::sync_local_state))
         .route("/api/sync/remote", delete(routes::sync::sync_delete_remote))
         .route("/api/sync/check-push", post(routes::sync::sync_check_push))
         .route("/api/sync/check-pull", post(routes::sync::sync_check_pull))

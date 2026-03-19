@@ -3,14 +3,16 @@
 import { useEffect } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useSettingsStore } from '../stores/useSettingsStore'
+import { useSettingsStore, buildSyncBody } from '../stores/useSettingsStore'
 import { useAssetStore } from '../stores/useAssetStore'
 import { useShortcutStore } from '../stores/useShortcutStore'
 import { useTerminalProfileStore } from '../stores/useTerminalProfileStore'
 import { useTabStore } from '../stores/useTabStore'
 import { useUIStore } from '../stores/useUIStore'
+import { useToastStore } from '../stores/useToastStore'
 import { resolveFontChain } from '../lib/fonts'
 import { loadLocale } from '../i18n'
+import * as api from '../api/client'
 import type { AssetRow } from '../types'
 
 /** 初始化：加载设置、资产、快捷命令、恢复标签页 */
@@ -171,6 +173,87 @@ export function useConfigChangedListener() {
     })
     return () => { unlisten.then(fn => fn()) }
   }, [])
+}
+
+/** 自动同步: 轮询本地 dirty 状态并在可配置时自动推送 */
+export function useAutoSyncEffect() {
+  const loaded = useSettingsStore((s) => s._loaded)
+  const autoSync = useSettingsStore((s) => s.syncAutoSync)
+  const repoSource = useSettingsStore((s) => s.syncRepoSource)
+  const syncLocalPath = useSettingsStore((s) => s.syncLocalPath)
+  const syncGitUrl = useSettingsStore((s) => s.syncGitUrl)
+  const syncWebdavEndpoint = useSettingsStore((s) => s.syncWebdavEndpoint)
+  const syncS3Endpoint = useSettingsStore((s) => s.syncS3Endpoint)
+  const syncConflictOpen = useUIStore((s) => s.syncConflictOpen)
+  const addToast = useToastStore((s) => s.addToast)
+
+  const isConfigured = (
+    (repoSource === 'local' && !!syncLocalPath.trim()) ||
+    (repoSource === 'git' && !!syncGitUrl.trim()) ||
+    (repoSource === 'webdav' && !!syncWebdavEndpoint.trim()) ||
+    (repoSource === 's3' && !!syncS3Endpoint.trim())
+  )
+
+  useEffect(() => {
+    if (!loaded || !autoSync || repoSource === 'local' || !isConfigured) return
+
+    let disposed = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let running = false
+    let lastErrorAt = 0
+
+    const schedule = (delayMs: number) => {
+      if (disposed) return
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => { void tick() }, delayMs)
+    }
+
+    const tick = async () => {
+      if (disposed || running) {
+        schedule(3000)
+        return
+      }
+      running = true
+      try {
+        if (useUIStore.getState().syncConflictOpen) {
+          schedule(3000)
+          return
+        }
+
+        const localState = await api.getSyncLocalState()
+        if (!localState.localDirty) {
+          schedule(5000)
+          return
+        }
+
+        const body = buildSyncBody()
+        const conflict = await api.checkPushConflict(body)
+        if (conflict.hasConflict) {
+          useUIStore.getState().openSyncConflict({ info: conflict, action: 'push', body })
+          schedule(15000)
+          return
+        }
+
+        await api.syncExport(body)
+        schedule(5000)
+      } catch (e) {
+        const now = Date.now()
+        if (now - lastErrorAt > 30000) {
+          lastErrorAt = now
+          addToast('error', `自动同步失败: ${(e as Error).message || '未知错误'}`)
+        }
+        schedule(10000)
+      } finally {
+        running = false
+      }
+    }
+
+    schedule(1200)
+    return () => {
+      disposed = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [loaded, autoSync, repoSource, isConfigured, syncConflictOpen, addToast])
 }
 
 /** 主题切换 */

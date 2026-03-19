@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { SettingRow, SettingGroup } from './SettingGroup'
 import { SToggle, SDropdown, SColumnSelect, SFontSelect, SNumberInput } from './SettingControls'
-import TermThemePanel from './TermThemePanel'
 import TermThemePreview from './TermThemePreview'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 import { useThemeStore } from '../../stores/useThemeStore'
 import { getThemeById } from '../terminal/themes/index'
+import { openThemeManagerWindow } from '../../lib/window'
 import { AppIcon, icons } from '../icons/AppIcon'
 import * as api from '../../api/client'
 import type { TermThemePreset } from '../terminal/themes/index'
@@ -24,7 +24,7 @@ function NumberInput({ value, onChange, width = 'w-[60px]' }: {
         if (!isNaN(num)) onChange(num)
         else if (e.target.value === '') onChange(0)
       }}
-      className={`${width} h-[26px] border border-border bg-bg-card rounded px-2 text-right text-[12px] text-text-1 outline-none`}
+      className={`${width} island-control px-2 text-right text-[12px]`}
     />
   )
 }
@@ -66,7 +66,6 @@ function CursorStylePicker({
 
 /* ── SSH/SFTP 设置 ── */
 export default function SSHSettings() {
-  const [themePanelOpen, setThemePanelOpen] = useState(false)
   const [appearancePreviewMode, setAppearancePreviewMode] = useState<'light' | 'dark'>(
     () => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'),
   )
@@ -161,7 +160,7 @@ export default function SSHSettings() {
                     if (selected) update('termLogDir', selected)
                   } catch { /* 静默 */ }
                 }}
-                className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+                className="island-btn w-[26px] h-[26px] rounded-full flex items-center justify-center cursor-pointer transition-colors"
               >
                 <AppIcon icon={icons.folderPlus} size={13} className="text-text-2" />
               </button>
@@ -170,7 +169,7 @@ export default function SSHSettings() {
                 value={termLogDir}
                 onChange={(e) => update('termLogDir', e.target.value)}
                 placeholder="不填则关闭日志录制"
-                className="w-full max-w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled"
+                className="island-control w-full max-w-[140px] px-2 text-[11px] placeholder-text-disabled"
               />
             </div>
           </SettingRow>
@@ -195,8 +194,8 @@ export default function SSHSettings() {
           </div>
           <button
             type="button"
-            onClick={() => setThemePanelOpen(true)}
-            className="h-[28px] px-2.5 rounded-lg border border-border/80 bg-bg-base text-[11px] text-text-2 hover:bg-border/70 transition-colors shrink-0 inline-flex items-center gap-1"
+            onClick={() => { void openThemeManagerWindow() }}
+            className="island-btn h-[28px] px-2.5 rounded-lg text-[11px] text-text-2 transition-colors shrink-0 inline-flex items-center gap-1"
           >
             主题管理器
             <AppIcon icon={icons.chevronRight} size={12} className="text-text-3" />
@@ -307,7 +306,7 @@ export default function SSHSettings() {
                     if (selected) update('sftpDefaultSavePath', selected)
                   } catch { /* 静默 */ }
                 }}
-                className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+                className="island-btn w-[26px] h-[26px] rounded-full flex items-center justify-center cursor-pointer transition-colors"
               >
                 <AppIcon icon={icons.folderPlus} size={13} className="text-text-2" />
               </button>
@@ -316,7 +315,7 @@ export default function SSHSettings() {
                 value={sftpDefaultSavePath}
                 onChange={(e) => update('sftpDefaultSavePath', e.target.value)}
                 placeholder="不填则使用默认路径"
-                className="w-full max-w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled"
+                className="island-control w-full max-w-[140px] px-2 text-[11px] placeholder-text-disabled"
               />
             </div>
           </SettingRow>
@@ -335,7 +334,6 @@ export default function SSHSettings() {
       </div>
 
       {/* 终端主题配置面板 */}
-      <TermThemePanel isOpen={themePanelOpen} onClose={() => setThemePanelOpen(false)} />
     </>
   )
 }

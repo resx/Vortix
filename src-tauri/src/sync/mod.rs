@@ -11,6 +11,7 @@ pub mod auto;
 pub use service::{
     sync_test,
     sync_status,
+    sync_local_state,
     sync_export,
     sync_import,
     sync_delete_remote,

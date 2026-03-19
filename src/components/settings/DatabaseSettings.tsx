@@ -6,7 +6,7 @@ export default function DatabaseSettings() {
   return (
     <div className="relative">
       {/* 即将推出横幅 */}
-      <div className="mb-6 px-4 py-3 rounded-lg bg-primary/10 border border-primary/20 text-[13px] text-primary flex items-center gap-2">
+      <div className="island-surface mb-6 px-4 py-3 rounded-xl border-primary/25 bg-primary/10 text-[13px] text-primary flex items-center gap-2">
         <span className="text-[16px]">🚧</span>
         <span>数据库功能正在开发中，以下设置项将在功能上线后生效。</span>
       </div>

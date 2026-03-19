@@ -103,7 +103,7 @@ export function SettingRow({ label, desc, children }: {
   }, [open])
 
   return (
-    <div className="group flex justify-between items-center px-4 min-h-[42px] py-1.5 gap-3 rounded-xl bg-bg-card/72 border border-transparent hover:border-border/80 hover:bg-bg-card transition-colors mb-0.5 last:mb-0">
+    <div className="group island-row flex justify-between items-center px-4 py-1.5 gap-3 mb-0.5 last:mb-0">
       <div className="flex items-center gap-1.5 min-w-0 shrink-0">
         <span className="text-[12px] text-text-2 font-medium whitespace-nowrap">{label}</span>
         {hasDesc && (
@@ -143,7 +143,7 @@ export function SettingRow({ label, desc, children }: {
 /* Excel 风格设置分组容器 */
 export function SettingGroup({ children }: { children: ReactNode }) {
   return (
-    <div className="self-start flex flex-col p-1 border border-border/70 ring-1 ring-white/45 dark:ring-white/10 rounded-2xl bg-[linear-gradient(180deg,rgba(247,248,250,0.92),rgba(242,243,245,0.86))] dark:bg-[linear-gradient(180deg,rgba(42,43,48,0.92),rgba(36,37,41,0.9))] shadow-[0_10px_24px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.45)] min-w-0 max-w-full overflow-hidden">
+    <div className="island-surface self-start flex flex-col p-1 min-w-0 max-w-full overflow-hidden">
       {children}
     </div>
   )

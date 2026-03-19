@@ -15,12 +15,13 @@ export default function DialogRenderer() {
   const clearDataDialogOpen = useUIStore((s) => s.clearDataDialogOpen)
   const reloadDialogOpen = useUIStore((s) => s.reloadDialogOpen)
   const batchEditOpen = useUIStore((s) => s.batchEditOpen)
+  const syncConflictOpen = useUIStore((s) => s.syncConflictOpen)
   const shortcutDialogOpen = useShortcutStore((s) => s.shortcutDialogOpen)
 
   // 触发依赖收集（上面的 selectors 确保 re-render）
   void settingsOpen; void sshConfigOpen; void localTermConfigOpen
   void quickSearchOpen; void updateDialogOpen; void clearDataDialogOpen
-  void reloadDialogOpen; void batchEditOpen; void shortcutDialogOpen
+  void reloadDialogOpen; void batchEditOpen; void syncConflictOpen; void shortcutDialogOpen
 
   return (
     <>

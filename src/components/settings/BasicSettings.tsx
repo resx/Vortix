@@ -18,7 +18,7 @@ function LockPasswordRow() {
         <button
           type="button"
           onClick={() => setVisible(!visible)}
-          className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+          className="island-btn w-[26px] h-[26px] rounded-full flex items-center justify-center cursor-pointer transition-colors"
         >
           <AppIcon icon={iconName} size={13} className="text-text-2" />
         </button>
@@ -26,7 +26,7 @@ function LockPasswordRow() {
           type={visible ? 'text' : 'password'}
           value={value}
           onChange={(e) => update('lockPassword', e.target.value)}
-          className="w-full max-w-[140px] h-[26px] border border-border bg-bg-card rounded px-2 outline-none text-[12px] text-text-1"
+          className="island-control w-full max-w-[140px] px-2 text-[12px]"
         />
       </div>
     </SettingRow>

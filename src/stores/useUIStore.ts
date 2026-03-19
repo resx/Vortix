@@ -1,5 +1,12 @@
 import { create } from 'zustand'
 import type { ContextMenuState } from '../types'
+import type { SyncConflictInfo, SyncRequestBody } from '../api/types'
+
+type SyncConflictState = {
+  info: SyncConflictInfo
+  action: 'push' | 'pull'
+  body: SyncRequestBody
+}
 
 interface UIState {
   // 侧边栏
@@ -71,6 +78,10 @@ interface UIState {
   batchEditIds: string[]
   openBatchEdit: (ids: string[]) => void
   closeBatchEdit: () => void
+  syncConflictOpen: boolean
+  syncConflict: SyncConflictState | null
+  openSyncConflict: (payload: SyncConflictState) => void
+  closeSyncConflict: () => void
 
   // 锁屏
   isLocked: boolean
@@ -150,6 +161,10 @@ export const useUIStore = create<UIState>((set) => ({
   batchEditIds: [],
   openBatchEdit: (ids) => set({ batchEditOpen: true, batchEditIds: ids }),
   closeBatchEdit: () => set({ batchEditOpen: false, batchEditIds: [] }),
+  syncConflictOpen: false,
+  syncConflict: null,
+  openSyncConflict: (payload) => set({ syncConflictOpen: true, syncConflict: payload }),
+  closeSyncConflict: () => set({ syncConflictOpen: false, syncConflict: null }),
 
   // 锁屏
   isLocked: false,
