@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { SettingRow, SettingGroup } from './SettingGroup'
 import { SToggle, SDropdown, SColumnSelect, SFontSelect, SNumberInput } from './SettingControls'
 import TermThemePanel from './TermThemePanel'
+import TermThemePreview from './TermThemePreview'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
+import { useThemeStore } from '../../stores/useThemeStore'
 import { getThemeById } from '../terminal/themes/index'
 import { AppIcon, icons } from '../icons/AppIcon'
 import * as api from '../../api/client'
@@ -60,29 +62,36 @@ function CursorStylePicker({
 }
 
 /** 入口按钮中的色块预览 */
-function PreviewSwatches({ preset }: { preset: TermThemePreset }) {
-  const t = preset.theme
-  const colors = [t.red, t.green, t.yellow, t.blue, t.magenta, t.cyan]
-  return (
-    <div
-      className="flex items-center gap-[3px] rounded-[4px] px-1.5 py-[3px]"
-      style={{ backgroundColor: t.background }}
-    >
-      <span className="text-[9px] leading-none font-mono mr-0.5 select-none" style={{ color: t.foreground }}>Aa</span>
-      {colors.map((c, i) => (
-        <div key={i} className="w-[10px] h-[10px] rounded-full shrink-0" style={{ backgroundColor: c }} />
-      ))}
-    </div>
-  )
-}
+
 
 /* ── SSH/SFTP 设置 ── */
 export default function SSHSettings() {
   const [themePanelOpen, setThemePanelOpen] = useState(false)
+  const [appearancePreviewMode, setAppearancePreviewMode] = useState<'light' | 'dark'>(
+    () => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'),
+  )
   const profileStore = useTerminalProfileStore()
+  const themeStore = useThemeStore()
   const profile = profileStore.getProfileById(profileStore.activeProfileId) ?? profileStore.getDefaultProfile()
-  const lightPreset = getThemeById(profile.colorSchemeLight) ?? getThemeById('default-light')!
-  const darkPreset = getThemeById(profile.colorSchemeDark) ?? getThemeById('default-dark')!
+  const toPreset = (id: string, fallback: 'default-light' | 'default-dark'): TermThemePreset => {
+    const dynamic = themeStore.getThemeById(id)
+    if (dynamic) {
+      return {
+        id: dynamic.id,
+        name: dynamic.name,
+        mode: dynamic.mode,
+        theme: dynamic.terminal,
+      }
+    }
+    return getThemeById(fallback)!
+  }
+  const lightPreset = toPreset(profile.colorSchemeLight, 'default-light')
+  const darkPreset = toPreset(profile.colorSchemeDark, 'default-dark')
+  const previewPreset = appearancePreviewMode === 'dark' ? darkPreset : lightPreset
+  const lightSource = themeStore.getThemeById(profile.colorSchemeLight)?.source ?? 'builtin'
+  const darkSource = themeStore.getThemeById(profile.colorSchemeDark)?.source ?? 'builtin'
+  const previewSource = appearancePreviewMode === 'dark' ? darkSource : lightSource
+  const previewSourceLabel = previewSource === 'builtin' ? '内置主题' : '自定义主题'
   const termLogDir = useSettingsStore((s) => s.termLogDir)
   const update = useSettingsStore((s) => s.updateSetting)
   const sftpDefaultSavePath = useSettingsStore((s) => s.sftpDefaultSavePath)
@@ -95,21 +104,9 @@ export default function SSHSettings() {
     <>
       {/* SSH 区域 */}
       <div className="text-[16px] font-medium text-text-1 mb-5">SSH</div>
-      <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 mb-10 items-start">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-7 mb-10 items-start">
         {/* 左列 */}
         <SettingGroup>
-          <SettingRow label="终端主题">
-            <button
-              onClick={() => setThemePanelOpen(true)}
-              className="flex items-center gap-1.5 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none max-w-[200px] overflow-hidden"
-            >
-              <span className="text-[11px] text-text-2 mr-1 truncate">{profile.name}</span>
-              <PreviewSwatches preset={lightPreset} />
-              <span className="text-text-3 text-[11px]">/</span>
-              <PreviewSwatches preset={darkPreset} />
-              <AppIcon icon={icons.chevronRight} size={14} className="shrink-0 text-text-3" />
-            </button>
-          </SettingRow>
           <SToggle k="termHighlightEnhance" label="终端高亮增强" />
           <SToggle k="sshSftpPathSync" label="SSH/SFTP 路径联动" />
           <SToggle k="termSelectAutoCopy" label="鼠标选中自动复制" />
@@ -182,21 +179,70 @@ export default function SSHSettings() {
 
       {/* 终端外观 */}
       <div className="text-[16px] font-medium text-text-1 mb-5">终端外观</div>
-      <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 mb-10 items-start">
+      <div className="mb-5 rounded-2xl border border-border/70 bg-bg-card/78 backdrop-blur-sm p-3 shadow-[0_8px_20px_rgba(0,0,0,0.08)]">
+        <div className="flex items-start justify-between gap-2 mb-2.5">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="text-[12px] font-medium text-text-1 truncate">{previewPreset.name}</div>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md border border-border/80 bg-bg-base text-[10px] text-text-3 shrink-0">
+                {previewSourceLabel}
+              </span>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md border border-border/80 bg-bg-base text-[10px] text-text-3 shrink-0">
+                {appearancePreviewMode === 'dark' ? 'Dark' : 'Light'}
+              </span>
+            </div>
+            <div className="text-[11px] text-text-3 mt-0.5">实时预览终端主题与光标表现</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setThemePanelOpen(true)}
+            className="h-[28px] px-2.5 rounded-lg border border-border/80 bg-bg-base text-[11px] text-text-2 hover:bg-border/70 transition-colors shrink-0 inline-flex items-center gap-1"
+          >
+            主题管理器
+            <AppIcon icon={icons.chevronRight} size={12} className="text-text-3" />
+          </button>
+        </div>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="text-[11px] text-text-3">模式切换</div>
+          <div className="inline-flex items-center rounded-lg border border-border bg-bg-base p-0.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setAppearancePreviewMode('light')}
+              className={`px-2.5 py-1 rounded-md text-[11px] transition-colors ${appearancePreviewMode === 'light' ? 'bg-primary text-white' : 'text-text-2 hover:bg-border/70'}`}
+            >
+              Light
+            </button>
+            <button
+              type="button"
+              onClick={() => setAppearancePreviewMode('dark')}
+              className={`px-2.5 py-1 rounded-md text-[11px] transition-colors ${appearancePreviewMode === 'dark' ? 'bg-primary text-white' : 'text-text-2 hover:bg-border/70'}`}
+            >
+              Dark
+            </button>
+          </div>
+        </div>
+        <div className="rounded-xl overflow-hidden border border-border/70">
+          <TermThemePreview
+            preset={previewPreset}
+            cursorStyle={profile.cursorStyle}
+            cursorBlink={profile.cursorBlink}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-7 mb-10 items-start">
         <SettingGroup>
-          <SettingRow label="终端字体">
-            <SFontSelect
-              label=""
-              value={profile.fontFamily}
-              onChangeFonts={(fonts) => handleUpdateProfile('fontFamily', fonts)}
-            />
-          </SettingRow>
+          <SFontSelect
+            label="终端字体"
+            value={profile.fontFamily}
+            onChangeFonts={(fonts) => handleUpdateProfile('fontFamily', fonts)}
+          />
           <SettingRow label="终端字号">
             <NumberInput value={profile.fontSize} onChange={(v) => handleUpdateProfile('fontSize', v)} />
           </SettingRow>
           <SettingRow label="终端行高">
             <NumberInput value={profile.lineHeight} onChange={(v) => handleUpdateProfile('lineHeight', v)} />
           </SettingRow>
+          <SToggle k="termStripeEnabled" label="护眼条纹背景" desc="交替行背景色，与行高联动" />
         </SettingGroup>
         <SettingGroup>
           <SettingRow label="终端间距">
@@ -216,13 +262,12 @@ export default function SSHSettings() {
               <div className={`absolute top-[2px] w-[16px] h-[16px] rounded-full bg-white shadow-sm transition-transform ${profile.cursorBlink ? 'left-[18px]' : 'left-[2px]'}`} />
             </button>
           </SettingRow>
-          <SToggle k="termStripeEnabled" label="护眼条纹背景" desc="交替行背景色，与行高联动" />
         </SettingGroup>
       </div>
 
       {/* SFTP 区域 */}
       <div className="text-[16px] font-medium text-text-1 mb-5">SFTP</div>
-      <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 items-start">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-7 items-start">
         {/* 左列 */}
         <SettingGroup>
           <SDropdown

@@ -67,6 +67,9 @@ export function SColumnSelect({ k, label }: { k: keyof SettingsState; label: str
   const storeValue = useSettingsStore((s) => s[k]) as string[]
   const update = useSettingsStore((s) => s.updateSetting)
   const [open, setOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const [triggerWidth, setTriggerWidth] = useState(200)
+  const isSftpColumnDisplay = k === 'sftpRemoteColumns' || k === 'sftpLocalColumns'
 
   const checked = new Set(storeValue)
 
@@ -77,16 +80,66 @@ export function SColumnSelect({ k, label }: { k: keyof SettingsState; label: str
     update(k, Array.from(next) as never)
   }
 
-  const selectedText = FILE_COLUMNS
+  const selectedLabels = FILE_COLUMNS
     .filter((c) => checked.has(c.key))
     .map((c) => c.label)
-    .join(',')
+  const selectedText = selectedLabels.join(',')
+  const selectedCount = selectedLabels.length
+
+  const sftpVisibleCount = (() => {
+    if (!isSftpColumnDisplay || selectedCount === 0) return 0
+    if (triggerWidth >= 156) return Math.min(2, selectedCount)
+    if (triggerWidth >= 116) return 1
+    return 0
+  })()
+
+  const sftpMainText = sftpVisibleCount > 0
+    ? selectedLabels.slice(0, sftpVisibleCount).join('、')
+    : (selectedCount > 0 ? `${selectedCount} 列` : '未选择')
+  const sftpExtraCount = selectedCount - sftpVisibleCount
+
+  const displayText = (() => {
+    if (selectedCount === 0) return '未选择'
+    if (isSftpColumnDisplay) return sftpMainText
+    if (triggerWidth >= 180) return selectedText
+    if (triggerWidth >= 120) {
+      const head = selectedLabels.slice(0, 2)
+      const rest = selectedCount - head.length
+      return rest > 0 ? `${head.join(',')} +${rest}` : head.join(',')
+    }
+    return `已选 ${selectedCount} 列`
+  })()
+
+  useEffect(() => {
+    const el = triggerRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const updateWidth = () => {
+      const next = Math.round(el.getBoundingClientRect().width)
+      setTriggerWidth((prev) => (prev === next ? prev : next))
+    }
+    updateWidth()
+    const ro = new ResizeObserver(updateWidth)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   return (
     <SettingRow label={label}>
       <DropdownMenuPrimitive.Root open={open} onOpenChange={setOpen}>
-        <DropdownMenuPrimitive.Trigger className="flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded max-w-[200px] overflow-hidden">
-          <span className="truncate">{selectedText || '未选择'}</span>
+        <DropdownMenuPrimitive.Trigger
+          ref={triggerRef}
+          title={selectedText || '未选择'}
+          className={cn(
+            'flex items-center gap-1 cursor-pointer text-text-2 hover:text-text-1 transition-colors text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:rounded overflow-hidden',
+            isSftpColumnDisplay ? 'w-[176px] min-w-[120px] max-w-[176px] ml-auto justify-end' : 'w-[200px] max-w-[36vw] min-w-[96px]',
+          )}
+        >
+          <span className={cn('truncate min-w-0', isSftpColumnDisplay && 'text-right')}>{displayText}</span>
+          {isSftpColumnDisplay && sftpExtraCount > 0 && (
+            <span className="shrink-0 rounded-md border border-border/80 bg-bg-base px-1.5 py-[1px] text-[10px] leading-none text-text-3">
+              +{sftpExtraCount}
+            </span>
+          )}
           {open ? <AppIcon icon={icons.chevronUp} size={14} className="shrink-0" /> : <AppIcon icon={icons.chevronDown} size={14} className="shrink-0" />}
         </DropdownMenuPrimitive.Trigger>
         <DropdownMenuPrimitive.Portal>
