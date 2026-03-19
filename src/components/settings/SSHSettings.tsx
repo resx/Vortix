@@ -103,8 +103,8 @@ export default function SSHSettings() {
   return (
     <>
       {/* SSH 区域 */}
-      <div className="text-[16px] font-medium text-text-1 mb-5">SSH</div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-7 mb-10 items-start">
+      <div className="text-[16px] font-medium text-text-1 mb-3">SSH</div>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-6 items-start">
         {/* 左列 */}
         <SettingGroup>
           <SToggle k="termHighlightEnhance" label="终端高亮增强" />
@@ -178,8 +178,8 @@ export default function SSHSettings() {
       </div>
 
       {/* 终端外观 */}
-      <div className="text-[16px] font-medium text-text-1 mb-5">终端外观</div>
-      <div className="mb-5 rounded-2xl border border-border/70 bg-bg-card/78 backdrop-blur-sm p-3 shadow-[0_8px_20px_rgba(0,0,0,0.08)]">
+      <div className="text-[16px] font-medium text-text-1 mb-3">终端外观</div>
+      <div className="mb-3 rounded-2xl border border-border/70 bg-bg-card/78 backdrop-blur-sm p-3 shadow-[0_8px_20px_rgba(0,0,0,0.08)]">
         <div className="flex items-start justify-between gap-2 mb-2.5">
           <div className="min-w-0">
             <div className="flex items-center gap-2 min-w-0">
@@ -229,7 +229,7 @@ export default function SSHSettings() {
           />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-7 mb-10 items-start">
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4 mb-6 items-start">
         <SettingGroup>
           <SFontSelect
             label="终端字体"
@@ -266,8 +266,8 @@ export default function SSHSettings() {
       </div>
 
       {/* SFTP 区域 */}
-      <div className="text-[16px] font-medium text-text-1 mb-5">SFTP</div>
-      <div className="grid grid-cols-2 gap-x-6 gap-y-7 items-start">
+      <div className="text-[16px] font-medium text-text-1 mb-3">SFTP</div>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-4 items-start">
         {/* 左列 */}
         <SettingGroup>
           <SDropdown

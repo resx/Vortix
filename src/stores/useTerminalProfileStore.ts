@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { emitTo } from '@tauri-apps/api/event'
 import * as api from '../api/client'
 import { useSettingsStore } from './useSettingsStore'
 import { getThemeById } from '../components/terminal/themes/index'
@@ -152,6 +153,11 @@ export const useTerminalProfileStore = create<TerminalProfileStore>((set, get) =
       const { profiles, activeProfileId } = get()
       const current = await api.getSettings() as Record<string, unknown>
       await api.saveSettings({ ...current, terminalProfiles: profiles, activeProfileId } as never)
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        const payload = { source: 'terminal-profile' }
+        await emitTo('main', 'config-changed', payload)
+        await emitTo('settings', 'config-changed', payload)
+      }
     } catch (e) {
       console.error('[Vortix] 保存 Profiles 失败', e)
     }

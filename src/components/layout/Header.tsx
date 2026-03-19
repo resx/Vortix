@@ -1,6 +1,7 @@
 /* ── Header 精简壳 ── */
 
 import { useState, useEffect, useRef } from 'react'
+import { emit, emitTo } from '@tauri-apps/api/event'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { useTabStore } from '../../stores/useTabStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
@@ -21,6 +22,8 @@ export default function Header() {
   const themeMode = useSettingsStore((s) => s.theme)
   const lockPassword = useSettingsStore((s) => s.lockPassword)
   const updateSetting = useSettingsStore((s) => s.updateSetting)
+  const applySettings = useSettingsStore((s) => s.applySettings)
+  const loaded = useSettingsStore((s) => s._loaded)
   const setLocked = useUIStore((s) => s.setLocked)
 
   const activeTab = tabs.find(t => t.id === activeTabId)
@@ -30,9 +33,16 @@ export default function Header() {
   // 主题切换
   const themeIcon = themeMode === 'light' ? icons.sun : themeMode === 'dark' ? icons.moon : icons.monitor
   const themeLabel = themeMode === 'light' ? '亮色模式' : themeMode === 'dark' ? '暗黑模式' : '跟随系统'
-  const cycleTheme = () => {
+  const cycleTheme = async () => {
     const next = themeMode === 'light' ? 'dark' : themeMode === 'dark' ? 'auto' : 'light'
     updateSetting('theme', next)
+    if (!loaded) return
+    await applySettings()
+    const payload = { source: 'header-theme', keys: ['theme'] as string[] }
+    if ('__TAURI_INTERNALS__' in window) {
+      await emit('config-changed', payload)
+      await emitTo('settings', 'config-changed', payload)
+    }
   }
 
   // 同步弹出层

@@ -50,5 +50,8 @@
   "common.confirm": "Confirm",
   "common.cancel": "Cancel",
   "common.close": "Close",
-  "common.loading": "Loading..."
+  "common.loading": "Loading...",
+  "settings.theme.auto": "Follow System",
+  "settings.theme.light": "Light",
+  "settings.theme.dark": "Dark"
 }

@@ -4,6 +4,7 @@ import { SToggle, SDropdown, SNumberDropdown, SFontSelect } from './SettingContr
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { Switch } from '../ui/switch'
 import { AppIcon, icons } from '../icons/AppIcon'
+import { useT } from '../../i18n'
 
 /* ── 锁屏密码行 ── */
 function LockPasswordRow() {
@@ -45,18 +46,19 @@ function TabCloseButtonSideRow() {
 
 /* ── 基础设置 ── */
 export default function BasicSettings() {
+  const t = useT()
   return (
     <>
-      <div className="text-[16px] font-medium text-text-1 mb-5">基本</div>
-      <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 items-start">
+      <div className="text-[16px] font-medium text-text-1 mb-3">基本</div>
+      <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-4 items-start">
         {/* 左列 */}
         <SettingGroup>
           <SDropdown
             k="theme" label="主题"
             options={[
-              { value: 'auto', label: 'auto' },
-              { value: 'light', label: 'light' },
-              { value: 'dark', label: 'dark' },
+              { value: 'auto', label: t('settings.theme.auto') },
+              { value: 'light', label: t('settings.theme.light') },
+              { value: 'dark', label: t('settings.theme.dark') },
             ]}
           />
           <SToggle k="middleClickCloseTab" label="鼠标中键关闭选项卡" />

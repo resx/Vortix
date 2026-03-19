@@ -5,7 +5,7 @@ import { AppIcon, icons } from '../../components/icons/AppIcon'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../../components/ui/tooltip'
 import { minimizeWindow, maximizeWindow, closeWindow, togglePinWindow, isPinned } from '../../lib/window'
 
-export default function WindowControls() {
+export default function WindowControls({ onClose }: { onClose?: () => void | Promise<void> }) {
   const [pinned, setPinned] = useState(isPinned)
 
   const handlePin = async () => {
@@ -41,7 +41,16 @@ export default function WindowControls() {
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button onClick={closeWindow} className="hover:text-text-1 transition-colors hover:text-status-error">
+          <button
+            onClick={() => {
+              if (onClose) {
+                void onClose()
+                return
+              }
+              closeWindow()
+            }}
+            className="hover:text-text-1 transition-colors hover:text-status-error"
+          >
             <AppIcon icon={icons.close} size={15} />
           </button>
         </TooltipTrigger>

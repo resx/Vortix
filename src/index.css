@@ -135,6 +135,19 @@ body {
   -webkit-user-select: none;
 }
 
+/* settings 独立窗口：24px 圆角 */
+html.settings-window {
+  border-radius: 12px !important;
+}
+
+html.settings-window body,
+html.settings-window #root,
+html.settings-window .settings-window-root {
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
 #app-root {
   position: fixed;
   inset: 0;
@@ -215,6 +228,38 @@ html.reduce-motion *::after {
   background: #4B5563;
 }
 
+/* 设置窗口专用滚动条（岛屿风格） */
+.settings-scrollbar::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.settings-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.settings-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(31, 35, 41, 0.16);
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.settings-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(31, 35, 41, 0.28);
+  background-clip: content-box;
+}
+
+.dark .settings-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(229, 230, 235, 0.2);
+  background-clip: content-box;
+}
+
+.dark .settings-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(229, 230, 235, 0.35);
+  background-clip: content-box;
+}
+
 /* 字体列表专用滚动条（Mac 风格） */
 .font-list-scrollbar::-webkit-scrollbar {
   width: 8px;
@@ -273,7 +318,7 @@ html.reduce-motion *::after {
 }
 .sync-key-scrollbar::-webkit-scrollbar-thumb {
   background: linear-gradient(180deg, rgba(64, 128, 255, 0.32), rgba(64, 128, 255, 0.2));
-  border-radius: 999px;
+  border-radius: 12px;
   border: 2px solid transparent;
   background-clip: content-box;
 }

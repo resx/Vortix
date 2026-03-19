@@ -83,6 +83,12 @@ export function SettingRow({ label, desc, children }: {
     setTooltipPos({ top, left })
   }
 
+  const openTooltip = () => {
+    // 先基于触发点给出初始坐标，避免首次渲染闪到左上角
+    updateTooltipPosition()
+    setOpen(true)
+  }
+
   useEffect(() => {
     if (!open) return
     const raf = window.requestAnimationFrame(updateTooltipPosition)
@@ -97,9 +103,9 @@ export function SettingRow({ label, desc, children }: {
   }, [open])
 
   return (
-    <div className="group flex justify-between items-center px-4 min-h-[50px] py-2.5 gap-3 rounded-xl bg-bg-card/72 border border-transparent hover:border-border/80 hover:bg-bg-card transition-colors mb-1 last:mb-0">
+    <div className="group flex justify-between items-center px-4 min-h-[42px] py-1.5 gap-3 rounded-xl bg-bg-card/72 border border-transparent hover:border-border/80 hover:bg-bg-card transition-colors mb-0.5 last:mb-0">
       <div className="flex items-center gap-1.5 min-w-0 shrink-0">
-        <span className="text-[12px] text-text-1/95 font-medium whitespace-nowrap">{label}</span>
+        <span className="text-[12px] text-text-2 font-medium whitespace-nowrap">{label}</span>
         {hasDesc && (
           <>
             <button
@@ -107,9 +113,9 @@ export function SettingRow({ label, desc, children }: {
               type="button"
               className="w-[16px] h-[16px] rounded-full border border-border/80 bg-bg-base/85 text-text-3 hover:text-primary hover:border-primary/30 transition-colors flex items-center justify-center"
               aria-label={`${label} 说明`}
-              onMouseEnter={() => setOpen(true)}
+              onMouseEnter={openTooltip}
               onMouseLeave={() => setOpen(false)}
-              onFocus={() => setOpen(true)}
+              onFocus={openTooltip}
               onBlur={() => setOpen(false)}
             >
               <AppIcon icon={icons.info} size={10} />
@@ -127,8 +133,8 @@ export function SettingRow({ label, desc, children }: {
           </>
         )}
       </div>
-      <div className="flex items-center gap-2 justify-end flex-1 min-w-0">
-        <div className="shrink-0 flex items-center">{legacy.content}</div>
+      <div className="flex items-center justify-end flex-1 min-w-0">
+        <div className="w-full min-w-0 flex items-center justify-end [&>*]:max-w-full">{legacy.content}</div>
       </div>
     </div>
   )
@@ -137,7 +143,7 @@ export function SettingRow({ label, desc, children }: {
 /* Excel 风格设置分组容器 */
 export function SettingGroup({ children }: { children: ReactNode }) {
   return (
-    <div className="self-start flex flex-col p-1.5 border border-border/70 rounded-2xl bg-[linear-gradient(180deg,rgba(247,248,250,0.92),rgba(242,243,245,0.86))] dark:bg-[linear-gradient(180deg,rgba(42,43,48,0.92),rgba(36,37,41,0.9))] shadow-[0_10px_24px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.45)] min-w-0 max-w-full overflow-hidden">
+    <div className="self-start flex flex-col p-1 border border-border/70 ring-1 ring-white/45 dark:ring-white/10 rounded-2xl bg-[linear-gradient(180deg,rgba(247,248,250,0.92),rgba(242,243,245,0.86))] dark:bg-[linear-gradient(180deg,rgba(42,43,48,0.92),rgba(36,37,41,0.9))] shadow-[0_10px_24px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.45)] min-w-0 max-w-full overflow-hidden">
       {children}
     </div>
   )

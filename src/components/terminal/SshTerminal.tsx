@@ -120,6 +120,31 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     } catch { /* 静默 */ }
   }, [paneId])
 
+  const stabilizeTerminalLayout = useCallback((session: TerminalSession, preferredFont?: string) => {
+    const run = () => {
+      session.term.refresh(0, session.term.rows - 1)
+      safeFit(session.fitAddon)
+      const dims = getProposedDimensions(session.fitAddon)
+      if (dims && session.ws?.readyState === WebSocket.OPEN) {
+        session.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
+      }
+      updateCellHeight()
+    }
+
+    run()
+    requestAnimationFrame(() => requestAnimationFrame(run))
+    window.setTimeout(run, 120)
+
+    if (document.fonts?.ready) {
+      void document.fonts.ready.then(run).catch(() => {})
+    }
+    if (preferredFont && document.fonts?.load) {
+      void document.fonts.load(`${session.term.options.fontSize ?? 14}px ${preferredFont}`)
+        .then(run)
+        .catch(() => {})
+    }
+  }, [getProposedDimensions, safeFit, updateCellHeight])
+
   /** 同步渲染模式：普通模式 / WebGL 高性能模式 */
   const applyPerformanceMode = useCallback((session: TerminalSession, enabled: boolean) => {
     if (enabled) {
@@ -335,6 +360,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           s.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
         }
         updateCellHeight()
+        stabilizeTerminalLayout(s)
       }, 100)
     } else {
       // ── 首次创建会话 ──
@@ -422,19 +448,18 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         : `正在连接 ${(connection as SshConnection).host}:${(connection as SshConnection).port} ...`
       term.writeln('\x1b[36m[Vortix]\x1b[0m ' + connectMsg)
       onStatusChangeRef.current?.('connecting')
+      const preferredFont = resolved.fontFamily.split(',')[0]?.trim()
 
       // 延迟连接，确保容器布局完全稳定后再取尺寸
       setTimeout(() => {
-        safeFit(fitAddon)
+        stabilizeTerminalLayout(session, preferredFont)
         connectWs(session, connection)
         updateCellHeight()
       }, 50)
 
       // 字体加载完成后强制重绘 + 重新 fit（修复 Canvas 渲染器缓存错误的字符宽度）
       document.fonts.ready.then(() => {
-        term.refresh(0, term.rows - 1)
-        safeFit(fitAddon)
-        updateCellHeight()
+        stabilizeTerminalLayout(session, preferredFont)
       })
     }
 
@@ -463,13 +488,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         if (entry.isIntersecting) {
           const s = getSession(paneId)
           if (!s) return
-          s.term.refresh(0, s.term.rows - 1)
-          safeFit(s.fitAddon)
-          // fit() 触发 onResize 自动同步，额外显式发送防止尺寸未变
-          const dims = getProposedDimensions(s.fitAddon)
-          if (dims && s.ws?.readyState === WebSocket.OPEN) {
-            s.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
-          }
+          stabilizeTerminalLayout(s)
         }
       }
     })
@@ -489,7 +508,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       wsRef.current = null
       // 不销毁会话！会话保留在注册表中
     }
-  }, [applyPerformanceMode, connection, connectWs, getProposedDimensions, paneId, profileId, safeFit, updateCellHeight])
+  }, [applyPerformanceMode, connection, connectWs, getProposedDimensions, paneId, profileId, safeFit, stabilizeTerminalLayout, updateCellHeight])
 
   // 统一监听 Profile / Settings / dark mode 变化
   useEffect(() => {
@@ -513,6 +532,8 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       applyPerformanceMode(s, settings.termHighPerformance)
       s.containerEl.style.backgroundColor = r.theme.background ?? ''
       setIsDarkMode(isDark)
+      const preferredFont = r.fontFamily.split(',')[0]?.trim()
+      stabilizeTerminalLayout(s, preferredFont)
       safeFit(s.fitAddon)
       setTimeout(updateCellHeight, 50)
     }
@@ -539,7 +560,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 
     return () => { unsub1(); unsub2(); observer.disconnect() }
-  }, [applyPerformanceMode, paneId, profileId, safeFit, updateCellHeight])
+  }, [applyPerformanceMode, paneId, profileId, safeFit, stabilizeTerminalLayout, updateCellHeight])
 
   // 鼠标选中自动复制
   useEffect(() => {

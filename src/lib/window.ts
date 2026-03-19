@@ -211,11 +211,13 @@ export async function openSettingsWindow(nav?: string): Promise<void> {
   const win = createWindow(label, {
     url,
     title: '设置 - Vortix',
-    width: 900,
-    height: 650,
-    minWidth: 800,
-    minHeight: 600,
+    width: 1100,
+    height: 720,
+    minWidth: 980,
+    minHeight: 640,
     decorations: false,
+    transparent: true,
+    shadow: false,
     center: true,
   })
 

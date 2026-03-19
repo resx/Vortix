@@ -15,8 +15,12 @@ registerSettingsModules()
 import SettingsWindow from './components/windows/SettingsWindow'
 
 document.getElementById('app-loader')?.remove()
+document.documentElement.classList.add('settings-window')
+document.body.classList.add('settings-window-body')
+const root = document.getElementById('root')!
+root.classList.add('settings-window-root')
 
-createRoot(document.getElementById('root')!).render(
+createRoot(root).render(
   <StrictMode>
     <SettingsWindow />
   </StrictMode>,

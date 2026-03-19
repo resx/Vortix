@@ -83,8 +83,7 @@ export const useLocalTerminalConfigStore = create<LocalTerminalConfigState>((set
       const payload = {
         name: s.name,
         protocol: 'local',
-        host: 'localhost',
-        port: 0,
+        host: '-',
         username: '',
         remark: s.remark,
         color_tag: s.colorTag,

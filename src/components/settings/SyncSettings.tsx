@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { SettingRow, SettingGroup } from './SettingGroup'
-import { useSettingsStore, type SettingsState } from '../../stores/useSettingsStore'
+import { useSettingsStore, buildSyncBody, type SettingsState } from '../../stores/useSettingsStore'
 import { useAssetStore } from '../../stores/useAssetStore'
 import { useToastStore } from '../../stores/useToastStore'
 import { useShortcutStore } from '../../stores/useShortcutStore'
 import { Switch } from '../ui/switch'
 import { SettingsDropdown } from '../ui/select'
 import * as api from '../../api/client'
-import type { SyncFileInfo, ImportResult, SyncConflictInfo, SyncRequestBody } from '../../api/types'
+import type { SyncFileInfo, ImportResult, SyncConflictInfo } from '../../api/types'
 import { AppIcon, icons } from '../icons/AppIcon'
 import KeyPickerModal from './KeyPickerModal'
 
@@ -68,9 +68,7 @@ export default function SyncSettings() {
   const update = useSettingsStore((s) => s.updateSetting)
   const repoSource = useSettingsStore((s) => s.syncRepoSource)
   const autoSync = useSettingsStore((s) => s.syncAutoSync)
-  const syncEncryptionKey = useSettingsStore((s) => s.syncEncryptionKey)
   const syncLocalPath = useSettingsStore((s) => s.syncLocalPath)
-  const syncTlsVerify = useSettingsStore((s) => s.syncTlsVerify)
   const gitUrl = useSettingsStore((s) => s.syncGitUrl)
   const gitBranch = useSettingsStore((s) => s.syncGitBranch)
   const gitPath = useSettingsStore((s) => s.syncGitPath)
@@ -94,6 +92,7 @@ export default function SyncSettings() {
 
   // 操作状态
   const [syncing, setSyncing] = useState(false)
+  const [testing, setTesting] = useState(false)
   const addToast = useToastStore((s) => s.addToast)
   const [fileInfo, setFileInfo] = useState<SyncFileInfo | null>(null)
   const [confirmImport, setConfirmImport] = useState(false)
@@ -104,51 +103,7 @@ export default function SyncSettings() {
   const [pickingDir, setPickingDir] = useState(false)
   const [showKeyPicker, setShowKeyPicker] = useState(false)
   const [manualKeyVisible, setManualKeyVisible] = useState(false)
-  const syncBody = useMemo<SyncRequestBody>(() => ({
-    repoSource,
-    encryptionKey: syncEncryptionKey || undefined,
-    syncLocalPath: syncLocalPath ?? '',
-    syncTlsVerify,
-    syncGitUrl: gitUrl ?? '',
-    syncGitBranch: gitBranch ?? '',
-    syncGitPath: gitPath ?? '',
-    syncGitUsername: gitUsername ?? '',
-    syncGitPassword: gitPassword ?? '',
-    syncGitSshKey: gitSshKey ?? '',
-    syncWebdavEndpoint: webdavEndpoint ?? '',
-    syncWebdavPath: webdavPath ?? 'vortix',
-    syncWebdavUsername: webdavUsername ?? '',
-    syncWebdavPassword: webdavPassword ?? '',
-    syncS3Style: s3Style ?? 'virtual-hosted',
-    syncS3Endpoint: s3Endpoint ?? '',
-    syncS3Path: s3Path ?? 'vortix',
-    syncS3Region: s3Region ?? 'ap-east-1',
-    syncS3Bucket: s3Bucket ?? '',
-    syncS3AccessKey: s3AccessKey ?? '',
-    syncS3SecretKey: s3SecretKey ?? '',
-  }), [
-    gitBranch,
-    gitPassword,
-    gitPath,
-    gitSshKey,
-    gitUrl,
-    gitUsername,
-    repoSource,
-    s3AccessKey,
-    s3Bucket,
-    s3Endpoint,
-    s3Path,
-    s3Region,
-    s3SecretKey,
-    s3Style,
-    syncEncryptionKey,
-    syncLocalPath,
-    syncTlsVerify,
-    webdavEndpoint,
-    webdavPassword,
-    webdavPath,
-    webdavUsername,
-  ])
+  const syncBody = buildSyncBody()
 
   // 使用共享的 buildSyncBody 工具函数
 
@@ -182,6 +137,31 @@ export default function SyncSettings() {
   }, [gitUrl, repoSource, s3Endpoint, syncBody, syncLocalPath, webdavEndpoint])
 
   useEffect(() => { refreshFileInfo() }, [refreshFileInfo])
+
+  const handleTest = async () => {
+    if (repoSource === 'local' && !syncLocalPath.trim()) {
+      addToast('error', '请选择同步路径'); return
+    }
+    if (repoSource === 'git' && !gitUrl.trim()) {
+      addToast('error', '请填写仓库地址'); return
+    }
+    if (repoSource === 'webdav' && !webdavEndpoint.trim()) {
+      addToast('error', '请填写 WebDAV Endpoint'); return
+    }
+    if (repoSource === 's3' && !s3Endpoint.trim()) {
+      addToast('error', '请填写 S3 Endpoint'); return
+    }
+    setTesting(true)
+    try {
+      await api.syncTest(syncBody)
+      addToast('success', repoSource === 'local' ? '路径检查成功' : '连接测试成功')
+      await refreshFileInfo()
+    } catch (e) {
+      addToast('error', (e as Error).message)
+    } finally {
+      setTesting(false)
+    }
+  }
 
   /* 导出（推送前检测冲突） */
   const handleExport = async (force = false) => {
@@ -253,7 +233,7 @@ export default function SyncSettings() {
     setSyncing(true); setConfirmDeleteRemote(false)
     try {
       await api.deleteSyncRemote(syncBody)
-      addToast('success', '远端同步数据已删除')
+      addToast('success', repoSource === 'local' ? '本地同步文件已清理' : '远端同步数据已删除')
       await refreshFileInfo()
     } catch (e) {
       addToast('error', (e as Error).message)
@@ -266,7 +246,7 @@ export default function SyncSettings() {
 
   return (
     <>
-      <div className="text-[16px] font-medium text-text-1 mb-5">数据同步</div>
+      <div className="text-[16px] font-medium text-text-1 mb-3">数据同步</div>
 
       {/* ── 岛屿 1：资产同步基础 ── */}
       <SettingGroup>
@@ -306,6 +286,14 @@ export default function SyncSettings() {
             <span className="text-[11px] text-text-3 truncate">拉取将覆盖本地数据，推送将覆盖远端数据</span>
             <div className="flex gap-1.5 shrink-0">
               <button
+                disabled={syncing || testing}
+                onClick={handleTest}
+                className="flex items-center gap-1 px-2.5 py-1 bg-bg-base text-text-2 rounded text-[11px] hover:bg-border transition-colors disabled:opacity-50"
+              >
+                {testing ? <AppIcon icon={icons.loader} size={11} className="animate-spin" /> : <AppIcon icon={icons.cloudCog} size={11} />}
+                {testing ? '测试中...' : (repoSource === 'local' ? '检查路径' : '测试连接')}
+              </button>
+              <button
                 disabled={syncing}
                 onClick={() => setConfirmImport(true)}
                 className="flex items-center gap-1 px-2.5 py-1 bg-bg-base text-text-2 rounded text-[11px] hover:bg-border transition-colors disabled:opacity-50"
@@ -328,7 +316,7 @@ export default function SyncSettings() {
           </div>
         </SettingRow>
 
-        <SettingRow label="私有云端资产">
+        <SettingRow label={repoSource === 'local' ? '清理同步文件' : '私有云端资产'}>
           {confirmDeleteRemote ? (
             <div className="flex items-center gap-1.5 shrink-0">
               <button
@@ -339,7 +327,7 @@ export default function SyncSettings() {
                 disabled={syncing}
                 onClick={handleDeleteRemote}
                 className="px-2 py-1 bg-status-error/10 text-status-error rounded text-[11px] font-medium hover:bg-status-error/20 transition-colors disabled:opacity-50"
-              >确认删除</button>
+              >{repoSource === 'local' ? '确认清理' : '确认删除'}</button>
             </div>
           ) : (
             <button
@@ -347,14 +335,16 @@ export default function SyncSettings() {
               onClick={() => setConfirmDeleteRemote(true)}
               className="px-2.5 py-1 bg-bg-base text-text-2 rounded text-[11px] hover:bg-border transition-colors shrink-0 disabled:opacity-50"
             >
-              删除 {REPO_LABELS[repoSource]} 仓库资产
+              {repoSource === 'local' ? '清理本地同步文件' : `删除 ${REPO_LABELS[repoSource]} 仓库资产`}
             </button>
           )}
         </SettingRow>
 
-        <SettingRow label="自动同步" desc="新建资产时将自动进行同步">
-          <Switch checked={autoSync} onCheckedChange={() => update('syncAutoSync', !autoSync)} />
-        </SettingRow>
+        {repoSource !== 'local' && (
+          <SettingRow label="自动同步" desc="新建资产时将自动进行同步">
+            <Switch checked={autoSync} onCheckedChange={() => update('syncAutoSync', !autoSync)} />
+          </SettingRow>
+        )}
 
         <SettingRow label="仓库源">
           <div className="flex items-center gap-2">
@@ -377,8 +367,8 @@ export default function SyncSettings() {
       </SettingGroup>
 
       {/* ── 岛屿 2：动态仓库源配置 ── */}
-      <div className="mt-7">
-        <div className="text-[14px] font-medium text-text-1 mb-4">
+      <div className="mt-5">
+        <div className="text-[14px] font-medium text-text-1 mb-3">
           {repoSource === 'git' ? 'Git' : repoSource === 'webdav' ? 'WebDAV' : repoSource === 's3' ? 'S3' : '本地文件'}
         </div>
         <SettingGroup>

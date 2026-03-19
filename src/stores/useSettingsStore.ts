@@ -290,29 +290,59 @@ const DEFAULTS: SettingsState = {
 /** 从 settings store 构建同步请求体（共享工具函数） */
 export function buildSyncBody(): import('../api/types').SyncRequestBody {
   const s = useSettingsStore.getState()
-  return {
+  const body: import('../api/types').SyncRequestBody = {
     repoSource: s.syncRepoSource,
-    encryptionKey: s.syncEncryptionKey || undefined,
-    syncLocalPath: s.syncLocalPath ?? '',
-    syncTlsVerify: s.syncTlsVerify,
-    syncGitUrl: s.syncGitUrl ?? '',
-    syncGitBranch: s.syncGitBranch ?? '',
-    syncGitPath: s.syncGitPath ?? '',
-    syncGitUsername: s.syncGitUsername ?? '',
-    syncGitPassword: s.syncGitPassword ?? '',
-    syncGitSshKey: s.syncGitSshKey ?? '',
-    syncWebdavEndpoint: s.syncWebdavEndpoint ?? '',
-    syncWebdavPath: s.syncWebdavPath ?? 'vortix',
-    syncWebdavUsername: s.syncWebdavUsername ?? '',
-    syncWebdavPassword: s.syncWebdavPassword ?? '',
-    syncS3Style: s.syncS3Style ?? 'virtual-hosted',
-    syncS3Endpoint: s.syncS3Endpoint ?? '',
-    syncS3Path: s.syncS3Path ?? 'vortix',
-    syncS3Region: s.syncS3Region ?? 'ap-east-1',
-    syncS3Bucket: s.syncS3Bucket ?? '',
-    syncS3AccessKey: s.syncS3AccessKey ?? '',
-    syncS3SecretKey: s.syncS3SecretKey ?? '',
   }
+
+  if (s.syncEncryptionKey.trim()) {
+    body.encryptionKey = s.syncEncryptionKey
+  }
+
+  if (s.syncRepoSource === 'local') {
+    body.syncLocalPath = s.syncLocalPath ?? ''
+    return body
+  }
+
+  if (s.syncRepoSource === 'git') {
+    const gitUrl = (s.syncGitUrl ?? '').trim()
+    body.syncGitUrl = gitUrl
+    if (s.syncGitBranch.trim()) body.syncGitBranch = s.syncGitBranch
+    if (s.syncGitPath.trim()) body.syncGitPath = s.syncGitPath
+
+    const lower = gitUrl.toLowerCase()
+    const isSsh = lower.startsWith('git@') || lower.startsWith('ssh://')
+    if (isSsh) {
+      if (s.syncGitSshKey.trim()) body.syncGitSshKey = s.syncGitSshKey
+    } else {
+      if (s.syncGitUsername.trim()) body.syncGitUsername = s.syncGitUsername
+      if (s.syncGitPassword) body.syncGitPassword = s.syncGitPassword
+      if (!s.syncTlsVerify) body.syncTlsVerify = false
+    }
+    return body
+  }
+
+  if (s.syncRepoSource === 'webdav') {
+    body.syncWebdavEndpoint = (s.syncWebdavEndpoint ?? '').trim()
+    if (s.syncWebdavPath.trim()) body.syncWebdavPath = s.syncWebdavPath
+    if (s.syncWebdavUsername.trim()) body.syncWebdavUsername = s.syncWebdavUsername
+    if (s.syncWebdavPassword) body.syncWebdavPassword = s.syncWebdavPassword
+    if (!s.syncTlsVerify) body.syncTlsVerify = false
+    return body
+  }
+
+  if (s.syncRepoSource === 's3') {
+    if (s.syncS3Style.trim()) body.syncS3Style = s.syncS3Style
+    body.syncS3Endpoint = (s.syncS3Endpoint ?? '').trim()
+    if (s.syncS3Path.trim()) body.syncS3Path = s.syncS3Path
+    if (s.syncS3Region.trim()) body.syncS3Region = s.syncS3Region
+    if (s.syncS3Bucket.trim()) body.syncS3Bucket = s.syncS3Bucket
+    if (s.syncS3AccessKey.trim()) body.syncS3AccessKey = s.syncS3AccessKey
+    if (s.syncS3SecretKey) body.syncS3SecretKey = s.syncS3SecretKey
+    if (!s.syncTlsVerify) body.syncTlsVerify = false
+    return body
+  }
+
+  return body
 }
 
 interface SettingsStore extends SettingsState {

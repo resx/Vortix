@@ -77,7 +77,7 @@ export function registerTableMenu(): () => void {
           <div className="flex items-center justify-between px-3 py-[4px] mb-1 border-b border-border/50">
             <span className="text-[11px] text-text-1 font-medium tracking-wide">操作</span>
             <div className="flex items-center bg-bg-base rounded border border-border p-[2px]">
-              <ActionButton icon={icons.clipboard} tooltip="粘贴(Ctrl+V)" disabled={!connClipboard} onClick={connClipboard ? () => { ctx.close(); const cb = connClipboard!; setConnClipboard(null); ;(async () => { for (const id of cb.ids) { if (cb.op === 'cut') { await api.updateConnection(id, { folder_id: null }) } else { const conn = await api.getConnection(id); await api.createConnection({ name: conn.name + ' (副本)', host: conn.host, port: conn.port, username: conn.username, protocol: conn.protocol, auth_method: conn.auth_method, remark: conn.remark, color_tag: conn.color_tag, folder_id: null }) } } fetchAssets(); addToast('success', cb.op === 'cut' ? '已移动' : '已粘贴') })() } : undefined} />
+              <ActionButton icon={icons.clipboard} tooltip="粘贴(Ctrl+V)" disabled={!connClipboard} onClick={connClipboard ? () => { ctx.close(); const cb = connClipboard!; setConnClipboard(null); ;(async () => { for (const id of cb.ids) { if (cb.op === 'cut') { await api.updateConnection(id, { folder_id: null }) } else { const conn = await api.getConnection(id); await api.createConnection({ name: conn.name + ' (副本)', host: conn.host, port: conn.protocol === 'local' ? undefined : conn.port, username: conn.username, protocol: conn.protocol, auth_method: conn.auth_method, remark: conn.remark, color_tag: conn.color_tag, folder_id: null }) } } fetchAssets(); addToast('success', cb.op === 'cut' ? '已移动' : '已粘贴') })() } : undefined} />
               <div className="w-px h-3 bg-border mx-[1px]" />
               <ActionButton icon={icons.scissors} tooltip="剪切(Ctrl+X)" disabled={isBlank} onClick={!isBlank && rowData ? () => { ctx.close(); setConnClipboard({ ids: selectedRowIds.size > 0 ? [...selectedRowIds] : [rowData.id], op: 'cut' }); addToast('success', '已剪切') } : undefined} />
               <div className="w-px h-3 bg-border mx-[1px]" />
@@ -91,7 +91,15 @@ export function registerTableMenu(): () => void {
           <MenuItem icon={icons.externalLink} label="新窗口打开" shortcut="Ctrl+Shift+N" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? () => { ctx.close(); openConnectionInNewWindow(rowData.id) } : undefined} />
           <MenuItem icon={icons.columns} label="同屏打开" disabled={isBlank || isFolder} onClick={!isBlank && !isFolder ? () => { ctx.close(); const rows: AssetRow[] = []; if (selectedRowIds.size > 0) { for (const id of selectedRowIds) { const r = tableData.find(row => row.id === id && row.type === 'asset'); if (r) rows.push(r) } } else if (rowData && rowData.type === 'asset') { rows.push(rowData) } if (rows.length > 0) openSplitTab(rows) } : undefined} />
           <MenuDivider />
-          <MenuItem icon={icons.copy} label="克隆" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? () => { ctx.close(); cloneConnectionAction(rowData.id) } : undefined} />
+          <MenuItem icon={icons.copy} label="克隆" disabled={isBlank || isFolder} onClick={rowData && !isBlank && !isFolder ? async () => {
+            ctx.close()
+            try {
+              await cloneConnectionAction(rowData.id)
+              addToast('success', '克隆成功')
+            } catch (e) {
+              addToast('error', `克隆失败: ${(e as Error).message || '未知错误'}`)
+            }
+          } : undefined} />
           <MenuItem icon={icons.folderPlus} label="新建目录" onClick={() => { ctx.close(); setShowDirModal(true) }} />
           <MenuItem icon={icons.link} label="新建连接" hasSubmenu>
             <div className="px-4 py-1 text-[11px] text-text-1 border-b border-border/50 mb-1">新建连接</div>

@@ -51,4 +51,7 @@
   "common.cancel": "取消",
   "common.close": "关闭",
   "common.loading": "加载中..."
+  ,"settings.theme.auto": "跟随系统"
+  ,"settings.theme.light": "浅色"
+  ,"settings.theme.dark": "深色"
 }

@@ -223,10 +223,7 @@ export const useAssetStore = create<AssetState>((set, get) => ({
   },
   cloneConnectionAction: async (id) => {
     try {
-      const [conn, cred] = await Promise.all([
-        api.getConnection(id),
-        api.getConnectionCredential(id),
-      ])
+      const conn = await api.getConnection(id)
       const { tableData } = get()
       const baseName = conn.name.replace(/\s*\(副本(?:\s*\d+)?\)$/, '')
       const existingNames = new Set(tableData.map(r => r.name))
@@ -235,23 +232,46 @@ export const useAssetStore = create<AssetState>((set, get) => ({
       while (existingNames.has(cloneName)) {
         cloneName = `${baseName} (副本 ${i++})`
       }
-      await api.createConnection({
-        folder_id: conn.folder_id, name: cloneName, protocol: conn.protocol,
-        host: conn.host, port: conn.port, username: conn.username,
-        auth_method: conn.auth_method, password: cred.password,
-        private_key: cred.private_key, remark: conn.remark,
-        color_tag: conn.color_tag, environment: conn.environment,
-        auth_type: conn.auth_type, proxy_type: conn.proxy_type,
-        proxy_host: conn.proxy_host, proxy_port: conn.proxy_port,
-        proxy_username: conn.proxy_username, proxy_password: cred.proxy_password,
-        proxy_timeout: conn.proxy_timeout, jump_server_id: conn.jump_server_id,
-        tunnels: JSON.stringify(conn.tunnels),
-        env_vars: JSON.stringify(conn.env_vars),
-        advanced: JSON.stringify(conn.advanced),
-      })
+      const toJsonString = (value: unknown) => {
+        if (value === null || value === undefined) return undefined
+        if (typeof value === 'string') return value
+        return JSON.stringify(value)
+      }
+      if (conn.protocol === 'local') {
+        await api.createConnection({
+          folder_id: conn.folder_id,
+          name: cloneName,
+          protocol: conn.protocol,
+          host: conn.host && conn.host.trim() && conn.host !== 'localhost' && conn.host !== 'local' ? conn.host : '-',
+          username: conn.username || '',
+          remark: conn.remark,
+          color_tag: conn.color_tag,
+          advanced: toJsonString(conn.advanced),
+        })
+      } else {
+        const cred = await api.getConnectionCredential(id).catch(() => null)
+        await api.createConnection({
+          folder_id: conn.folder_id, name: cloneName, protocol: conn.protocol,
+          host: conn.host, port: conn.port, username: conn.username,
+          auth_method: conn.auth_method, password: cred?.password,
+          private_key: cred?.private_key, remark: conn.remark,
+          color_tag: conn.color_tag, environment: conn.environment,
+          auth_type: conn.auth_type, proxy_type: conn.proxy_type,
+          proxy_host: conn.proxy_host, proxy_port: conn.proxy_port,
+          proxy_username: conn.proxy_username, proxy_password: cred?.proxy_password,
+          proxy_timeout: conn.proxy_timeout, jump_server_id: conn.jump_server_id,
+          preset_id: conn.preset_id,
+          private_key_id: conn.private_key_id,
+          jump_key_id: conn.jump_key_id,
+          tunnels: toJsonString(conn.tunnels),
+          env_vars: toJsonString(conn.env_vars),
+          advanced: toJsonString(conn.advanced),
+        })
+      }
       await get().fetchAssets()
     } catch (e) {
       console.error('克隆连接失败:', e)
+      throw e
     }
   },
 

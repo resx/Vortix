@@ -14,8 +14,8 @@ export default function DatabaseSettings() {
       {/* 禁用遮罩 */}
       <div className="opacity-50 pointer-events-none">
         {/* 数据库区域 */}
-        <div className="text-[16px] font-medium text-text-1 mb-5">数据库</div>
-        <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 mb-10 items-start">
+        <div className="text-[16px] font-medium text-text-1 mb-3">数据库</div>
+        <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-4 mb-6 items-start">
           <SettingGroup>
             <SFontSelect k="dbTableFont" label="表格字体" />
             <SToggle k="dbAutoExpand" label="打开连接时自动展开" />
@@ -50,8 +50,8 @@ export default function DatabaseSettings() {
         </div>
 
         {/* Redis 区域 */}
-        <div className="text-[16px] font-medium text-text-1 mb-5">Redis</div>
-        <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-7 items-start">
+        <div className="text-[16px] font-medium text-text-1 mb-3">Redis</div>
+        <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-x-6 gap-y-4 items-start">
           <SettingGroup>
             <SNumberInput k="redisMaxLoadCount" label="键列表-最大加载数据量" width="w-[80px]" />
             <SToggle k="redisShowValue" label="键列表-显示值" desc="低带宽环境,关闭值加载后可有效提升加载速度" />
