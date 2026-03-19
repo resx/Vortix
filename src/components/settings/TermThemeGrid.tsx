@@ -1,8 +1,16 @@
 import { useState, useMemo } from 'react'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { cn } from '../../lib/utils'
-import type { TermThemePreset } from '../terminal/themes/index'
-import { getThemesByMode } from '../terminal/themes/index'
+import type { ITheme } from '@xterm/xterm'
+import type { ThemeSource } from '../../types/theme'
+import { useThemeStore } from '../../stores/useThemeStore'
+
+interface ThemeCardItem {
+  id: string
+  name: string
+  source: ThemeSource
+  theme: ITheme
+}
 
 /** 主题卡片色块预览 */
 function ThemeCard({
@@ -10,7 +18,7 @@ function ThemeCard({
   selected,
   onClick,
 }: {
-  preset: TermThemePreset
+  preset: ThemeCardItem
   selected: boolean
   onClick: () => void
 }) {
@@ -42,6 +50,9 @@ function ThemeCard({
         )}>
           {preset.name}
         </span>
+        <span className="mt-0.5 block text-[9px] leading-tight text-text-3">
+          {preset.source === 'builtin' ? '内置' : '自定义'}
+        </span>
       </div>
     </div>
   )
@@ -56,8 +67,17 @@ export default function TermThemeGrid({
   selectedId: string
   onSelect: (id: string) => void
 }) {
+  const getThemesByMode = useThemeStore((s) => s.getThemesByMode)
   const [search, setSearch] = useState('')
-  const themes = useMemo(() => getThemesByMode(mode), [mode])
+  const themes = useMemo<ThemeCardItem[]>(
+    () => getThemesByMode(mode).map((t) => ({
+      id: t.id,
+      name: t.name,
+      source: t.source,
+      theme: t.terminal,
+    })),
+    [getThemesByMode, mode],
+  )
   const filtered = useMemo(() => {
     if (!search.trim()) return themes
     const q = search.toLowerCase()

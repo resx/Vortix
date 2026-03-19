@@ -2,14 +2,14 @@
 
 mod commands;
 mod server;
+mod db;
+mod crypto;
+mod sync;
 
 use tauri::Manager;
 
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-
-#[cfg(target_os = "windows")]
-use window_vibrancy::apply_blur;
 
 /// 内嵌 axum 服务器端口
 const AXUM_PORT: u16 = 3002;
@@ -60,7 +60,7 @@ pub fn run() {
             commands::greet,
             commands::list_system_fonts,
         ])
-        // 启动时：动态窗口尺寸 + 窗口效果 + axum 服务器
+        // 启动时：动态窗口尺寸 + 窗口效果 + 数据层 + axum 服务器
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
 
@@ -76,14 +76,22 @@ pub fn run() {
             apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, None)
                 .expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
 
-            #[cfg(target_os = "windows")]
-            apply_blur(&window, Some((18, 18, 18, 125)))
-                .expect("Unsupported platform! 'apply_blur' is only supported on Windows");
-
             // ── 内嵌 axum 服务器 ──
+            let db = match tauri::async_runtime::block_on(db::init(app.handle())) {
+                Ok(db) => db,
+                Err(e) => {
+                    tracing::error!("[Vortix] 数据库初始化失败: {e}");
+                    // 即使 db 初始化失败也显示窗口，避免窗口消失
+                    let _ = window.show();
+                    return Err(e.into());
+                }
+            };
+            app.manage(db);
+
             let port = AXUM_PORT;
+            let db = app.state::<db::Db>().inner().clone();
             tauri::async_runtime::spawn(async move {
-                server::start(port).await;
+                server::start(port, db).await;
             });
 
             tracing::info!("[Vortix] Tauri 应用启动完成");

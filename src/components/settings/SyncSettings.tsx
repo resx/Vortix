@@ -77,6 +77,8 @@ export default function SyncSettings() {
   const gitUsername = useSettingsStore((s) => s.syncGitUsername)
   const gitPassword = useSettingsStore((s) => s.syncGitPassword)
   const gitSshKey = useSettingsStore((s) => s.syncGitSshKey)
+  const syncGitSshKeyLabel = useSettingsStore((s) => s.syncGitSshKeyLabel)
+  const syncGitSshKeyMode = useSettingsStore((s) => s.syncGitSshKeyMode)
   const webdavEndpoint = useSettingsStore((s) => s.syncWebdavEndpoint)
   const webdavPath = useSettingsStore((s) => s.syncWebdavPath)
   const webdavUsername = useSettingsStore((s) => s.syncWebdavUsername)
@@ -92,7 +94,6 @@ export default function SyncSettings() {
 
   // 操作状态
   const [syncing, setSyncing] = useState(false)
-  const [testing, setTesting] = useState(false)
   const addToast = useToastStore((s) => s.addToast)
   const [fileInfo, setFileInfo] = useState<SyncFileInfo | null>(null)
   const [confirmImport, setConfirmImport] = useState(false)
@@ -102,13 +103,14 @@ export default function SyncSettings() {
   const [conflictInfo, setConflictInfo] = useState<{ info: SyncConflictInfo; action: 'push' | 'pull' } | null>(null)
   const [pickingDir, setPickingDir] = useState(false)
   const [showKeyPicker, setShowKeyPicker] = useState(false)
+  const [manualKeyVisible, setManualKeyVisible] = useState(false)
   const syncBody = useMemo<SyncRequestBody>(() => ({
     repoSource,
     encryptionKey: syncEncryptionKey || undefined,
     syncLocalPath: syncLocalPath ?? '',
     syncTlsVerify,
     syncGitUrl: gitUrl ?? '',
-    syncGitBranch: gitBranch ?? 'master',
+    syncGitBranch: gitBranch ?? '',
     syncGitPath: gitPath ?? '',
     syncGitUsername: gitUsername ?? '',
     syncGitPassword: gitPassword ?? '',
@@ -151,6 +153,23 @@ export default function SyncSettings() {
   // 使用共享的 buildSyncBody 工具函数
 
   /* 刷新同步文件状态（所有源） */
+  const hasManagerBinding = Boolean(syncGitSshKeyLabel && gitSshKey.trim())
+
+  useEffect(() => {
+    if (hasManagerBinding && syncGitSshKeyMode !== 'manager') {
+      update('syncGitSshKeyMode', 'manager')
+      return
+    }
+    if (!syncGitSshKeyLabel && gitSshKey.trim() && syncGitSshKeyMode !== 'manual') {
+      update('syncGitSshKeyMode', 'manual')
+    }
+  }, [gitSshKey, hasManagerBinding, syncGitSshKeyLabel, syncGitSshKeyMode, update])
+
+  const maskedGitSshKey = useMemo(() => {
+    if (!gitSshKey) return ''
+    return gitSshKey.replace(/[^\r\n]/g, '•')
+  }, [gitSshKey])
+
   const refreshFileInfo = useCallback(async () => {
     if (repoSource === 'local' && !syncLocalPath.trim()) { setFileInfo(null); return }
     if (repoSource === 'git' && !gitUrl.trim()) { setFileInfo(null); return }
@@ -242,16 +261,6 @@ export default function SyncSettings() {
   }
 
   /* 连通性测试 */
-  const handleTest = async () => {
-    setTesting(true)
-    try {
-      await api.syncTest(syncBody)
-      addToast('success', `${REPO_LABELS[repoSource]} 连接测试成功`)
-    } catch (e) {
-      addToast('error', `连接测试失败: ${(e as Error).message}`)
-    } finally { setTesting(false) }
-  }
-
   /* 通用输入框样式 */
   const inputCls = "h-[26px] border border-border bg-bg-card rounded px-2 text-[11px] text-text-1 outline-none placeholder-text-disabled shrink min-w-0"
 
@@ -426,8 +435,14 @@ export default function SyncSettings() {
                   className={`${inputCls} w-full max-w-[200px]`}
                 />
               </SettingRow>
-              <SettingRow label="存储路径" desc="同步文件固定存放在仓库的 Vortix/ 目录下">
-                <span className="text-[11px] text-text-3 font-mono">Vortix/vortix-sync.json</span>
+              <SettingRow label="存储路径" desc="留空则写入仓库根目录；可指定子目录，如 Vortix 或 backup/vortix">
+                <input
+                  type="text"
+                  value={gitPath}
+                  onChange={(e) => update('syncGitPath', e.target.value)}
+                  placeholder="仓库内相对子目录，可留空"
+                  className={`${inputCls} w-full max-w-[240px] font-mono`}
+                />
               </SettingRow>
               {gitAuthType === 'https' ? (
                 <>
@@ -451,17 +466,27 @@ export default function SyncSettings() {
                 </>
               ) : (
                 <SettingRow label="SSH私钥">
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="w-full max-w-[460px] rounded-2xl border border-border/70 bg-gradient-to-b from-bg-card to-bg-subtle/80 p-2 shadow-[0_6px_18px_rgba(0,0,0,0.06)]">
+                    <div className="flex items-center justify-between gap-2 px-1 pb-2">
+                      <div className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-bg-base/70 px-2 py-0.5 text-[10px] font-medium tracking-[0.02em] text-text-2">
+                        <AppIcon icon={icons.shield} size={11} className="text-primary" />
+                        <span>SSH 私钥</span>
+                      </div>
+                      <div className="flex items-center gap-1">
                     <button
                       type="button"
                       title="从本地文件导入私钥"
                       onClick={async () => {
                         try {
                           const result = await api.pickFile('选择 SSH 私钥文件', '私钥文件|*.pem;*.key;*.ppk;*.pub|所有文件|*.*')
-                          if (result.content) update('syncGitSshKey', result.content.trim())
+                          if (result.content) {
+                            update('syncGitSshKey', result.content.trim())
+                            update('syncGitSshKeyLabel', '')
+                            update('syncGitSshKeyMode', 'manual')
+                          }
                         } catch { /* 静默 */ }
                       }}
-                      className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+                      className="w-7 h-7 rounded-xl border border-border/70 bg-bg-base/80 flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
                     >
                       <AppIcon icon={icons.fileText} size={13} className="text-text-2" />
                     </button>
@@ -469,17 +494,113 @@ export default function SyncSettings() {
                       type="button"
                       title="选择已配置的连接私钥"
                       onClick={() => setShowKeyPicker(true)}
-                      className="w-[26px] h-[26px] rounded-full bg-bg-base flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+                      className="w-7 h-7 rounded-xl border border-border/70 bg-bg-base/80 flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
                     >
                       <AppIcon icon={icons.key} size={13} className="text-text-2" />
                     </button>
-                    <input
-                      type="text"
-                      value={gitSshKey}
-                      onChange={(e) => update('syncGitSshKey', e.target.value)}
-                      placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-                      className={`${inputCls} w-full max-w-[240px] font-mono`}
-                    />
+                    {syncGitSshKeyMode === 'manual' && (
+                      <button
+                        type="button"
+                        title={manualKeyVisible ? '隐藏私钥' : '显示私钥'}
+                        onClick={() => setManualKeyVisible((v) => !v)}
+                        className="w-7 h-7 rounded-xl border border-border/70 bg-bg-base/80 flex items-center justify-center cursor-pointer hover:bg-border transition-colors"
+                      >
+                        <AppIcon icon={manualKeyVisible ? icons.eyeOff : icons.eye} size={13} className="text-text-2" />
+                      </button>
+                    )}
+                      </div>
+                    </div>
+                    {syncGitSshKeyMode === 'manager' ? (
+                      hasManagerBinding ? (
+                        <div className="rounded-xl border border-border/70 bg-bg-card/90 px-3 py-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="text-[11px] text-text-3">已选择密钥</div>
+                              <div className="text-[12px] text-text-1 font-medium truncate">{syncGitSshKeyLabel}</div>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setShowKeyPicker(true)}
+                                className="px-2.5 py-1 rounded-lg border border-border/70 bg-bg-base/80 text-[11px] text-text-2 hover:bg-border transition-colors"
+                              >
+                                更换密钥
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  update('syncGitSshKey', '')
+                                  update('syncGitSshKeyLabel', '')
+                                  update('syncGitSshKeyMode', 'manager')
+                                }}
+                                className="px-2.5 py-1 rounded-lg border border-border/70 bg-bg-base/80 text-[11px] text-text-2 hover:bg-border transition-colors"
+                              >
+                                解除绑定
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  update('syncGitSshKey', '')
+                                  update('syncGitSshKeyLabel', '')
+                                  update('syncGitSshKeyMode', 'manual')
+                                }}
+                                className="px-2.5 py-1 rounded-lg border border-border/70 bg-bg-base/80 text-[11px] text-text-2 hover:bg-border transition-colors"
+                              >
+                                手动输入
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-border/80 bg-bg-card/70 px-3 py-3">
+                          <div className="text-[12px] text-text-2 mb-2">未选择密钥</div>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setShowKeyPicker(true)}
+                              className="px-2.5 py-1 rounded-lg border border-border/70 bg-bg-base/80 text-[11px] text-text-2 hover:bg-border transition-colors"
+                            >
+                              选择密钥管理器
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                update('syncGitSshKey', '')
+                                update('syncGitSshKeyLabel', '')
+                                update('syncGitSshKeyMode', 'manual')
+                              }}
+                              className="px-2.5 py-1 rounded-lg border border-border/70 bg-bg-base/80 text-[11px] text-text-2 hover:bg-border transition-colors"
+                            >
+                              手动输入
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    ) : (
+                      <div className="space-y-2">
+                        <textarea
+                          value={manualKeyVisible ? gitSshKey : maskedGitSshKey}
+                          onChange={(e) => {
+                            if (!manualKeyVisible) return
+                            update('syncGitSshKey', e.target.value)
+                            update('syncGitSshKeyLabel', '')
+                            update('syncGitSshKeyMode', 'manual')
+                          }}
+                          readOnly={!manualKeyVisible}
+                          placeholder={`-----BEGIN OPENSSH PRIVATE KEY-----\n...\n-----END OPENSSH PRIVATE KEY-----`}
+                          spellCheck={false}
+                          rows={6}
+                          className={`w-full min-h-[118px] max-h-[280px] resize-y rounded-xl border border-border/70 bg-bg-card/90 px-3 py-2 font-mono text-[11px] leading-[1.5] outline-none transition-[border-color,box-shadow] whitespace-pre-wrap break-all overflow-y-auto overflow-x-hidden sync-key-scrollbar ${
+                            manualKeyVisible
+                              ? 'text-text-1 focus:border-primary/60 focus:shadow-[0_0_0_3px_rgba(64,128,255,0.14)]'
+                              : 'text-text-3 cursor-default select-none'
+                          }`}
+                        />
+                      </div>
+                    )}
+                    <div className="px-1 pt-1.5 text-[10px] text-text-3">
+                      支持 OpenSSH / PEM 私钥，建议从本地文件导入，避免粘贴格式错误。
+                    </div>
                   </div>
                 </SettingRow>
               )}
@@ -700,7 +821,11 @@ export default function SyncSettings() {
       {/* 私钥选择弹窗 */}
       {showKeyPicker && (
         <KeyPickerModal
-          onSelect={(key) => update('syncGitSshKey', key)}
+          onSelect={(key, meta) => {
+            update('syncGitSshKey', key)
+            update('syncGitSshKeyLabel', meta?.keyName ?? '')
+            update('syncGitSshKeyMode', 'manager')
+          }}
           onClose={() => setShowKeyPicker(false)}
         />
       )}

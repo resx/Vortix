@@ -30,13 +30,18 @@ export default function LocalTerminalConfigDialog() {
   const [shellOpen, setShellOpen] = useState(false)
   const [pickingDir, setPickingDir] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // 稳定引用：避免 useEffect 依赖整个 store 导致无限循环
+  const loadFromConnection = useLocalTerminalConfigStore((s) => s.loadFromConnection)
+  const reset = useLocalTerminalConfigStore((s) => s.reset)
+
   // mount 时加载编辑数据 / unmount 时重置
   useEffect(() => {
     if (mode === 'edit' && initialId) {
-      store.loadFromConnection(initialId)
+      loadFromConnection(initialId)
     }
-    return () => { store.reset() }
-  }, [initialId, mode, store])
+    return () => { reset() }
+  }, [initialId, mode, loadFromConnection, reset])
 
   // 点击外部关闭下拉
   useEffect(() => {

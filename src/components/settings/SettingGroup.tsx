@@ -1,30 +1,143 @@
-import { type ReactNode } from 'react'
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  type ReactElement,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { createPortal } from 'react-dom'
+import { AppIcon, icons } from '../icons/AppIcon'
 
-/* ── 设置行（弹性高度，窄窗口自适应） ── */
+function extractDescText(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node).trim()
+  if (Array.isArray(node)) return node.map(extractDescText).join(' ').trim()
+  if (isValidElement<{ children?: ReactNode }>(node)) return extractDescText(node.props.children)
+  return ''
+}
+
+function extractLegacyDesc(children: ReactNode): { descText: string; content: ReactNode } {
+  if (!isValidElement<{ children?: ReactNode; className?: string }>(children)) {
+    return { descText: '', content: children }
+  }
+
+  const element = children as ReactElement<{ children?: ReactNode; className?: string }>
+  const nodes = Children.toArray(element.props.children)
+  if (nodes.length < 2) return { descText: '', content: children }
+
+  const first = nodes[0]
+  if (!isValidElement<{ className?: string; children?: ReactNode }>(first)) {
+    return { descText: '', content: children }
+  }
+
+  const className = typeof first.props.className === 'string' ? first.props.className : ''
+  const looksLikeDesc = className.includes('text-[11px]') && className.includes('text-text-3') && className.includes('truncate')
+  if (!looksLikeDesc) return { descText: '', content: children }
+
+  const descText = extractDescText(first.props.children)
+  if (!descText) return { descText: '', content: children }
+
+  const content = cloneElement(element, undefined, ...nodes.slice(1))
+  return { descText, content }
+}
+
+/* 设置项行（左标签，右控件容器） */
 export function SettingRow({ label, desc, children }: {
   label: string
   desc?: ReactNode
   children: ReactNode
 }) {
+  const explicitDesc = useMemo(() => extractDescText(desc), [desc])
+  const legacy = useMemo(() => extractLegacyDesc(children), [children])
+  const descText = explicitDesc || legacy.descText
+  const hasDesc = descText.length > 0
+  const [open, setOpen] = useState(false)
+  const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 })
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const tooltipRef = useRef<HTMLDivElement>(null)
+
+  const updateTooltipPosition = () => {
+    const trigger = triggerRef.current
+    if (!trigger) return
+
+    const rect = trigger.getBoundingClientRect()
+    const margin = 8
+    const gap = 8
+    const tooltipW = tooltipRef.current?.offsetWidth ?? 260
+    const tooltipH = tooltipRef.current?.offsetHeight ?? 56
+
+    let left = rect.left
+    if (left + tooltipW > window.innerWidth - margin) left = window.innerWidth - tooltipW - margin
+    if (left < margin) left = margin
+
+    let top = rect.bottom + gap
+    if (top + tooltipH > window.innerHeight - margin) {
+      top = rect.top - tooltipH - gap
+    }
+    if (top < margin) top = margin
+
+    setTooltipPos({ top, left })
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const raf = window.requestAnimationFrame(updateTooltipPosition)
+    const onRelayout = () => updateTooltipPosition()
+    window.addEventListener('resize', onRelayout)
+    window.addEventListener('scroll', onRelayout, true)
+    return () => {
+      window.cancelAnimationFrame(raf)
+      window.removeEventListener('resize', onRelayout)
+      window.removeEventListener('scroll', onRelayout, true)
+    }
+  }, [open])
+
   return (
-    <div className="flex justify-between items-center px-4 min-h-[44px] py-2 gap-3 border-b border-border last:border-b-0">
-      <span className="text-[12px] text-text-1 shrink-0 font-medium whitespace-nowrap">{label}</span>
-      <div className="flex items-center gap-2 justify-end flex-1 min-w-0">
-        {desc && (
-          typeof desc === 'string'
-            ? <span className="text-[11px] text-text-3 truncate min-w-0">{desc}</span>
-            : desc
+    <div className="group flex justify-between items-center px-4 min-h-[50px] py-2.5 gap-3 rounded-xl bg-bg-card/72 border border-transparent hover:border-border/80 hover:bg-bg-card transition-colors mb-1 last:mb-0">
+      <div className="flex items-center gap-1.5 min-w-0 shrink-0">
+        <span className="text-[12px] text-text-1/95 font-medium whitespace-nowrap">{label}</span>
+        {hasDesc && (
+          <>
+            <button
+              ref={triggerRef}
+              type="button"
+              className="w-[16px] h-[16px] rounded-full border border-border/80 bg-bg-base/85 text-text-3 hover:text-primary hover:border-primary/30 transition-colors flex items-center justify-center"
+              aria-label={`${label} 说明`}
+              onMouseEnter={() => setOpen(true)}
+              onMouseLeave={() => setOpen(false)}
+              onFocus={() => setOpen(true)}
+              onBlur={() => setOpen(false)}
+            >
+              <AppIcon icon={icons.info} size={10} />
+            </button>
+            {open && createPortal(
+              <div
+                ref={tooltipRef}
+                className="pointer-events-none fixed z-[1400] w-[260px] rounded-lg border border-border/80 bg-bg-card/96 px-2.5 py-2 text-[11px] leading-[1.45] text-text-2 shadow-[0_10px_24px_rgba(0,0,0,0.12)] backdrop-blur-md"
+                style={{ top: `${tooltipPos.top}px`, left: `${tooltipPos.left}px` }}
+              >
+                {descText}
+              </div>,
+              document.body,
+            )}
+          </>
         )}
-        <div className="shrink-0 flex items-center">{children}</div>
+      </div>
+      <div className="flex items-center gap-2 justify-end flex-1 min-w-0">
+        <div className="shrink-0 flex items-center">{legacy.content}</div>
       </div>
     </div>
   )
 }
 
-/* ── Excel 风格设置分组容器 ── */
+/* Excel 风格设置分组容器 */
 export function SettingGroup({ children }: { children: ReactNode }) {
   return (
-    <div className="self-start flex flex-col border border-border rounded-lg bg-bg-subtle shadow-[0_1px_2px_rgba(0,0,0,0.01)] min-w-0 max-w-full overflow-hidden">
+    <div className="self-start flex flex-col p-1.5 border border-border/70 rounded-2xl bg-[linear-gradient(180deg,rgba(247,248,250,0.92),rgba(242,243,245,0.86))] dark:bg-[linear-gradient(180deg,rgba(42,43,48,0.92),rgba(36,37,41,0.9))] shadow-[0_10px_24px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.45)] min-w-0 max-w-full overflow-hidden">
       {children}
     </div>
   )

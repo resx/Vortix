@@ -4,12 +4,12 @@ import { useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSftpStore } from '../stores/useSftpStore'
 import { useSettingsStore } from '../stores/useSettingsStore'
 import { handleDownloadChunk, handleDownloadComplete, handleDownloadError } from '../services/transfer-engine'
+import { getWsBaseUrl } from '../api/client'
 import type { SftpFileEntry, ExecResult, SftpDirSizeData } from '../types/sftp'
 
 /** 获取后端 WebSocket 地址 */
 function getSftpWsUrl(): string {
-  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${proto}//${location.hostname}:3001/ws/sftp`
+  return `${getWsBaseUrl()}/ws/sftp`
 }
 
 interface ConnectParams {

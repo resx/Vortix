@@ -117,7 +117,6 @@ export default function SftpNavBar({ onNavigate, onRefresh, onListDir, onSyncTer
     if (searchActive && searchRef.current) {
       searchRef.current.focus()
     }
-    if (!searchActive) setSearchValue('')
   }, [searchActive])
 
   // 点击外部关闭路径下拉
@@ -148,6 +147,7 @@ export default function SftpNavBar({ onNavigate, onRefresh, onListDir, onSyncTer
 
   const handleSearchClose = useCallback(() => {
     setSearchActive(false)
+    setSearchValue('')
     setSearchQuery('')
   }, [setSearchActive, setSearchQuery])
 

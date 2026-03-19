@@ -36,7 +36,7 @@ function customToVortix(row: CustomThemePublic): VortixTheme {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     terminal: row.terminal as ITheme,
-    highlights: row.highlights as ThemeHighlights,
+    highlights: row.highlights as unknown as ThemeHighlights,
     ui: row.ui as VortixTheme['ui'],
   }
 }
@@ -110,7 +110,7 @@ export const useThemeStore = create<ThemeStore>((set, get) => ({
       name: data.name,
       mode: data.mode,
       terminal: data.terminal as Record<string, string | undefined>,
-      highlights: data.highlights as Record<string, string>,
+      highlights: data.highlights as unknown as Record<string, string>,
       ui: data.ui as Record<string, string>,
       author: data.author,
     })
@@ -125,7 +125,7 @@ export const useThemeStore = create<ThemeStore>((set, get) => ({
         name: data.name,
         mode: data.mode,
         terminal: data.terminal as Record<string, string | undefined>,
-        highlights: data.highlights as Record<string, string>,
+        highlights: data.highlights as unknown as Record<string, string>,
         ui: data.ui as Record<string, string>,
       })
       const theme = customToVortix(row)

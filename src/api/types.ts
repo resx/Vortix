@@ -223,6 +223,42 @@ export interface UpdateShortcutDto {
 
 // ── 连接预设 ──
 
+export interface CustomThemePublic {
+  id: string
+  name: string
+  mode: 'light' | 'dark'
+  version: number
+  author: string
+  terminal: Record<string, string | undefined>
+  highlights: Record<string, string>
+  ui?: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateCustomThemeDto {
+  name: string
+  mode: 'light' | 'dark'
+  terminal: Record<string, string | undefined>
+  highlights: Record<string, string>
+  ui?: Record<string, unknown>
+  author?: string
+}
+
+export interface UpdateCustomThemeDto {
+  name?: string
+  mode?: 'light' | 'dark'
+  terminal?: Record<string, string | undefined>
+  highlights?: Record<string, string>
+  ui?: Record<string, unknown> | null
+}
+
+export interface ImportThemesResult {
+  format: string
+  themes: CustomThemePublic[]
+  errors: string[]
+}
+
 export interface PresetPublic {
   id: string
   name: string
@@ -322,6 +358,11 @@ export interface SyncConflictInfo {
 export interface SyncRequestBody {
   repoSource: string
   encryptionKey?: string
+  syncFormatVersion?: number
+  syncUseChunkedManifest?: boolean
+  syncHashAlgorithm?: string
+  syncChunkSize?: number
+  syncCompressChunks?: boolean
   syncLocalPath?: string
   syncGitUrl?: string
   syncGitBranch?: string

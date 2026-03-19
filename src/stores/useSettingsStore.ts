@@ -125,6 +125,8 @@ export interface SettingsState {
   syncGitUsername: string;
   syncGitPassword: string;
   syncGitSshKey: string;
+  syncGitSshKeyLabel: string;
+  syncGitSshKeyMode: 'manager' | 'manual';
   // WebDAV
   syncWebdavEndpoint: string;
   syncWebdavPath: string;
@@ -260,11 +262,13 @@ const DEFAULTS: SettingsState = {
   syncLocalPath: "",
   // Git
   syncGitUrl: "",
-  syncGitBranch: "master",
+  syncGitBranch: "",
   syncGitPath: "",
   syncGitUsername: "",
   syncGitPassword: "",
   syncGitSshKey: "",
+  syncGitSshKeyLabel: "",
+  syncGitSshKeyMode: "manager",
   // WebDAV
   syncWebdavEndpoint: "",
   syncWebdavPath: "vortix",
@@ -292,7 +296,7 @@ export function buildSyncBody(): import('../api/types').SyncRequestBody {
     syncLocalPath: s.syncLocalPath ?? '',
     syncTlsVerify: s.syncTlsVerify,
     syncGitUrl: s.syncGitUrl ?? '',
-    syncGitBranch: s.syncGitBranch ?? 'master',
+    syncGitBranch: s.syncGitBranch ?? '',
     syncGitPath: s.syncGitPath ?? '',
     syncGitUsername: s.syncGitUsername ?? '',
     syncGitPassword: s.syncGitPassword ?? '',

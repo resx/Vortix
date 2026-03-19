@@ -143,6 +143,22 @@ export function useIdleLock() {
   }, [])
 }
 
+/** 窗口大小与最大化状态 */
+export function useWindowSizeEffect() {
+  useEffect(() => {
+    if (!('__TAURI_INTERNALS__' in window)) return
+    const win = getCurrentWindow()
+    const update = async () => {
+      const isMaximized = await win.isMaximized()
+      const isFullscreen = await win.isFullscreen()
+      document.documentElement.classList.toggle('is-maximized', isMaximized || isFullscreen)
+    }
+    const unlisten = win.onResized(update)
+    update()
+    return () => { unlisten.then(fn => fn()) }
+  }, [])
+}
+
 /** 跨窗口配置变更监听 */
 export function useConfigChangedListener() {
   useEffect(() => {

@@ -794,7 +794,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
 
   useEffect(() => {
     if (!termCommandHint || !sshHistoryEnabled) {
-      setHintText('')
+      hintRef.current = ''
       return
     }
 
@@ -824,6 +824,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
   // P6-3: Tab 键接受提示 — 已合并到 customKeyEventHandler 中
 
   const termStripeEnabled = useSettingsStore((s) => s.termStripeEnabled)
+  const displayedHint = termCommandHint && sshHistoryEnabled ? hintText : ''
   const stripeBackgroundImage = termStripeEnabled && cellHeight > 0
     ? `repeating-linear-gradient(to bottom,
       transparent 0px, transparent ${cellHeight}px,
@@ -877,7 +878,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         />
       )}
       {/* P6-3: 命令提示浮层 */}
-      {hintText && (
+      {displayedHint && (
         <div
           className="absolute bottom-2 right-2 bg-bg-card/90 border border-border rounded-lg px-3 py-1.5 text-[12px] backdrop-blur-sm z-10 flex items-center gap-2 cursor-pointer select-none"
           onClick={() => {
@@ -894,7 +895,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           }}
         >
           <kbd className="px-1 py-0.5 rounded bg-bg-subtle border border-border text-[10px] text-text-3 font-mono">Tab</kbd>
-          <span className="text-text-1 font-mono truncate max-w-[300px]">{hintText}</span>
+          <span className="text-text-1 font-mono truncate max-w-[300px]">{displayedHint}</span>
         </div>
       )}
     </div>

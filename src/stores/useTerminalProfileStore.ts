@@ -3,6 +3,7 @@ import * as api from '../api/client'
 import { useSettingsStore } from './useSettingsStore'
 import { getThemeById } from '../components/terminal/themes/index'
 import { resolveFontChain } from '../lib/fonts'
+import { useThemeStore } from './useThemeStore'
 import { DEFAULT_PROFILE_ID } from '../types/terminal-profile'
 import type { TerminalProfile, ResolvedProfile } from '../types/terminal-profile'
 
@@ -67,9 +68,13 @@ export const useTerminalProfileStore = create<TerminalProfileStore>((set, get) =
   resolveProfile: (id, isDark) => {
     const profile = get().getProfileById(id) ?? get().getDefaultProfile()
     const schemeId = isDark ? profile.colorSchemeDark : profile.colorSchemeLight
+    const themeStore = useThemeStore.getState()
+    const customOrBuiltin = themeStore.getThemeById(schemeId)
+    const fallbackCustomOrBuiltin = themeStore.getThemeById(isDark ? 'default-dark' : 'default-light')
     const preset = getThemeById(schemeId) ?? getThemeById(isDark ? 'default-dark' : 'default-light')!
+    const theme = customOrBuiltin?.terminal ?? fallbackCustomOrBuiltin?.terminal ?? preset.theme
     const fontFamily = resolveFontChain(profile.fontFamily)
-    return { profile, theme: preset.theme, fontFamily }
+    return { profile, theme, fontFamily }
   },
 
   createProfile: (data) => {

@@ -111,6 +111,68 @@
   --color-icon-action: var(--icon-action);
 }
 
+/* ── Tauri 无边框窗口圆角支持 ── */
+html {
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  height: 100vh;
+  width: 100vw;
+  /* 在最顶层应用圆角掩码，强制裁剪所有子层 */
+  border-radius: 12px;
+  -webkit-mask-image: -webkit-radial-gradient(white, black); /* 修复某些 Webkit 版本的裁剪 Bug */
+}
+
+body {
+  background: transparent !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  height: 100%;
+  width: 100%;
+  border-radius: 12px;
+  -webkit-user-select: none;
+}
+
+#app-root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-base);
+  border-radius: 12px;
+  overflow: hidden;
+  box-sizing: border-box;
+  /* 使用 inset (内阴影) 模拟边框，绝对不会溢出容器边缘 */
+  box-shadow: 
+    inset 0 0 0 1px var(--border),
+    0 10px 30px rgba(0, 0, 0, 0.2);
+  transition: box-shadow 0.2s, border-radius 0.2s;
+  backface-visibility: hidden;
+  /* 确保内部内容不会溢出圆角 */
+  isolation: isolate;
+}
+
+.dark #app-root {
+  box-shadow: 
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 10px 40px rgba(0, 0, 0, 0.4);
+}
+
+/* 最大化时移除所有裁剪和模拟边框 */
+html.is-maximized,
+html.is-maximized body,
+html.is-maximized #app-root {
+  border-radius: 0 !important;
+  -webkit-mask-image: none !important;
+}
+
+.is-maximized #app-root {
+  inset: 0;
+  box-shadow: none;
+}
+
 /* ── 主题切换时禁用所有 transition，防止闪烁 ── */
 html.theme-switching,
 html.theme-switching *,
@@ -199,6 +261,33 @@ html.reduce-motion *::after {
 }
 .cmd-textarea-scrollbar::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Sync SSH ????,?????? */
+.sync-key-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.sync-key-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sync-key-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(64, 128, 255, 0.32), rgba(64, 128, 255, 0.2));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.sync-key-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(64, 128, 255, 0.48), rgba(64, 128, 255, 0.28));
+}
+.sync-key-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.dark .sync-key-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(91, 143, 255, 0.45), rgba(91, 143, 255, 0.3));
+}
+.dark .sync-key-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(91, 143, 255, 0.62), rgba(91, 143, 255, 0.42));
 }
 
 @keyframes loading {

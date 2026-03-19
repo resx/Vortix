@@ -1,6 +1,6 @@
 /* ── SFTP 独立右键菜单 ── */
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon, icons } from '../../icons/AppIcon'
 import type { SftpFileEntry } from '../../../types/sftp'
@@ -37,8 +37,6 @@ interface MenuState {
   y: number
   entry: SftpFileEntry | null
 }
-
-const initialState: MenuState = { visible: false, x: 0, y: 0, entry: null }
 
 interface Props {
   state: MenuState
@@ -99,15 +97,22 @@ function SubMenu({ icon, label, children }: {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const subRef = useRef<HTMLDivElement>(null)
-  const [subPos, setSubPos] = useState<React.CSSProperties>({})
 
   useEffect(() => {
     if (!open || !ref.current || !subRef.current) return
     const rect = ref.current.getBoundingClientRect()
-    const sub = subRef.current.getBoundingClientRect()
+    const subEl = subRef.current
+    const sub = subEl.getBoundingClientRect()
     const vw = window.innerWidth
     const vh = window.innerHeight
-    const pos: React.CSSProperties = {}
+    const pos: Partial<CSSStyleDeclaration> = {
+      left: '',
+      right: '',
+      top: '',
+      bottom: '',
+      marginLeft: '',
+      marginRight: '',
+    }
     if (rect.right + sub.width + 4 > vw) {
       pos.right = '100%'
       pos.marginRight = '4px'
@@ -120,7 +125,7 @@ function SubMenu({ icon, label, children }: {
     } else {
       pos.top = '-6px'
     }
-    setSubPos(pos)
+    Object.assign(subEl.style, pos)
   }, [open])
 
   return (
@@ -141,7 +146,6 @@ function SubMenu({ icon, label, children }: {
         <div
           ref={subRef}
           className="absolute glass-context rounded-xl py-1 min-w-[180px] w-max z-[101]"
-          style={subPos}
         >
           {children}
         </div>
@@ -295,6 +299,3 @@ export default function SftpContextMenu({ state, actions, onClose, onRefresh, on
 
   return createPortal(menu, document.body)
 }
-
-export { initialState }
-export type { MenuState }

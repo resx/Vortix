@@ -1,6 +1,6 @@
 /* ── SFTP 权限编辑弹窗 ── */
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import IslandModal from '../../ui/island-modal'
 
 interface Props {
@@ -30,18 +30,10 @@ function toOctalStr(mode: number): string {
 }
 
 export default function SftpChmodModal({ isOpen, filePath, currentMode, isDir, onApply, onClose }: Props) {
-  const [mode, setMode] = useState(0o644)
+  const initialMode = parseOctal(currentMode || (isDir ? '755' : '644'))
+  const [mode, setMode] = useState(initialMode)
   const [recursive, setRecursive] = useState(false)
-  const [octalInput, setOctalInput] = useState('644')
-
-  useEffect(() => {
-    if (isOpen) {
-      const parsed = parseOctal(currentMode || (isDir ? '755' : '644'))
-      setMode(parsed)
-      setOctalInput(toOctalStr(parsed))
-      setRecursive(false)
-    }
-  }, [isOpen, currentMode, isDir])
+  const [octalInput, setOctalInput] = useState(() => toOctalStr(initialMode))
 
   const toggleBit = useCallback((row: number, col: number) => {
     setMode(prev => {

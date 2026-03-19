@@ -9,7 +9,7 @@ import { useTabStore } from '../../stores/useTabStore'
 import { TooltipProvider } from '../ui/tooltip'
 import WindowControls from '../../features/header/WindowControls'
 import WorkspaceLayout from '../workspace/WorkspaceLayout'
-import { useThemeEffect, useUIFontEffect, useConfigChangedListener } from '../../hooks/useAppEffects'
+import { useThemeEffect, useUIFontEffect, useConfigChangedListener, useWindowSizeEffect } from '../../hooks/useAppEffects'
 import { handleTitleBarMouseDown, handleTitleBarDoubleClick } from '../../lib/window'
 import { loadLocale } from '../../i18n'
 import * as api from '../../api/client'
@@ -29,6 +29,7 @@ export default function DetachedTerminalView({ connectionId }: DetachedTerminalP
   useThemeEffect()
   useUIFontEffect()
   useConfigChangedListener()
+  useWindowSizeEffect()
 
   // 数据就绪后再显示窗口，消除白屏闪烁
   useEffect(() => {
@@ -90,7 +91,7 @@ export default function DetachedTerminalView({ connectionId }: DetachedTerminalP
 
   return (
     <TooltipProvider>
-      <div className="h-screen w-screen flex flex-col bg-bg-base text-text-0 overflow-hidden">
+      <div id="app-root" className="h-screen w-screen flex flex-col bg-bg-base text-text-0 overflow-hidden">
         <div
           onMouseDown={handleTitleBarMouseDown}
           onDoubleClick={handleTitleBarDoubleClick}

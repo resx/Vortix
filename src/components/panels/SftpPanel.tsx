@@ -9,8 +9,7 @@ import { usePathSync } from './sftp/usePathSync'
 import SftpNavBar from './sftp/SftpNavBar'
 import SftpFileList from './sftp/SftpFileList'
 import SftpStatusBar from './sftp/SftpStatusBar'
-import SftpContextMenu, { initialState as menuInitial } from './sftp/SftpContextMenu'
-import type { MenuState } from './sftp/SftpContextMenu'
+import SftpContextMenu from './sftp/SftpContextMenu'
 import RemoteFileEditor from '../editor/RemoteFileEditor'
 import SftpChmodModal from './sftp/SftpChmodModal'
 import { uploadFiles } from '../../services/transfer-engine'
@@ -30,6 +29,15 @@ interface Props {
   hidden?: boolean
 }
 
+interface MenuState {
+  visible: boolean
+  x: number
+  y: number
+  entry: SftpFileEntry | null
+}
+
+const initialMenuState: MenuState = { visible: false, x: 0, y: 0, entry: null }
+
 export default function SftpPanel({ targetTabId, hidden }: Props) {
   const connected = useSftpStore(s => s.connected)
   const connecting = useSftpStore(s => s.connecting)
@@ -47,10 +55,12 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
 
   const [panelWidth, setPanelWidth] = useState(calculateInitialWidth)
   const isResizing = useRef(false)
+  const [isResizingPanel, setIsResizingPanel] = useState(false)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     isResizing.current = true
+    setIsResizingPanel(true)
     document.body.style.cursor = 'col-resize'
   }, [])
 
@@ -67,6 +77,7 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
     const handleMouseUp = () => {
       if (isResizing.current) {
         isResizing.current = false
+        setIsResizingPanel(false)
         document.body.style.cursor = ''
         window.dispatchEvent(new Event('resize'))
       }
@@ -76,6 +87,8 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
     return () => {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
+      isResizing.current = false
+      document.body.style.cursor = ''
     }
   }, [])
 
@@ -117,10 +130,10 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
   const actions = useSftpActions({ sftp, targetTabId, openEditor })
   const { syncToTerminal } = usePathSync({ targetTabId, onNavigate: actions.handleNavigate })
   const handleNavigateWithSync = useCallback((path: string) => { actions.handleNavigate(path); syncToTerminal(path) }, [actions, syncToTerminal])
-  const [menuState, setMenuState] = useState<MenuState>(menuInitial)
+  const [menuState, setMenuState] = useState<MenuState>(initialMenuState)
   const handleContextMenu = useCallback((e: React.MouseEvent, entry: SftpFileEntry) => { setMenuState({ visible: true, x: e.clientX, y: e.clientY, entry }) }, [])
   const handleBlankContextMenu = useCallback((e: React.MouseEvent) => { setMenuState({ visible: true, x: e.clientX, y: e.clientY, entry: null }) }, [])
-  const closeMenu = useCallback(() => { setMenuState(menuInitial) }, [])
+  const closeMenu = useCallback(() => { setMenuState(initialMenuState) }, [])
 
   const handleFileDrop = useCallback(async (files: File[]) => {
     if (!connected || files.length === 0) return
@@ -137,14 +150,14 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
       const sortedDirs = [...dirs].sort((a, b) => a.split('/').length - b.split('/').length)
       for (const dir of sortedDirs) {
         const remoteDirPath = currentPath === '/' ? `/${dir}` : `${currentPath}/${dir}`
-        try { await sftp.mkdir(remoteDirPath) } catch { }
+        try { await sftp.mkdir(remoteDirPath) } catch { continue }
       }
       for (const file of files) {
         const rel = file.webkitRelativePath
         if (!rel) continue
         const parentDir = rel.substring(0, rel.lastIndexOf('/'))
         const remotePath = parentDir ? (currentPath === '/' ? `/${parentDir}` : `${currentPath}/${parentDir}`) : currentPath
-        try { await uploadFiles(sftp.send, [file], remotePath) } catch { }
+        try { await uploadFiles(sftp.send, [file], remotePath) } catch { continue }
       }
       sftp.refresh(); addToast('success', `文件夹上传完成 (${files.length} 个文件)`)
     } else {
@@ -173,7 +186,7 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
         initial={{ width: 0, opacity: 0 }}
         animate={{ width: panelWidth, opacity: 1 }}
         exit={{ width: 0, opacity: 0 }}
-        transition={isResizing.current ? { duration: 0 } : { duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
+        transition={isResizingPanel ? { duration: 0 } : { duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
         style={hidden ? { display: 'none' } : undefined}
       >
         {/* Resize Handle */}
@@ -203,12 +216,6 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
               onDoubleClick={handleDoubleClick}
               onFileDrop={handleFileDrop}
               onRename={actions.handleRenameSubmit}
-              onCopy={actions.handleCopy}
-              onCut={actions.handleCut}
-              onPaste={actions.handlePaste}
-              onDelete={actions.handleDelete}
-              onRenameStart={actions.handleRename}
-              onRefresh={sftp.refresh}
             />
           </div>
         </div>
@@ -231,14 +238,16 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
         />
       )}
 
-      <SftpChmodModal
-        isOpen={chmodTarget !== null}
-        filePath={chmodTarget?.path ?? ''}
-        currentMode={chmodTarget?.permissions ?? ''}
-        isDir={chmodTarget?.isDir ?? false}
-        onApply={(mode, recursive) => { if (chmodTarget) actions.handleChmod(chmodTarget.path, mode, recursive) }}
-        onClose={() => setChmodTarget(null)}
-      />
+      {chmodTarget && (
+        <SftpChmodModal
+          isOpen
+          filePath={chmodTarget.path}
+          currentMode={chmodTarget.permissions}
+          isDir={chmodTarget.isDir}
+          onApply={(mode, recursive) => { actions.handleChmod(chmodTarget.path, mode, recursive) }}
+          onClose={() => setChmodTarget(null)}
+        />
+      )}
     </>
   )
 }

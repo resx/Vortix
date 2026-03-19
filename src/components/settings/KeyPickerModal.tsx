@@ -7,7 +7,7 @@ import * as api from '../../api/client'
 import type { SshKey } from '../../api/types'
 
 interface KeyPickerModalProps {
-  onSelect: (keyContent: string) => void
+  onSelect: (keyContent: string, meta?: { keyName?: string; keyId?: string }) => void
   onClose: () => void
 }
 
@@ -122,7 +122,7 @@ export default function KeyPickerModal({ onSelect, onClose }: KeyPickerModalProp
 function ListView({ keys, loading, onSelect, onClose, onEdit, onRefresh }: {
   keys: SshKey[]
   loading: boolean
-  onSelect: (k: string) => void
+  onSelect: (k: string, meta?: { keyName?: string; keyId?: string }) => void
   onClose: () => void
   onEdit: (key: SshKey) => void
   onRefresh: () => void
@@ -137,7 +137,7 @@ function ListView({ keys, loading, onSelect, onClose, onEdit, onRefresh }: {
   const handleDoubleClick = async (key: SshKey) => {
     try {
       const { private_key } = await api.getSshKeyPrivate(key.id)
-      onSelect(private_key)
+      onSelect(private_key, { keyName: key.name, keyId: key.id })
       onClose()
     } catch { /* 静默 */ }
   }

@@ -26,7 +26,7 @@ import type {
 
 // CEF 预留：运行时可通过 window.__VORTIX_CONFIG__ 覆盖
 const config = (window as unknown as Record<string, unknown>).__VORTIX_CONFIG__ as { apiBaseUrl?: string } | undefined
-const BASE_URL = config?.apiBaseUrl || 'http://localhost:3001/api'
+const BASE_URL = config?.apiBaseUrl || 'http://localhost:3002/api'
 if (config) Object.freeze(config)
 
 /** 通用请求方法 */
@@ -39,9 +39,19 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       ...options?.headers,
     },
   })
-  const json: ApiResponse<T> = await res.json()
-  if (!json.success) {
-    throw new Error(json.error || '请求失败')
+  const raw = await res.text()
+  let json: ApiResponse<T> | null = null
+  try {
+    json = raw ? JSON.parse(raw) as ApiResponse<T> : null
+  } catch {
+    const short = raw.slice(0, 240)
+    throw new Error(`HTTP ${res.status}: ${short || '响应非 JSON'}`)
+  }
+  if (!res.ok) {
+    throw new Error(json?.error || `HTTP ${res.status}`)
+  }
+  if (!json?.success) {
+    throw new Error(json?.error || '请求失败')
   }
   return json.data as T
 }
@@ -241,6 +251,43 @@ export async function deletePreset(id: string): Promise<void> {
 }
 
 /* ── SSH 密钥库 API ── */
+
+export async function getCustomThemes(): Promise<import('./types').CustomThemePublic[]> {
+  return request<import('./types').CustomThemePublic[]>('/themes')
+}
+
+export async function getCustomTheme(id: string): Promise<import('./types').CustomThemePublic> {
+  return request<import('./types').CustomThemePublic>(`/themes/${id}`)
+}
+
+export async function createCustomTheme(dto: import('./types').CreateCustomThemeDto): Promise<import('./types').CustomThemePublic> {
+  return request<import('./types').CustomThemePublic>('/themes', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  })
+}
+
+export async function updateCustomTheme(id: string, dto: import('./types').UpdateCustomThemeDto): Promise<import('./types').CustomThemePublic> {
+  return request<import('./types').CustomThemePublic>(`/themes/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
+  })
+}
+
+export async function deleteCustomTheme(id: string): Promise<void> {
+  return request<void>(`/themes/${id}`, { method: 'DELETE' })
+}
+
+export async function importThemes(raw: string): Promise<import('./types').ImportThemesResult> {
+  return request<import('./types').ImportThemesResult>('/themes/import', {
+    method: 'POST',
+    body: JSON.stringify({ raw }),
+  })
+}
+
+export function getThemeExportUrl(id: string): string {
+  return `${BASE_URL}/themes/${id}/export`
+}
 
 export async function getSshKeys(): Promise<SshKey[]> {
   return request<SshKey[]>('/ssh-keys')

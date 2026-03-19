@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, useDragControls } from 'framer-motion'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { useUIStore } from '../../stores/useUIStore'
-import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useSettingsStore, buildSyncBody } from '../../stores/useSettingsStore'
 import { getSettingsEntries, getSettingsComponent } from '../../registries/settings-panel.registry'
 import * as api from '../../api/client'
-import type { SyncRequestBody } from '../../api/types'
 
 /* ── 全息指令盒 Logo（与主 Header 一致） ── */
 
@@ -102,30 +101,11 @@ export default function SettingsPanel() {
   const [syncTestResult, setSyncTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
   /** 构建同步请求体 */
-  const buildSyncBody = useCallback((): SyncRequestBody => {
-    const s = useSettingsStore.getState()
-    return {
-      repoSource: s.syncRepoSource,
-      encryptionKey: s.syncEncryptionKey || undefined,
-      syncLocalPath: s.syncLocalPath,
-      syncTlsVerify: s.syncTlsVerify,
-      syncGitUrl: s.syncGitUrl, syncGitBranch: s.syncGitBranch,
-      syncGitUsername: s.syncGitUsername, syncGitPassword: s.syncGitPassword,
-      syncGitSshKey: s.syncGitSshKey,
-      syncWebdavEndpoint: s.syncWebdavEndpoint, syncWebdavPath: s.syncWebdavPath,
-      syncWebdavUsername: s.syncWebdavUsername, syncWebdavPassword: s.syncWebdavPassword,
-      syncS3Style: s.syncS3Style, syncS3Endpoint: s.syncS3Endpoint,
-      syncS3Path: s.syncS3Path, syncS3Region: s.syncS3Region,
-      syncS3Bucket: s.syncS3Bucket, syncS3AccessKey: s.syncS3AccessKey,
-      syncS3SecretKey: s.syncS3SecretKey,
-    }
-  }, [])
-
   /** 测试同步：导出一次验证连通性 */
   const handleTestSync = async () => {
     setSyncTesting(true); setSyncTestResult(null)
     try {
-      await api.syncExport(buildSyncBody())
+      await api.syncTest(buildSyncBody())
       setSyncTestResult({ ok: true, msg: '同步成功' })
     } catch (e) {
       setSyncTestResult({ ok: false, msg: (e as Error).message })
@@ -163,7 +143,7 @@ export default function SettingsPanel() {
 
   const panelSize = maximized
     ? 'w-full h-full max-w-full max-h-full rounded-none'
-    : 'w-[1100px] max-w-[95vw] h-[720px] max-h-[95vh] rounded-2xl'
+    : 'w-[1100px] max-w-[95vw] h-[720px] max-h-[95vh] rounded-[30px]'
 
   return (
     <motion.div
@@ -185,12 +165,13 @@ export default function SettingsPanel() {
         animate={{ scale: 1 }}
         exit={{ scale: 0.96 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
-        className={`pointer-events-auto ${panelSize} bg-bg-base shadow-[0_16px_48px_rgba(0,0,0,0.16),0_4px_12px_rgba(0,0,0,0.08)] flex flex-col overflow-hidden transition-all duration-200`}
+        className={`pointer-events-auto ${panelSize} relative bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(247,248,250,0.9))] dark:bg-[linear-gradient(160deg,rgba(36,37,41,0.96),rgba(28,29,33,0.92))] border border-border/70 shadow-[0_24px_72px_rgba(0,0,0,0.2),0_8px_24px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)] flex flex-col overflow-hidden transition-all duration-200`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header — 缩减版主 Header */}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(64,128,255,0.12),transparent_42%),radial-gradient(circle_at_88%_100%,rgba(103,194,58,0.1),transparent_36%)]" />
         <div
-          className="h-[48px] flex items-center px-4 shrink-0 select-none bg-bg-base cursor-grab active:cursor-grabbing"
+          className="relative z-10 mx-3 mt-3 h-[52px] rounded-2xl border border-border/70 bg-bg-card/78 backdrop-blur-md shadow-[0_10px_24px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.55)] flex items-center px-4 shrink-0 select-none cursor-grab active:cursor-grabbing"
           onPointerDown={(e) => {
             if (!(e.target as HTMLElement).closest('button')) dragControls.start(e)
           }}
@@ -223,13 +204,13 @@ export default function SettingsPanel() {
         </div>
 
         {/* Body */}
-        <div className="flex-1 flex overflow-hidden">
+        <div className="relative z-10 flex-1 flex gap-3 overflow-hidden p-3 pt-2">
           {/* 左侧导航 */}
-          <div className="w-[180px] flex flex-col py-2 overflow-y-auto custom-scrollbar shrink-0 select-none bg-bg-base">
+          <div className="w-[196px] flex flex-col p-2 overflow-y-auto custom-scrollbar shrink-0 select-none rounded-2xl border border-border/70 bg-bg-card/70 backdrop-blur-sm shadow-[0_8px_24px_rgba(0,0,0,0.08)]">
             {navData.map((item, i) => {
               if (item.type === 'group') {
                 return (
-                  <div key={i} className={`text-[12px] text-text-3 px-5 py-1.5 mb-1 font-medium ${'mt' in item && item.mt ? 'mt-3' : 'mt-1'}`}>
+                  <div key={i} className={`text-[11px] uppercase tracking-[0.06em] text-text-3/90 px-4 py-1.5 mb-1 font-semibold ${'mt' in item && item.mt ? 'mt-3' : 'mt-1'}`}>
                     {item.label}
                   </div>
                 )
@@ -239,12 +220,12 @@ export default function SettingsPanel() {
                 <div
                   key={i}
                   onClick={() => { if ('id' in item) setActiveNav(item.id) }}
-                  className={`text-[13px] font-medium px-4 py-2 cursor-pointer transition-colors rounded-lg mx-3 mb-0.5 ${
+                  className={`text-[13px] font-medium px-4 py-2.5 cursor-pointer transition-all duration-200 rounded-xl mx-1 mb-1 border ${
                     'mt' in item && item.mt ? 'mt-2' : ''
                   } ${
                     isActive
-                      ? 'text-text-1 bg-bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)]'
-                      : 'text-text-2 hover:bg-border/50'
+                      ? 'text-text-1 bg-bg-card border-border shadow-[0_8px_18px_rgba(64,128,255,0.14)]'
+                      : 'text-text-2 border-transparent hover:bg-bg-hover/70 hover:border-border/80'
                   }`}
                 >
                   {item.label}
@@ -254,8 +235,8 @@ export default function SettingsPanel() {
           </div>
 
           {/* 右侧内容 */}
-          <div className="flex-1 bg-bg-card rounded-tl-2xl shadow-[-4px_0_12px_rgba(0,0,0,0.02)] flex flex-col overflow-hidden relative">
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-8 pb-24">
+          <div className="flex-1 rounded-3xl border border-border/70 bg-bg-card/84 backdrop-blur-md shadow-[0_16px_32px_rgba(0,0,0,0.1),inset_0_1px_0_rgba(255,255,255,0.5)] flex flex-col overflow-hidden relative">
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-7 pb-24">
               {ContentComponent ? <ContentComponent /> : (
                 <div className="flex items-center justify-center h-full text-text-3 text-[14px]">
                   即将推出
@@ -264,14 +245,14 @@ export default function SettingsPanel() {
             </div>
 
             {/* 底部栏 */}
-            <div className="absolute bottom-0 left-0 right-0 h-[64px] bg-bg-card/90 backdrop-blur-md border-t border-border flex items-center justify-end px-8 gap-4 rounded-br-2xl z-10">
+            <div className="absolute bottom-3 left-3 right-3 h-[64px] rounded-2xl bg-bg-card/88 backdrop-blur-xl border border-border/70 shadow-[0_12px_24px_rgba(0,0,0,0.1)] flex items-center justify-end px-6 gap-4 z-10">
               <span className="text-text-3 text-[12px] mr-2">修改设置后如未生效，请重启页面或重启应用</span>
               {activeNav === 'sync' && (
                 <div className="flex items-center gap-2">
                   <button
                     disabled={syncTesting}
                     onClick={handleTestSync}
-                    className="flex items-center gap-1.5 px-5 py-2 bg-chart-green/15 text-chart-green rounded-lg text-[13px] hover:bg-chart-green/25 transition-colors font-medium disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-5 py-2 bg-chart-green/12 text-chart-green border border-chart-green/30 rounded-xl text-[13px] hover:bg-chart-green/18 transition-colors font-medium disabled:opacity-50"
                   >
                     {syncTesting ? <AppIcon icon={icons.loader} size={14} className="animate-spin" /> : null}
                     {syncTesting ? '同步中...' : '测试同步'}
@@ -285,16 +266,16 @@ export default function SettingsPanel() {
                 </div>
               )}
               <button
-                className="px-5 py-2 bg-bg-base text-text-2 rounded-lg text-[13px] hover:bg-border transition-colors font-medium"
+                className="px-5 py-2 bg-bg-base/70 text-text-2 border border-border/80 rounded-xl text-[13px] hover:bg-bg-hover transition-colors font-medium"
                 onClick={resetToDefaults}
               >
                 恢复默认
               </button>
               <button
-                className={`px-5 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                className={`px-5 py-2 rounded-xl text-[13px] font-medium transition-colors border ${
                   dirty
-                    ? 'bg-bg-active text-primary hover:opacity-90 cursor-pointer'
-                    : 'bg-bg-base text-text-disabled cursor-not-allowed'
+                    ? 'bg-bg-active/90 text-primary border-primary/20 shadow-[0_8px_18px_rgba(64,128,255,0.16)] hover:opacity-90 cursor-pointer'
+                    : 'bg-bg-base/70 text-text-disabled border-border/70 cursor-not-allowed'
                 }`}
                 disabled={!dirty}
                 onClick={applySettings}

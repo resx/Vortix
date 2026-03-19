@@ -2,7 +2,7 @@
 
 # Vortix
 
-**A Modern Browser-Based SSH & Server Management Tool**
+**A Modern SSH & Server Management Desktop App (Tauri + React)**
 
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -10,7 +10,7 @@
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-[English](./README.md) | [简体中文](./docs/README.zh-CN.md)
+[English](./README.md) | [中文](./docs/README.zh-CN.md)
 
 </div>
 
@@ -18,22 +18,21 @@
 
 ## Overview
 
-Vortix is a sleek, browser-based SSH and server management platform. It combines a modern React SPA frontend with a Node.js WebSocket backend, enabling you to manage remote servers, transfer files, and monitor system resources — all from your browser.
-
-## Screenshots
-
-> Screenshots coming soon
+Vortix is a cross-platform desktop app built with Tauri and React. It provides SSH terminal access, file management, monitoring, asset organization, and encrypted data sync. The Rust backend (Axum + SQLite) powers local APIs, terminal/SFTP transport, and sync.
 
 ## Features
 
-- **SSH Terminal** — Full-featured terminal powered by xterm.js with WebSocket real-time communication, supporting password and private key authentication
-- **SFTP File Manager** — Browse, upload, and download files on remote servers through an intuitive side panel
-- **Server Monitoring** — Real-time dashboard displaying CPU, memory, disk, and network metrics with interactive charts
-- **Asset Management** — Organize servers and connections with groups, tags, and a searchable asset tree
-- **Multi-Tab Workspace** — Open multiple SSH sessions, asset lists, and monitors simultaneously in a tabbed interface
-- **Settings Panel** — Configurable preferences including theme, font, terminal behavior, database connections, and SSH defaults
-- **Context Menu** — Right-click context menus for quick actions on assets and tabs
-- **Smooth Animations** — Polished transitions and interactions powered by Framer Motion
+- **SSH Terminal** - xterm.js-powered terminal with real-time I/O and key/password auth
+- **SFTP File Manager** - Browse, upload, and download files from remote servers
+- **Server Monitoring** - CPU, memory, disk, and network dashboards
+- **Asset Management** - Folders, tags, and search for connections
+- **Multi-Tab Workspace** - Tabbed sessions and split layouts
+- **Settings & Profiles** - Theme, font, terminal behavior, SSH defaults
+- **Encrypted Sync** - Local/Git/WebDAV/S3 sync with chunked manifest v4
+- **SSH Key Store** - Generate/import/manage keys with encryption
+- **Shortcut Commands** - Reusable command snippets
+- **Theme System** - Light/dark UI and terminal themes
+- **i18n** - Locale framework in progress
 
 ## Tech Stack
 
@@ -41,49 +40,42 @@ Vortix is a sleek, browser-based SSH and server management platform. It combines
 
 | Technology | Purpose |
 |---|---|
-| **React 19** | UI framework with latest features |
-| **TypeScript 5.9** | Type-safe development |
-| **Vite 7** | Lightning-fast build tooling |
-| **Tailwind CSS 4** | Utility-first styling with CSS-native `@theme` configuration |
-| **Zustand** | Lightweight state management |
-| **xterm.js** | Terminal emulator in the browser |
-| **Recharts** | Data visualization for server monitoring |
-| **Framer Motion** | Fluid animations and transitions |
-| **Radix UI** | Accessible headless UI primitives (Dropdown, Select, Switch, Tooltip) |
-| **Lucide React** | Beautiful, consistent icon set |
+| **React 19** | UI framework |
+| **TypeScript 5.9** | Type safety |
+| **Vite 7** | Build tooling |
+| **Tailwind CSS 4** | Styling |
+| **Zustand** | State management |
+| **xterm.js** | Terminal emulator |
+| **Recharts / Tremor** | Monitoring charts |
+| **Framer Motion** | Animations |
+| **Radix UI** | Accessible UI primitives |
 
-### Backend
+### Backend (Rust / Tauri)
 
 | Technology | Purpose |
 |---|---|
-| **Node.js + Express 5** | HTTP server and REST API |
-| **WebSocket (ws)** | Real-time bidirectional communication for terminal I/O |
-| **ssh2** | SSH/SFTP protocol implementation |
+| **Tauri 2** | Desktop runtime |
+| **Rust** | Core backend |
+| **Axum** | Local HTTP API |
+| **Tokio** | Async runtime |
+| **SQLx + SQLite** | Local data storage |
+| **OpenDAL** | WebDAV/S3 storage |
+| **gix (gitoxide)** | Git operations |
+| **Rustls + reqwest** | TLS + HTTP client |
+| **tracing** | Observability |
 
 ## Project Structure
 
-```
+```text
 Vortix/
-├── src/
-│   ├── components/
-│   │   ├── assets/          # Asset table, toolbar, shortcuts
-│   │   ├── context-menu/    # Right-click context menus
-│   │   ├── icons/           # Custom SVG icon components
-│   │   ├── layout/          # Header, Sidebar, ActivityBar
-│   │   ├── panels/          # ServerInfoPanel, SftpPanel
-│   │   ├── settings/        # Settings panel and sub-pages
-│   │   ├── tabs/            # TabBar, TerminalSimulation, ServerMonitor
-│   │   ├── terminal/        # SSH terminal, connection dialog
-│   │   └── ui/              # Reusable UI primitives (Input, Select, Switch...)
-│   ├── stores/              # Zustand state stores
-│   ├── data/                # Mock data
-│   ├── lib/                 # Utility functions (cn helper)
-│   ├── App.tsx              # Root application component
-│   └── main.tsx             # Entry point
-├── server/
-│   └── ssh-server.ts        # Express + WebSocket SSH backend
-├── docs/                    # Documentation
-└── package.json
+|- src/                      # React frontend
+|- src-tauri/                # Rust backend + Tauri
+|  |- src/server/            # Axum routes & handlers
+|  |- src/sync/              # Sync engine (manifest + chunks)
+|  |- src/db/                # SQLx + SQLite
+|  `- src/crypto/            # Encryption utilities
+|- docs/                     # Documentation
+`- package.json
 ```
 
 ## Getting Started
@@ -91,39 +83,26 @@ Vortix/
 ### Prerequisites
 
 - **Node.js** >= 18
-- **pnpm** (recommended package manager)
+- **Rust** stable toolchain
+- **pnpm**
 
-### Installation
+### Development (Desktop)
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/vortix.git
-cd vortix
-
-# Install dependencies
-pnpm install
+pnpm tauri:dev
 ```
 
-### Development
+### Development (Web UI only)
 
 ```bash
-# Start the frontend dev server
 pnpm dev
-
-# Start the SSH backend (in a separate terminal)
-pnpm dev:server
 ```
-
-The frontend will be available at `http://localhost:5173` and the backend at `http://localhost:3000`.
 
 ### Build
 
 ```bash
-# Type-check and build for production
+pnpm tauri:build
 pnpm build
-
-# Preview the production build
-pnpm preview
 ```
 
 ### Lint
@@ -131,33 +110,3 @@ pnpm preview
 ```bash
 pnpm lint
 ```
-
-## Design Highlights
-
-- **Island Layout** — Clean card-based design with a soft gray background (`#F2F3F5`) and white content cards
-- **Apple Liquid Glass** — Optional glass-effect dropdown menus with backdrop-blur and gradient highlights
-- **Design Tokens** — Consistent color system: primary `#4080FF`, text hierarchy `#1F2329` / `#4E5969` / `#86909C`
-- **Custom Scrollbars** — Minimal, macOS-style scrollbar styling
-- **Responsive Panels** — Collapsible sidebar, expandable server info panel, and resizable SFTP panel
-
-## Roadmap
-
-- [ ] Real SSH connection integration (replacing terminal simulation)
-- [ ] Session persistence and reconnection
-- [ ] Multi-language support (i18n)
-- [ ] Dark mode theme
-- [ ] Batch command execution
-- [ ] SSH key management
-- [ ] Export/import server configurations
-
-## Documentation
-
-- [Project Overview & Key Issues](./docs/PROJECT_OVERVIEW.md) — Background, architecture, foreseeable challenges, and competitive analysis
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).

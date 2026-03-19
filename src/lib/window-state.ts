@@ -33,14 +33,32 @@ export async function saveWindowState() {
  * 恢复窗口状态。如果成功恢复，返回 true；否则返回 false。
  */
 export async function restoreWindowState(): Promise<boolean> {
-  const state = await store.get<WindowState>('window-state')
-  if (state) {
+  try {
+    const state = await store.get<WindowState>('window-state')
+    if (!state) return false
+
     const window = getCurrentWindow()
-    await window.setSize(new PhysicalSize(state.width, state.height))
-    await window.setPosition(new PhysicalPosition(state.x, state.y))
+
+    // 安全校验：确保坐标在合理范围内，避免窗口飞到屏幕外
+    const monitor = await window.currentMonitor()
+    if (monitor) {
+      const { width: mw, height: mh } = monitor.size
+      const safeX = Math.max(-100, Math.min(state.x, mw - 100))
+      const safeY = Math.max(0, Math.min(state.y, mh - 100))
+      const safeW = Math.max(800, Math.min(state.width, mw))
+      const safeH = Math.max(600, Math.min(state.height, mh))
+      await window.setSize(new PhysicalSize(safeW, safeH))
+      await window.setPosition(new PhysicalPosition(safeX, safeY))
+    } else {
+      // 无法获取显示器信息，仅恢复尺寸，不恢复位置
+      await window.setSize(new PhysicalSize(state.width, state.height))
+      await window.center()
+    }
     return true
+  } catch (e) {
+    console.warn('[Vortix] 恢复窗口状态失败:', e)
+    return false
   }
-  return false
 }
 
 /**

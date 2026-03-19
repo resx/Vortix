@@ -2,11 +2,13 @@ import { useState, useRef } from 'react'
 import { motion, useDragControls } from 'framer-motion'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
-import { getThemeById } from '../terminal/themes/index'
+import { useThemeStore } from '../../stores/useThemeStore'
+import { getThemeById, type TermThemePreset } from '../terminal/themes/index'
 import { DEFAULT_PROFILE_ID } from '../../types/terminal-profile'
 import TermThemePreview from './TermThemePreview'
 import TermThemeGrid from './TermThemeGrid'
 import KeywordHighlightPanel from './KeywordHighlightPanel'
+import * as api from '../../api/client'
 
 interface TermThemePanelProps {
   isOpen: boolean
@@ -82,8 +84,10 @@ function ProfileSelector({
 
 export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps) {
   const profileStore = useTerminalProfileStore()
+  const themeStore = useThemeStore()
   const allProfiles = profileStore.getAllProfiles()
   const [selectedProfileId, setSelectedProfileId] = useState(profileStore.activeProfileId)
+  const [themeBusy, setThemeBusy] = useState(false)
 
   const profile = profileStore.getProfileById(selectedProfileId) ?? profileStore.getDefaultProfile()
 
@@ -97,11 +101,104 @@ export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps)
   if (!isOpen) return null
 
   const currentId = editingMode === 'dark' ? profile.colorSchemeDark : profile.colorSchemeLight
-  const currentPreset = getThemeById(currentId) ?? getThemeById(editingMode === 'dark' ? 'default-dark' : 'default-light')!
+  const currentTheme = themeStore.getThemeById(currentId)
+  const fallbackPreset = getThemeById(editingMode === 'dark' ? 'default-dark' : 'default-light')!
+  const currentPreset: TermThemePreset = currentTheme
+    ? { id: currentTheme.id, name: currentTheme.name, mode: currentTheme.mode, theme: currentTheme.terminal }
+    : (getThemeById(currentId) ?? fallbackPreset)
+  const canManageCurrentTheme = currentTheme?.source === 'custom'
 
   const handleSelect = (id: string) => {
     const key = editingMode === 'dark' ? 'colorSchemeDark' : 'colorSchemeLight'
     profileStore.updateProfile(selectedProfileId, { [key]: id })
+  }
+
+  const handleCreateTheme = async (duplicate = false) => {
+    const base = currentTheme ?? themeStore.getThemeById(editingMode === 'dark' ? 'default-dark' : 'default-light')
+    if (!base) return
+    const defaultName = duplicate ? `${base.name} 副本` : `自定义主题 ${Date.now().toString().slice(-4)}`
+    const name = window.prompt('请输入主题名称', defaultName)?.trim()
+    if (!name) return
+    setThemeBusy(true)
+    try {
+      const created = await themeStore.createTheme({
+        name,
+        mode: editingMode,
+        terminal: base.terminal,
+        highlights: base.highlights,
+        ui: base.ui,
+        author: base.author,
+      })
+      handleSelect(created.id)
+    } catch (e) {
+      window.alert(`创建主题失败：${(e as Error).message}`)
+    } finally {
+      setThemeBusy(false)
+    }
+  }
+
+  const handleDeleteTheme = async () => {
+    if (!currentTheme || currentTheme.source !== 'custom') return
+    const refs = allProfiles.filter((p) => {
+      const refId = editingMode === 'dark' ? p.colorSchemeDark : p.colorSchemeLight
+      return refId === currentTheme.id
+    })
+    if (refs.length > 0) {
+      window.alert(`该主题仍被 ${refs.length} 个配置引用，请先切换到其他主题后再删除。`)
+      return
+    }
+    if (!window.confirm(`确定删除主题「${currentTheme.name}」吗？`)) return
+    setThemeBusy(true)
+    try {
+      const ok = await themeStore.deleteTheme(currentTheme.id)
+      if (!ok) {
+        window.alert('删除主题失败')
+        return
+      }
+      handleSelect(editingMode === 'dark' ? 'default-dark' : 'default-light')
+    } finally {
+      setThemeBusy(false)
+    }
+  }
+
+  const handleImportTheme = async () => {
+    setThemeBusy(true)
+    try {
+      const picked = await api.pickFile('导入主题文件', 'JSON 文件|*.json|所有文件|*.*')
+      if (!picked.content?.trim()) return
+      const result = await themeStore.importThemes(picked.content)
+      if (result.count > 0) {
+        window.alert(`导入成功：${result.count} 个主题`)
+      } else {
+        window.alert(`导入失败：${result.errors.join('; ') || '未知错误'}`)
+      }
+    } finally {
+      setThemeBusy(false)
+    }
+  }
+
+  const handleExportTheme = async () => {
+    if (!currentTheme || currentTheme.source !== 'custom') return
+    setThemeBusy(true)
+    try {
+      const res = await fetch(api.getThemeExportUrl(currentTheme.id), {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      })
+      if (!res.ok) {
+        const text = await res.text()
+        throw new Error(text || `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const disposition = res.headers.get('content-disposition') || ''
+      const match = /filename="?([^";]+)"?/i.exec(disposition)
+      const fileName = match?.[1] || `${currentTheme.name}.vortix-theme.json`
+      const saved = await api.saveDownloadToLocal(blob, fileName)
+      window.alert(`主题已导出：${saved}`)
+    } catch (e) {
+      window.alert(`导出主题失败：${(e as Error).message}`)
+    } finally {
+      setThemeBusy(false)
+    }
   }
 
   const handleCreate = () => {
@@ -199,6 +296,43 @@ export default function TermThemePanel({ isOpen, onClose }: TermThemePanelProps)
             <div className="flex items-center gap-1 bg-bg-base rounded-lg p-0.5 border border-border">
               <ModeTab mode="light" active={editingMode === 'light'} onClick={() => setEditingMode('light')} />
               <ModeTab mode="dark" active={editingMode === 'dark'} onClick={() => setEditingMode('dark')} />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleCreateTheme(false)}
+                disabled={themeBusy}
+                className="h-[28px] px-2.5 rounded-md text-[11px] text-text-2 border border-border bg-bg-card hover:bg-bg-base transition-colors disabled:opacity-50"
+              >
+                新建主题
+              </button>
+              <button
+                onClick={() => handleCreateTheme(true)}
+                disabled={themeBusy}
+                className="h-[28px] px-2.5 rounded-md text-[11px] text-text-2 border border-border bg-bg-card hover:bg-bg-base transition-colors disabled:opacity-50"
+              >
+                复制主题
+              </button>
+              <button
+                onClick={handleImportTheme}
+                disabled={themeBusy}
+                className="h-[28px] px-2.5 rounded-md text-[11px] text-text-2 border border-border bg-bg-card hover:bg-bg-base transition-colors disabled:opacity-50"
+              >
+                导入
+              </button>
+              <button
+                onClick={handleExportTheme}
+                disabled={themeBusy || !canManageCurrentTheme}
+                className="h-[28px] px-2.5 rounded-md text-[11px] text-text-2 border border-border bg-bg-card hover:bg-bg-base transition-colors disabled:opacity-50"
+              >
+                导出
+              </button>
+              <button
+                onClick={handleDeleteTheme}
+                disabled={themeBusy || !canManageCurrentTheme}
+                className="h-[28px] px-2.5 rounded-md text-[11px] text-status-error border border-status-error/30 bg-status-error/5 hover:bg-status-error/10 transition-colors disabled:opacity-50"
+              >
+                删除
+              </button>
             </div>
           </div>
 

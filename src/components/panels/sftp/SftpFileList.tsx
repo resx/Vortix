@@ -45,15 +45,9 @@ interface Props {
   onDoubleClick: (entry: SftpFileEntry) => void
   onFileDrop?: (files: File[]) => void
   onRename?: (oldPath: string, newName: string) => void
-  onCopy?: () => void
-  onCut?: () => void
-  onPaste?: () => void
-  onDelete?: (path: string, isDir: boolean) => void
-  onRenameStart?: (entry: SftpFileEntry) => void
-  onRefresh?: () => void
 }
 
-export default function SftpFileList({ onNavigate, onContextMenu, onBlankContextMenu, onDoubleClick, onFileDrop, onRename, onCopy, onCut, onPaste, onDelete, onRenameStart, onRefresh }: Props) {
+export default function SftpFileList({ onNavigate, onContextMenu, onBlankContextMenu, onDoubleClick, onFileDrop, onRename }: Props) {
   const entries = useSftpStore(s => s.entries)
   const loading = useSftpStore(s => s.loading)
   const showHidden = useSftpStore(s => s.showHidden)

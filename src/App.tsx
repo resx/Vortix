@@ -19,7 +19,7 @@ import { useTabStore } from './stores/useTabStore'
 import { useUIStore } from './stores/useUIStore'
 import { TooltipProvider } from './components/ui/tooltip'
 import { bootstrap } from './bootstrap'
-import { useAppInit, useThemeEffect, useUIFontEffect, useZoomEffect, useAnimationEffect, useGlobalShortcuts, useConfigChangedListener, useWindowReady, useTabStatePersistence, useIdleLock } from './hooks/useAppEffects'
+import { useAppInit, useThemeEffect, useUIFontEffect, useZoomEffect, useAnimationEffect, useGlobalShortcuts, useConfigChangedListener, useWindowReady, useTabStatePersistence, useIdleLock, useWindowSizeEffect } from './hooks/useAppEffects'
 import DetachedTerminalView from './components/windows/DetachedTerminalView'
 import LockScreen from './components/lock/LockScreen'
 
@@ -61,6 +61,7 @@ function MainApp() {
   useTabStatePersistence()
   useIdleLock()
   useWindowReady()
+  useWindowSizeEffect()
 
   const activeTab = tabs.find(t => t.id === activeTabId)
   const isListView = activeTab?.type === 'list'
