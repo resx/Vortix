@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.vortix.app",
   "build": {
-    "beforeDevCommand": "pnpm dev:all",
+    "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"

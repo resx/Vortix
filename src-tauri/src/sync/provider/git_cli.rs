@@ -10,7 +10,7 @@ use tokio::task;
 use tokio::time;
 
 use super::SyncProvider;
-use crate::server::types::{SyncFileInfo, SyncRequestBody};
+use crate::server::types::{SyncFileInfo, SyncRequestBody, RemoteCheckResult};
 
 /// 规范化 SSH 私钥文本（处理转义换行、BOM、CRLF 等）
 fn canonicalize_ssh_key(raw: &str) -> String {
@@ -443,6 +443,47 @@ impl GitProvider {
         if let Some(ref p) = key_path { let _ = fs::remove_file(p); }
         result.map(|_| ())
     }
+
+    /// 轻量级远端变更检测：仅用 ls-remote + rev-parse 对比 hash，不触发 fetch
+    fn check_remote_hash(&self) -> Result<RemoteCheckResult, String> {
+        // 本地 HEAD
+        let local_hash = if self.has_repo() {
+            let output = self.git_cmd(None)
+                .args(["rev-parse", "HEAD"])
+                .output()
+                .map_err(|e| format!("git rev-parse 失败: {}", e))?;
+            match Self::run_output(output, "rev-parse") {
+                Ok(s) => s.trim().to_string(),
+                Err(_) => String::new(),
+            }
+        } else {
+            String::new()
+        };
+
+        // 远端 HEAD（仅网络查询，不下载对象）
+        let key_path = self.write_temp_key()?;
+        let result: Result<String, String> = (|| {
+            let output = self
+                .git_cmd_no_workdir(key_path.as_deref())
+                .args(["ls-remote", "--heads"])
+                .arg(&self.auth_url())
+                .arg(&self.branch)
+                .output()
+                .map_err(|e| format!("git ls-remote 失败: {}", e))?;
+            let stdout = Self::run_output(output, "ls-remote")?;
+            // 格式: "<hash>\trefs/heads/<branch>"
+            let remote_hash = stdout.split_whitespace().next().unwrap_or("").to_string();
+            Ok(remote_hash)
+        })();
+        if let Some(ref p) = key_path { let _ = fs::remove_file(p); }
+        let remote_hash = result?;
+
+        let has_update = !remote_hash.is_empty()
+            && !local_hash.is_empty()
+            && remote_hash != local_hash;
+        Ok(RemoteCheckResult { has_update, remote_hash, local_hash })
+    }
+
     async fn run_blocking<T, F>(&self, label: &'static str, timeout_secs: u64, op: F) -> Result<T, String>
     where
         T: Send + 'static,
@@ -544,6 +585,12 @@ impl SyncProvider for GitProvider {
     async fn finalize(&self, _message: &str) -> Result<(), String> {
         self.run_blocking("push", Self::WRITE_TIMEOUT_SECS, move |p| {
             p.commit_and_push()
+        }).await
+    }
+
+    async fn check_remote_changed(&self, _key: &str, _known_hash: &str) -> Result<RemoteCheckResult, String> {
+        self.run_blocking("check-remote", Self::TEST_TIMEOUT_SECS, move |p| {
+            p.check_remote_hash()
         }).await
     }
 

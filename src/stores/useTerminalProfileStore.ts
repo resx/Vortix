@@ -52,7 +52,6 @@ export const useTerminalProfileStore = create<TerminalProfileStore>((set, get) =
       cursorStyle: s.termCursorStyle,
       cursorBlink: s.termCursorBlink,
       scrollback: s.termScrollback,
-      keywordHighlights: s.keywordHighlights,
     }
   },
 
@@ -99,8 +98,20 @@ export const useTerminalProfileStore = create<TerminalProfileStore>((set, get) =
       if (data.cursorStyle !== undefined) s.updateSetting('termCursorStyle', data.cursorStyle)
       if (data.cursorBlink !== undefined) s.updateSetting('termCursorBlink', data.cursorBlink)
       if (data.scrollback !== undefined) s.updateSetting('termScrollback', data.scrollback)
-      if (data.keywordHighlights !== undefined) s.updateSetting('keywordHighlights', data.keywordHighlights)
-      // 触发 terminal profile store 订阅者重新渲染（默认配置从 settings store 派生，需要通知）
+      // 默认配置也需要持久化并跨窗口广播，否则主题管理器改动不会同步到主窗口终端
+      void (async () => {
+        try {
+          await s.applySettings()
+          if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+            const payload = { source: 'terminal-profile' }
+            await emitTo('main', 'config-changed', payload)
+            await emitTo('settings', 'config-changed', payload)
+          }
+        } catch (e) {
+          console.error('[Vortix] 保存默认终端配置失败', e)
+        }
+      })()
+      // 刷新 terminal profile store 订阅者（数据来自 settings store，不落 profiles）
       set({})
       return
     }

@@ -7,7 +7,6 @@ import { getThemeById, type TermThemePreset } from '../terminal/themes/index'
 import { DEFAULT_PROFILE_ID } from '../../types/terminal-profile'
 import TermThemePreview from './TermThemePreview'
 import TermThemeGrid from './TermThemeGrid'
-import KeywordHighlightPanel from './KeywordHighlightPanel'
 import * as api from '../../api/client'
 import { handleTitleBarMouseDown, handleTitleBarDoubleClick } from '../../lib/window'
 
@@ -314,9 +313,6 @@ export default function TermThemePanel({ isOpen, onClose, windowMode = false }: 
 
           <TermThemeGrid mode={editingMode} selectedId={currentId} onSelect={handleSelect} />
 
-          <div className="mt-5">
-            <KeywordHighlightPanel profileId={selectedProfileId} />
-          </div>
         </div>
       </div>
     )
@@ -431,10 +427,6 @@ export default function TermThemePanel({ isOpen, onClose, windowMode = false }: 
           {/* 主题网格 */}
           <TermThemeGrid mode={editingMode} selectedId={currentId} onSelect={handleSelect} />
 
-          {/* 关键词高亮配色 */}
-          <div className="mt-5">
-            <KeywordHighlightPanel profileId={selectedProfileId} />
-          </div>
         </div>
       </motion.div>
     </motion.div>

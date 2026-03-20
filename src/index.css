@@ -158,6 +158,28 @@
   background: rgba(30, 58, 110, 0.35);
 }
 
+/* Sync Provider: 局部双列对齐，仅用于 Git/WebDAV/S3 配置区 */
+.sync-provider-grid .island-row {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+
+.sync-provider-grid .island-row > div:first-child {
+  width: 148px;
+  min-width: 148px;
+}
+
+.sync-provider-grid .island-row > div:last-child {
+  min-width: 0;
+}
+
+.sync-provider-grid .island-row > div:last-child > div {
+  justify-content: flex-start !important;
+}
+
+
 /* ── @theme 注册 ── */
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;

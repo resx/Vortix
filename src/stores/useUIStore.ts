@@ -83,6 +83,10 @@ interface UIState {
   openSyncConflict: (payload: SyncConflictState) => void
   closeSyncConflict: () => void
 
+  // 远端更新提示
+  syncRemoteAvailable: boolean
+  setSyncRemoteAvailable: (v: boolean) => void
+
   // 锁屏
   isLocked: boolean
   setLocked: (v: boolean) => void
@@ -165,6 +169,10 @@ export const useUIStore = create<UIState>((set) => ({
   syncConflict: null,
   openSyncConflict: (payload) => set({ syncConflictOpen: true, syncConflict: payload }),
   closeSyncConflict: () => set({ syncConflictOpen: false, syncConflict: null }),
+
+  // 远端更新提示
+  syncRemoteAvailable: false,
+  setSyncRemoteAvailable: (v) => set({ syncRemoteAvailable: v }),
 
   // 锁屏
   isLocked: false,

@@ -1,21 +1,18 @@
-/* ── SSH 终端 Worker ── */
+/* ── SSH 终端 Worker (russh) ── */
 
+use russh::keys::{decode_secret_key, PrivateKeyWithHashAlg};
+use russh::{client, ChannelMsg};
 use serde_json::{json, Value};
-use ssh2::{Channel, Session};
 use std::collections::HashMap;
-use std::io::Read;
-use std::net::TcpStream as StdTcpStream;
-use std::sync::mpsc;
-use std::thread;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
-
-use crate::server::helpers::userauth_pubkey_with_tempfile;
+use tokio::sync::mpsc as tokio_mpsc;
 
 /* ── 类型 ── */
 
 #[derive(Clone)]
 pub struct SshWorker {
-    pub tx: mpsc::Sender<SshReq>,
+    pub tx: tokio_mpsc::UnboundedSender<SshReq>,
 }
 
 #[derive(Debug)]
@@ -28,42 +25,36 @@ pub enum SshReq {
     Disconnect,
 }
 
-/* ── SSH 辅助函数 ── */
+/* ── russh Handler ── */
 
-fn ssh_is_eagain(err: &std::io::Error) -> bool {
-    err.kind() == std::io::ErrorKind::WouldBlock
-}
+struct SshHandler;
 
-fn ssh_write_all(channel: &mut Channel, data: &[u8]) -> Result<(), std::io::Error> {
-    use std::io::Write;
-    let mut offset = 0;
-    while offset < data.len() {
-        match channel.write(&data[offset..]) {
-            Ok(0) => { thread::sleep(Duration::from_millis(5)); }
-            Ok(n) => { offset += n; }
-            Err(e) if ssh_is_eagain(&e) => { thread::sleep(Duration::from_millis(5)); }
-            Err(e) => return Err(e),
-        }
+impl client::Handler for SshHandler {
+    type Error = russh::Error;
+
+    async fn check_server_key(&mut self, _key: &russh::keys::ssh_key::PublicKey) -> Result<bool, Self::Error> {
+        Ok(true)
     }
-    Ok(())
 }
 
-fn ssh_exec(session: &Session, cmd: &str) -> Result<String, String> {
-    let was_blocking = session.is_blocking();
-    session.set_blocking(true);
-    let mut channel = session.channel_session().map_err(|e| e.to_string())?;
-    channel.exec(cmd).map_err(|e| e.to_string())?;
-    let mut stdout = String::new();
-    let _ = channel.read_to_string(&mut stdout);
-    let mut stderr = String::new();
-    let _ = channel.stderr().read_to_string(&mut stderr);
-    let _ = channel.wait_close();
-    session.set_blocking(was_blocking);
-    Ok(stdout)
-}
+/* ── 辅助函数 ── */
 
 fn round1(v: f64) -> f64 {
     (v * 10.0).round() / 10.0
+}
+
+async fn russh_exec(handle: &client::Handle<SshHandler>, cmd: &str) -> Result<String, String> {
+    let mut ch = handle.channel_open_session().await.map_err(|e| e.to_string())?;
+    ch.exec(true, cmd).await.map_err(|e| e.to_string())?;
+    let mut stdout = String::new();
+    while let Some(msg) = ch.wait().await {
+        match msg {
+            ChannelMsg::Data { data } => stdout.push_str(&String::from_utf8_lossy(&data)),
+            ChannelMsg::Eof | ChannelMsg::Close => break,
+            _ => {}
+        }
+    }
+    Ok(stdout)
 }
 
 /* ── Worker 启动 ── */
@@ -81,90 +72,85 @@ pub fn start_ssh_worker(
     let cols = connect.get("cols").and_then(|v| v.as_u64()).unwrap_or(120).clamp(1, 500) as u32;
     let rows = connect.get("rows").and_then(|v| v.as_u64()).unwrap_or(30).clamp(1, 200) as u32;
 
-    let (tx, rx) = mpsc::channel::<SshReq>();
+    let (tx, rx) = tokio_mpsc::unbounded_channel::<SshReq>();
 
-    thread::spawn(move || {
-        let addr = format!("{host}:{port}");
-        let tcp = match StdTcpStream::connect(addr) {
-            Ok(stream) => stream,
-            Err(e) => {
-                let _ = event_tx.send(json!({ "type": "error", "data": format!("连接失败: {e}") }));
-                return;
-            }
-        };
-
-        let mut sess = match Session::new() {
-            Ok(s) => s,
-            Err(e) => {
-                let _ = event_tx.send(json!({ "type": "error", "data": format!("无法初始化 SSH 会话: {e}") }));
-                return;
-            }
-        };
-        sess.set_tcp_stream(tcp);
-        if let Err(e) = sess.handshake() {
-            let _ = event_tx.send(json!({ "type": "error", "data": format!("SSH 握手失败: {e}") }));
-            return;
+    tokio::spawn(async move {
+        if let Err(e) = ssh_worker_task(
+            host, port, username, password, private_key, passphrase,
+            cols, rows, rx, event_tx.clone(),
+        ).await {
+            let _ = event_tx.send(json!({ "type": "error", "data": e }));
         }
-
-        let auth_result: Result<(), String> = if let Some(key) = private_key.as_deref() {
-            userauth_pubkey_with_tempfile(&sess, &username, key, passphrase.as_deref())
-        } else if let Some(pwd) = password.as_deref() {
-            sess.userauth_password(&username, pwd).map_err(|e| e.to_string())
-        } else {
-            Err("缺少认证方式".to_string())
-        };
-
-        if let Err(e) = auth_result {
-            let _ = event_tx.send(json!({ "type": "error", "data": format!("认证失败: {e}") }));
-            return;
-        }
-        if !sess.authenticated() {
-            let _ = event_tx.send(json!({ "type": "error", "data": "认证失败" }));
-            return;
-        }
-
-        let mut channel = match sess.channel_session() {
-            Ok(c) => c,
-            Err(e) => {
-                let _ = event_tx.send(json!({ "type": "error", "data": format!("创建通道失败: {e}") }));
-                return;
-            }
-        };
-        if let Err(e) = channel.request_pty("xterm-256color", None, Some((cols, rows, 0, 0))) {
-            let _ = event_tx.send(json!({ "type": "error", "data": format!("申请 PTY 失败: {e}") }));
-            return;
-        }
-        if let Err(e) = channel.shell() {
-            let _ = event_tx.send(json!({ "type": "error", "data": format!("启动 Shell 失败: {e}") }));
-            return;
-        }
-
-        let _ = event_tx.send(json!({ "type": "status", "data": "connected" }));
-        sess.set_blocking(false);
-
-        ssh_main_loop(&sess, &mut channel, &rx, &event_tx);
-
-        let _ = event_tx.send(json!({ "type": "status", "data": "closed" }));
     });
 
     Ok(SshWorker { tx })
 }
 
+async fn ssh_worker_task(
+    host: String, port: u16, username: String,
+    password: Option<String>, private_key: Option<String>, passphrase: Option<String>,
+    cols: u32, rows: u32,
+    rx: tokio_mpsc::UnboundedReceiver<SshReq>,
+    event_tx: tokio::sync::mpsc::UnboundedSender<Value>,
+) -> Result<(), String> {
+    let config = Arc::new(client::Config::default());
+    let mut handle = client::connect(config, (host.as_str(), port), SshHandler)
+        .await
+        .map_err(|e| format!("SSH 连接失败: {}", e))?;
+
+    tracing::info!("SSH 会话已建立 ({})，开始认证用户: {}", host, username);
+
+    let auth_result = if let Some(key_str) = private_key.as_deref() {
+        tracing::info!("尝试私钥认证 (用户: {}, 长度: {}, 有口令: {})", username, key_str.len(), passphrase.is_some());
+        let key_pair = decode_secret_key(key_str, passphrase.as_deref())
+            .map_err(|e| format!("私钥解析失败: {}", e))?;
+        handle.authenticate_publickey(
+            &username,
+            PrivateKeyWithHashAlg::new(
+                Arc::new(key_pair),
+                handle.best_supported_rsa_hash().await.map_err(|e| e.to_string())?.flatten(),
+            ),
+        ).await.map_err(|e| format!("认证失败: {}", e))?
+    } else if let Some(pwd) = password.as_deref() {
+        tracing::info!("尝试密码认证 (用户: {})", username);
+        handle.authenticate_password(&username, pwd)
+            .await.map_err(|e| format!("认证失败: {}", e))?
+    } else {
+        return Err("缺少认证方式".to_string());
+    };
+
+    if !auth_result.success() {
+        return Err("认证失败: 凭据无效或服务器拒绝访问".to_string());
+    }
+    tracing::info!("SSH 认证成功 ({})", host);
+
+    let mut channel = handle.channel_open_session().await
+        .map_err(|e| format!("创建通道失败: {}", e))?;
+    channel.request_pty(false, "xterm-256color", cols, rows, 0, 0, &[]).await
+        .map_err(|e| format!("申请 PTY 失败: {}", e))?;
+    channel.request_shell(false).await
+        .map_err(|e| format!("启动 Shell 失败: {}", e))?;
+
+    let _ = event_tx.send(json!({ "type": "status", "data": "connected" }));
+    ssh_main_loop(&handle, &mut channel, rx, &event_tx).await;
+    let _ = event_tx.send(json!({ "type": "status", "data": "closed" }));
+    Ok(())
+}
+
 /* ── SSH 主循环 ── */
 
-fn ssh_main_loop(
-    sess: &Session,
-    channel: &mut Channel,
-    rx: &mpsc::Receiver<SshReq>,
+async fn ssh_main_loop(
+    handle: &client::Handle<SshHandler>,
+    channel: &mut russh::Channel<client::Msg>,
+    mut rx: tokio_mpsc::UnboundedReceiver<SshReq>,
     event_tx: &tokio::sync::mpsc::UnboundedSender<Value>,
 ) {
     let mut pwd_request_id: Option<String> = None;
     let mut pwd_buffer = String::new();
     let mut suppress_until: Option<Instant> = None;
-    let mut should_close = false;
 
     let mut monitor_enabled = false;
-    let mut monitor_next_at = Instant::now();
+    let mut monitor_interval = tokio::time::interval(Duration::from_secs(3));
     let mut prev_cpu_sample: Option<Vec<u64>> = None;
     let mut prev_per_core_samples: Option<Vec<Vec<u64>>> = None;
     let mut prev_net_sample: Option<HashMap<String, (u64, u64)>> = None;
@@ -172,112 +158,89 @@ fn ssh_main_loop(
     let mut cpu_core_count: u32 = 1;
 
     loop {
-        while let Ok(req) = rx.try_recv() {
-            match req {
-                SshReq::Input(data) => {
-                    let _ = ssh_write_all(channel, data.as_bytes());
-                }
-                SshReq::Resize { cols, rows } => {
-                    let _ = channel.request_pty_size(cols, rows, None, None);
-                }
-                SshReq::Pwd { request_id } => {
-                    pwd_request_id = request_id;
-                    pwd_buffer.clear();
-                    let _ = ssh_write_all(channel, b" printf '\\x5f\\x5fVORTIX_PWD_START\\x5f\\x5f%s\\x5f\\x5fVORTIX_PWD_END\\x5f\\x5f\\n' \"$(pwd)\"\n");
-                }
-                SshReq::MonitorStart => {
-                    monitor_enabled = true;
-                    prev_cpu_sample = None;
-                    prev_per_core_samples = None;
-                    prev_net_sample = None;
-                    prev_sample_time = None;
-                    monitor_next_at = Instant::now();
-                    handle_monitor_init(sess, event_tx, &mut cpu_core_count);
-                }
-                SshReq::MonitorStop => {
-                    monitor_enabled = false;
-                    prev_cpu_sample = None;
-                    prev_per_core_samples = None;
-                    prev_net_sample = None;
-                    prev_sample_time = None;
-                }
-                SshReq::Disconnect => {
-                    should_close = true;
+        tokio::select! {
+            Some(req) = rx.recv() => {
+                match req {
+                    SshReq::Input(data) => { let _ = channel.data(data.as_bytes()).await; }
+                    SshReq::Resize { cols, rows } => { let _ = channel.window_change(cols, rows, 0, 0).await; }
+                    SshReq::Pwd { request_id } => {
+                        pwd_request_id = request_id;
+                        pwd_buffer.clear();
+                        let _ = channel.data(&b" printf '\\x5f\\x5fVORTIX_PWD_START\\x5f\\x5f%s\\x5f\\x5fVORTIX_PWD_END\\x5f\\x5f\\n' \"$(pwd)\"\n"[..]).await;
+                    }
+                    SshReq::MonitorStart => {
+                        monitor_enabled = true;
+                        prev_cpu_sample = None;
+                        prev_per_core_samples = None;
+                        prev_net_sample = None;
+                        prev_sample_time = None;
+                        monitor_interval.reset();
+                        handle_monitor_init(handle, event_tx, &mut cpu_core_count).await;
+                    }
+                    SshReq::MonitorStop => {
+                        monitor_enabled = false;
+                        prev_cpu_sample = None;
+                        prev_per_core_samples = None;
+                        prev_net_sample = None;
+                        prev_sample_time = None;
+                    }
+                    SshReq::Disconnect => { let _ = channel.close().await; break; }
                 }
             }
-        }
-
-        if should_close {
-            let _ = channel.close();
-            break;
-        }
-
-        // 读取终端输出
-        let mut buf = [0u8; 8192];
-        match channel.read(&mut buf) {
-            Ok(0) => {
-                if channel.eof() { break; }
-            }
-            Ok(n) => {
-                let text = String::from_utf8_lossy(&buf[..n]).to_string();
-                // PWD 检测
-                if let Some(req_id) = pwd_request_id.clone() {
-                    pwd_buffer.push_str(&text);
-                    let start = pwd_buffer.find("__VORTIX_PWD_START__");
-                    let end = pwd_buffer.find("__VORTIX_PWD_END__");
-                    if let (Some(s), Some(e)) = (start, end) {
-                        if e > s {
-                            let path = pwd_buffer[s + "__VORTIX_PWD_START__".len()..e].trim().to_string();
-                            let _ = event_tx.send(json!({
-                                "type": "pwd-result",
-                                "data": { "requestId": req_id, "path": path }
-                            }));
-                            pwd_request_id = None;
-                            pwd_buffer.clear();
-                            suppress_until = Some(Instant::now() + Duration::from_millis(300));
+            Some(msg) = channel.wait() => {
+                match msg {
+                    ChannelMsg::Data { data } => {
+                        let text = String::from_utf8_lossy(&data).to_string();
+                        if let Some(req_id) = pwd_request_id.clone() {
+                            pwd_buffer.push_str(&text);
+                            let start = pwd_buffer.find("__VORTIX_PWD_START__");
+                            let end = pwd_buffer.find("__VORTIX_PWD_END__");
+                            if let (Some(s), Some(e)) = (start, end) {
+                                if e > s {
+                                    let path = pwd_buffer[s + "__VORTIX_PWD_START__".len()..e].trim().to_string();
+                                    let _ = event_tx.send(json!({
+                                        "type": "pwd-result",
+                                        "data": { "requestId": req_id, "path": path }
+                                    }));
+                                    pwd_request_id = None;
+                                    pwd_buffer.clear();
+                                    suppress_until = Some(Instant::now() + Duration::from_millis(300));
+                                    continue;
+                                }
+                            }
                             continue;
                         }
+                        if let Some(until) = suppress_until {
+                            if Instant::now() < until { continue; }
+                            suppress_until = None;
+                        }
+                        let _ = event_tx.send(json!({ "type": "output", "data": text }));
                     }
-                    continue;
+                    ChannelMsg::Eof | ChannelMsg::Close => break,
+                    _ => {}
                 }
-
-                if let Some(until) = suppress_until {
-                    if Instant::now() < until { continue; }
-                    suppress_until = None;
-                }
-
-                let _ = event_tx.send(json!({ "type": "output", "data": text }));
             }
-            Err(e) if ssh_is_eagain(&e) => {}
-            Err(e) => {
-                let _ = event_tx.send(json!({ "type": "error", "data": format!("SSH 读取失败: {e}") }));
-                break;
+            _ = monitor_interval.tick(), if monitor_enabled => {
+                collect_monitor_snapshot(
+                    handle, event_tx,
+                    &mut prev_cpu_sample, &mut prev_per_core_samples,
+                    &mut prev_net_sample, &mut prev_sample_time,
+                    cpu_core_count,
+                ).await;
             }
+            else => break,
         }
-
-        // 服务器监控采样
-        if monitor_enabled && Instant::now() >= monitor_next_at {
-            monitor_next_at = Instant::now() + Duration::from_secs(3);
-            collect_monitor_snapshot(
-                sess, event_tx,
-                &mut prev_cpu_sample, &mut prev_per_core_samples,
-                &mut prev_net_sample, &mut prev_sample_time,
-                cpu_core_count,
-            );
-        }
-
-        thread::sleep(Duration::from_millis(10));
     }
 }
 
 /* ── 监控初始化 ── */
 
-fn handle_monitor_init(
-    sess: &Session,
+async fn handle_monitor_init(
+    handle: &client::Handle<SshHandler>,
     event_tx: &tokio::sync::mpsc::UnboundedSender<Value>,
     cpu_core_count: &mut u32,
 ) {
-    if let Ok(raw) = ssh_exec(sess, "uname -sr; echo \"===SEP===\"; hostname; echo \"===SEP===\"; whoami; echo \"===SEP===\"; cat /proc/uptime; echo \"===SEP===\"; nproc") {
+    if let Ok(raw) = russh_exec(handle, "uname -sr; echo \"===SEP===\"; hostname; echo \"===SEP===\"; whoami; echo \"===SEP===\"; cat /proc/uptime; echo \"===SEP===\"; nproc").await {
         let parts: Vec<&str> = raw.split("===SEP===").map(|s| s.trim()).collect();
         let os = parts.first().copied().unwrap_or("Linux");
         let host = parts.get(1).copied().unwrap_or("unknown");
@@ -300,8 +263,8 @@ fn handle_monitor_init(
 /* ── 监控快照采集 ── */
 
 #[allow(clippy::too_many_arguments)]
-fn collect_monitor_snapshot(
-    sess: &Session,
+async fn collect_monitor_snapshot(
+    handle: &client::Handle<SshHandler>,
     event_tx: &tokio::sync::mpsc::UnboundedSender<Value>,
     prev_cpu_sample: &mut Option<Vec<u64>>,
     prev_per_core_samples: &mut Option<Vec<Vec<u64>>>,
@@ -310,7 +273,7 @@ fn collect_monitor_snapshot(
     cpu_core_count: u32,
 ) {
     let cmd = "cat /proc/stat; echo \"===SEP===\"; cat /proc/meminfo | grep -E \"^(MemTotal|MemFree|MemAvailable|Buffers|Cached|SwapTotal|SwapFree):\"; echo \"===SEP===\"; df -B1 2>/dev/null | tail -n +2; echo \"===SEP===\"; cat /proc/net/dev | tail -n +3; echo \"===SEP===\"; ps aux --sort=-%cpu 2>/dev/null | head -11";
-    let Ok(raw) = ssh_exec(sess, cmd) else { return };
+    let Ok(raw) = russh_exec(handle, cmd).await else { return };
 
     let sections: Vec<&str> = raw.split("===SEP===").map(|s| s.trim()).collect();
     let stat_lines: Vec<&str> = sections.first().copied().unwrap_or("").lines().collect();
@@ -319,25 +282,14 @@ fn collect_monitor_snapshot(
     let net_lines: Vec<&str> = sections.get(3).copied().unwrap_or("").lines().collect();
     let ps_lines: Vec<&str> = sections.get(4).copied().unwrap_or("").lines().collect();
 
-    // CPU 总体
     let (cpu_usage, cpu_kernel, cpu_user, cpu_io) = parse_cpu_total(&stat_lines, prev_cpu_sample);
-
-    // 逐核 CPU
     let cpu_per_core = parse_cpu_per_core(&stat_lines, prev_per_core_samples);
-
-    // 内存
     let (mem_used, mem_total, swap_used, swap_total) = parse_memory(&mem_lines);
-
-    // 磁盘
     let disks = parse_disks(&df_lines);
-
-    // 网络
     let now = Instant::now();
     let elapsed = prev_sample_time.map(|t| now.duration_since(t).as_secs_f64()).unwrap_or(3.0);
     *prev_sample_time = Some(now);
     let (net_up, net_down, net_total_up, net_total_down, nics) = parse_network(&net_lines, prev_net_sample, elapsed);
-
-    // 进程
     let processes = parse_processes(&ps_lines);
 
     let snapshot = json!({
@@ -407,12 +359,8 @@ fn parse_cpu_per_core(stat_lines: &[&str], prev_per_core_samples: &mut Option<Ve
                 let d_idle = idle.saturating_sub(prev_idle) as f64;
                 let val = if d_total > 0.0 { ((1.0 - d_idle / d_total) * 100.0).round() } else { 0.0 };
                 cpu_per_core.push(val);
-            } else {
-                cpu_per_core.push(0.0);
-            }
-        } else {
-            cpu_per_core.push(0.0);
-        }
+            } else { cpu_per_core.push(0.0); }
+        } else { cpu_per_core.push(0.0); }
         per_core_samples.push(fields);
     }
     *prev_per_core_samples = Some(per_core_samples);
@@ -425,18 +373,14 @@ fn parse_memory(mem_lines: &[&str]) -> (f64, f64, f64, f64) {
         let mut parts = line.split_whitespace();
         if let (Some(key), Some(val)) = (parts.next(), parts.next()) {
             let k = key.trim_end_matches(':').to_string();
-            if let Ok(v) = val.parse::<u64>() {
-                mem_map.insert(k, v);
-            }
+            if let Ok(v) = val.parse::<u64>() { mem_map.insert(k, v); }
         }
     }
     let mem_total_kb = *mem_map.get("MemTotal").unwrap_or(&0) as f64;
     let mem_available_kb = if let Some(v) = mem_map.get("MemAvailable") {
         *v as f64
     } else {
-        (*mem_map.get("MemFree").unwrap_or(&0)
-            + *mem_map.get("Buffers").unwrap_or(&0)
-            + *mem_map.get("Cached").unwrap_or(&0)) as f64
+        (*mem_map.get("MemFree").unwrap_or(&0) + *mem_map.get("Buffers").unwrap_or(&0) + *mem_map.get("Cached").unwrap_or(&0)) as f64
     };
     let mem_used = round1(((mem_total_kb - mem_available_kb) / 1024.0).max(0.0));
     let mem_total = round1(mem_total_kb / 1024.0);
@@ -456,10 +400,7 @@ fn parse_disks(df_lines: &[&str]) -> Vec<Value> {
         let total = round1(total_b as f64 / (1024.0 * 1024.0 * 1024.0));
         let used = round1(used_b as f64 / (1024.0 * 1024.0 * 1024.0));
         let percent = ((used_b as f64 / total_b as f64) * 100.0).floor();
-        disks.push(json!({
-            "name": cols[0], "used": used, "total": total,
-            "percent": percent, "path": cols[5],
-        }));
+        disks.push(json!({ "name": cols[0], "used": used, "total": total, "percent": percent, "path": cols[5] }));
     }
     disks
 }
@@ -475,7 +416,6 @@ fn parse_network(
     let mut net_total_down: u64 = 0;
     let mut nics = Vec::new();
     let mut current_net_sample: HashMap<String, (u64, u64)> = HashMap::new();
-
     for line in net_lines {
         if let Some((name_part, data_part)) = line.split_once(':') {
             let name = name_part.trim().to_string();
@@ -486,7 +426,6 @@ fn parse_network(
             current_net_sample.insert(name.clone(), (rx, tx));
             net_total_up += tx;
             net_total_down += rx;
-
             let mut rx_rate = 0.0;
             let mut tx_rate = 0.0;
             if let Some(prev) = prev_net_sample.as_ref() {
@@ -498,11 +437,7 @@ fn parse_network(
             net_up += tx_rate;
             net_down += rx_rate;
             if name != "lo" {
-                nics.push(json!({
-                    "name": name, "ip": "-",
-                    "rxRate": round1(rx_rate), "txRate": round1(tx_rate),
-                    "rxTotal": rx, "txTotal": tx,
-                }));
+                nics.push(json!({ "name": name, "ip": "-", "rxRate": round1(rx_rate), "txRate": round1(tx_rate), "rxTotal": rx, "txTotal": tx }));
             }
         }
     }

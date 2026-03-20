@@ -1,24 +1,25 @@
-/* ── SFTP Worker ── */
+/* ── SFTP Worker (russh-sftp) ── */
 
 use base64::engine::general_purpose::STANDARD as BASE64_STD;
 use base64::Engine;
 use chrono::Utc;
 use serde_json::{json, Value};
-use ssh2::{FileStat, Session, Sftp};
+use russh_sftp::client::SftpSession;
+use russh_sftp::client::fs::{Metadata, File};
+use russh::keys::PrivateKeyWithHashAlg;
 use std::collections::HashMap;
-use std::io::{Read, Write};
-use std::net::TcpStream as StdTcpStream;
-use std::sync::mpsc;
-use std::thread;
+use std::sync::Arc;
+use tokio::sync::mpsc as tokio_mpsc;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use crate::server::helpers::userauth_pubkey_with_tempfile;
+use crate::server::helpers::establish_russh_session;
 use super::WsMessage;
 
 /* ── 类型 ── */
 
 #[derive(Clone)]
 pub struct SftpWorker {
-    pub tx: mpsc::Sender<WorkerReq>,
+    pub tx: tokio_mpsc::UnboundedSender<WorkerReq>,
 }
 
 #[derive(Debug)]
@@ -31,7 +32,7 @@ pub enum WorkerReq {
     ReadFile { path: String, request_id: Option<String> },
     WriteFile { path: String, content: String, request_id: Option<String> },
     UploadStart { transfer_id: String, remote_path: String, file_size: i64, request_id: Option<String> },
-    UploadChunk { transfer_id: String, chunk: String, request_id: Option<String> },
+    UploadChunk { transfer_id: String, chunk: String, #[allow(dead_code)] request_id: Option<String> },
     UploadEnd { transfer_id: String, request_id: Option<String> },
     DownloadStart { transfer_id: String, remote_path: String, request_id: Option<String> },
     DownloadCancel { transfer_id: String },
@@ -40,11 +41,6 @@ pub enum WorkerReq {
     Exec { command: String, request_id: Option<String> },
     Disconnect,
 }
-
-const SFTP_ALLOWED_COMMANDS: [&str; 14] = [
-    "cp", "mv", "tar", "zip", "unzip", "gzip", "gunzip",
-    "chmod", "chown", "ln", "cat", "du", "df", "pwd",
-];
 
 /* ── SFTP 辅助函数 ── */
 
@@ -56,112 +52,112 @@ fn sftp_mode_to_permissions(mode: u32) -> String {
     format!("{}{}{}", owner, group, other)
 }
 
-fn sftp_type_from_perm(perm: Option<u32>) -> &'static str {
-    let mode = perm.unwrap_or(0);
-    if mode & 0o120000 == 0o120000 { "symlink" }
-    else if mode & 0o040000 == 0o040000 { "dir" }
-    else { "file" }
+fn sftp_type_from_meta(meta: &Metadata) -> &'static str {
+    if meta.is_dir() { "dir" }
+    else if meta.is_regular() { "file" }
+    else { "symlink" }
 }
 
-fn sftp_entry_from_stat(path: &str, stat: &FileStat) -> Value {
+fn sftp_entry_from_meta(path: &str, meta: &Metadata) -> Value {
     let name = path.rsplit('/').next().unwrap_or(path).to_string();
-    let mtime = stat.mtime.unwrap_or(0) as i64;
+    let mtime = meta.mtime.unwrap_or(0) as i64;
     let modified_at = chrono::DateTime::<Utc>::from_timestamp(mtime, 0)
         .unwrap_or_else(|| chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap())
         .to_rfc3339();
-    let perm = stat.perm.unwrap_or(0);
+    let perm = meta.permissions.unwrap_or(0);
     json!({
         "name": name, "path": path,
-        "type": sftp_type_from_perm(stat.perm),
-        "size": stat.size.unwrap_or(0) as i64,
+        "type": sftp_type_from_meta(meta),
+        "size": meta.size.unwrap_or(0) as i64,
         "modifiedAt": modified_at,
         "permissions": sftp_mode_to_permissions(perm & 0o777),
-        "owner": stat.uid.unwrap_or(0),
-        "group": stat.gid.unwrap_or(0),
+        "owner": meta.uid.unwrap_or(0),
+        "group": meta.gid.unwrap_or(0),
     })
 }
 
-fn send_worker_ok(event_tx: &tokio::sync::mpsc::UnboundedSender<Value>, typ: &str, data: Value, request_id: Option<String>) {
+fn send_worker_ok(event_tx: &tokio_mpsc::UnboundedSender<Value>, typ: &str, data: Value, request_id: Option<String>) {
     let mut payload = json!({ "type": typ, "data": data });
     if let Some(rid) = request_id { payload["requestId"] = Value::String(rid); }
     let _ = event_tx.send(payload);
 }
 
-fn send_worker_error(event_tx: &tokio::sync::mpsc::UnboundedSender<Value>, typ: &str, message: String, request_id: Option<String>) {
+fn send_worker_error(event_tx: &tokio_mpsc::UnboundedSender<Value>, typ: &str, message: String, request_id: Option<String>) {
     let mut payload = json!({ "type": typ, "data": { "message": message } });
     if let Some(rid) = request_id { payload["requestId"] = Value::String(rid); }
     let _ = event_tx.send(payload);
 }
 
-fn read_text_file(sftp: &Sftp, path: &str) -> Result<String, String> {
-    let stat = sftp.stat(std::path::Path::new(path)).map_err(|e| e.to_string())?;
-    let size = stat.size.unwrap_or(0);
+async fn read_text_file(sftp: &SftpSession, path: &str) -> Result<String, String> {
+    let meta = sftp.metadata(path).await.map_err(|e| e.to_string())?;
+    let size = meta.size.unwrap_or(0);
     if size > 10 * 1024 * 1024 {
         return Err(format!("文件过大（{}MB），最大允许 10MB", (size as f64 / 1024.0 / 1024.0).ceil()));
     }
-    let mut file = sftp.open(std::path::Path::new(path)).map_err(|e| e.to_string())?;
-    let mut content = String::new();
-    file.read_to_string(&mut content).map_err(|e| e.to_string())?;
-    Ok(content)
+    let mut file = sftp.open(path).await.map_err(|e| e.to_string())?;
+    let mut content = Vec::new();
+    file.read_to_end(&mut content).await.map_err(|e| e.to_string())?;
+    String::from_utf8(content).map_err(|e| format!("UTF-8 解析失败: {}", e))
 }
 
-fn write_text_file(sftp: &Sftp, path: &str, content: &str) -> Result<(), String> {
-    let mut file = sftp.create(std::path::Path::new(path)).map_err(|e| e.to_string())?;
-    file.write_all(content.as_bytes()).map_err(|e| e.to_string())?;
+async fn write_text_file(sftp: &SftpSession, path: &str, content: &str) -> Result<(), String> {
+    let mut file = sftp.create(path).await.map_err(|e| e.to_string())?;
+    file.write_all(content.as_bytes()).await.map_err(|e| e.to_string())?;
+    file.shutdown().await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
-fn remove_dir_recursive(sftp: &Sftp, path: &str) -> Result<(), ssh2::Error> {
-    let entries = sftp.readdir(std::path::Path::new(path))?;
-    for (entry_path, stat) in entries {
-        let name = entry_path.file_name().and_then(|v| v.to_str()).unwrap_or("");
+async fn remove_dir_recursive(sftp: &SftpSession, path: &str) -> Result<(), String> {
+    let entries = sftp.read_dir(path).await.map_err(|e| e.to_string())?;
+    for entry in entries {
+        let name = entry.file_name();
         if name == "." || name == ".." { continue; }
-        let full = entry_path.to_string_lossy().to_string();
-        if sftp_type_from_perm(stat.perm) == "dir" {
-            remove_dir_recursive(sftp, &full)?;
+        let full = format!("{}/{}", path.trim_end_matches('/'), name);
+        if entry.metadata().is_dir() {
+            Box::pin(remove_dir_recursive(sftp, &full)).await?;
         } else {
-            sftp.unlink(std::path::Path::new(&full))?;
+            sftp.remove_file(&full).await.map_err(|e| e.to_string())?;
         }
     }
-    sftp.rmdir(std::path::Path::new(path))?;
+    sftp.remove_dir(path).await.map_err(|e| e.to_string())?;
     Ok(())
 }
 
-fn set_perm(sftp: &Sftp, path: &str, mode: u32) -> Result<(), ssh2::Error> {
-    let stat = FileStat { size: None, uid: None, gid: None, perm: Some(mode), atime: None, mtime: None };
-    sftp.setstat(std::path::Path::new(path), stat)?;
-    Ok(())
+async fn set_perm(sftp: &SftpSession, path: &str, mode: u32) -> Result<(), String> {
+    let mut meta = Metadata::default();
+    meta.permissions = Some(mode);
+    sftp.set_metadata(path, meta).await.map_err(|e| e.to_string())
 }
 
-fn chmod_recursive(sftp: &Sftp, path: &str, mode: u32) -> Result<(), ssh2::Error> {
-    set_perm(sftp, path, mode)?;
-    let entries = sftp.readdir(std::path::Path::new(path))?;
-    for (entry_path, stat) in entries {
-        let name = entry_path.file_name().and_then(|v| v.to_str()).unwrap_or("");
+async fn chmod_recursive(sftp: &SftpSession, path: &str, mode: u32) -> Result<(), String> {
+    set_perm(sftp, path, mode).await?;
+    let entries = sftp.read_dir(path).await.map_err(|e| e.to_string())?;
+    for entry in entries {
+        let name = entry.file_name();
         if name == "." || name == ".." { continue; }
-        let full = entry_path.to_string_lossy().to_string();
-        if sftp_type_from_perm(stat.perm) == "dir" {
-            chmod_recursive(sftp, &full, mode)?;
+        let full = format!("{}/{}", path.trim_end_matches('/'), name);
+        if entry.metadata().is_dir() {
+            Box::pin(chmod_recursive(sftp, &full, mode)).await?;
         } else {
-            set_perm(sftp, &full, mode)?;
+            set_perm(sftp, &full, mode).await?;
         }
     }
     Ok(())
 }
 
-fn compute_dir_size(sftp: &Sftp, path: &str, visited: &mut HashMap<String, bool>) -> Result<i64, ssh2::Error> {
+async fn compute_dir_size(sftp: &SftpSession, path: &str, visited: &mut HashMap<String, bool>) -> Result<i64, String> {
     if visited.contains_key(path) { return Ok(0); }
     visited.insert(path.to_string(), true);
     let mut total = 0i64;
-    let entries = sftp.readdir(std::path::Path::new(path))?;
-    for (entry_path, stat) in entries {
-        let name = entry_path.file_name().and_then(|v| v.to_str()).unwrap_or("");
+    let entries = sftp.read_dir(path).await.map_err(|e| e.to_string())?;
+    for entry in entries {
+        let name = entry.file_name();
         if name == "." || name == ".." { continue; }
-        let full = entry_path.to_string_lossy().to_string();
-        if sftp_type_from_perm(stat.perm) == "dir" {
-            total += compute_dir_size(sftp, &full, visited)?;
+        let full = format!("{}/{}", path.trim_end_matches('/'), name);
+        if entry.metadata().is_dir() {
+            total += Box::pin(compute_dir_size(sftp, &full, visited)).await?;
         } else {
-            total += stat.size.unwrap_or(0) as i64;
+            total += entry.metadata().size.unwrap_or(0) as i64;
         }
     }
     Ok(total)
@@ -239,7 +235,7 @@ pub fn build_worker_req(msg: &WsMessage) -> Option<WorkerReq> {
 
 pub fn start_sftp_worker(
     connect: Value,
-    event_tx: tokio::sync::mpsc::UnboundedSender<Value>,
+    event_tx: tokio_mpsc::UnboundedSender<Value>,
 ) -> Result<SftpWorker, String> {
     let data = connect.as_object().ok_or_else(|| "连接数据无效".to_string())?;
     let host = data.get("host").and_then(|v| v.as_str()).ok_or_else(|| "缺少主机".to_string())?.to_string();
@@ -249,56 +245,83 @@ pub fn start_sftp_worker(
     let private_key = data.get("privateKey").and_then(|v| v.as_str()).map(|v| v.to_string());
     let passphrase = data.get("passphrase").and_then(|v| v.as_str()).map(|v| v.to_string());
 
-    let (tx, rx) = mpsc::channel::<WorkerReq>();
+    let (tx, mut rx) = tokio_mpsc::unbounded_channel::<WorkerReq>();
 
-    thread::spawn(move || {
-        let addr = format!("{}:{}", host, port);
-        let tcp = match StdTcpStream::connect(addr) {
-            Ok(t) => t,
-            Err(e) => {
-                let _ = event_tx.send(json!({ "type": "sftp-error", "data": { "message": format!("SFTP 连接失败: {}", e) } }));
-                return;
-            }
-        };
-        let mut session = match Session::new() {
+    tokio::spawn(async move {
+        let mut handle = match establish_russh_session(&host, port).await {
             Ok(s) => s,
             Err(e) => {
-                let _ = event_tx.send(json!({ "type": "sftp-error", "data": { "message": format!("无法初始化 SSH 会话: {}", e) } }));
+                tracing::error!("SFTP russh 连接建立失败 ({}): {}", host, e);
+                let _ = event_tx.send(json!({ "type": "sftp-error", "data": { "message": format!("连接失败: {}", e) } }));
                 return;
             }
         };
-        session.set_tcp_stream(tcp);
-        if let Err(e) = session.handshake() {
-            let _ = event_tx.send(json!({ "type": "sftp-error", "data": { "message": format!("SSH 握手失败: {}", e) } }));
-            return;
-        }
 
-        let auth_ok = if let Some(pk) = private_key.clone() {
-            userauth_pubkey_with_tempfile(&session, &username, &pk, passphrase.as_deref()).is_ok()
+        let auth_result = if let Some(pk) = private_key.clone() {
+            match russh::keys::decode_secret_key(&pk, passphrase.as_deref()) {
+                Ok(key_pair) => {
+                    match handle.best_supported_rsa_hash().await {
+                        Ok(hash) => {
+                            let h = hash.flatten();
+                            handle
+                                .authenticate_publickey(
+                                    &username,
+                                    PrivateKeyWithHashAlg::new(Arc::new(key_pair), h),
+                                )
+                                .await
+                                .map_err(|e| e.to_string())
+                        }
+                        Err(e) => Err(e.to_string()),
+                    }
+                }
+                Err(e) => Err(format!("私钥解析失败: {}", e))
+            }
         } else if let Some(pwd) = password.clone() {
-            session.userauth_password(&username, &pwd).is_ok()
+            handle.authenticate_password(&username, &pwd).await.map_err(|e| e.to_string())
         } else {
-            false
+            Err("缺少认证凭据".to_string())
         };
+
+        let auth_ok = match auth_result {
+            Ok(res) => res.success(),
+            Err(e) => {
+                tracing::error!("SFTP 认证错误 ({}): {}", host, e);
+                false
+            }
+        };
+
         if !auth_ok {
+            tracing::error!("SFTP 认证失败 ({})", host);
             let _ = event_tx.send(json!({ "type": "sftp-error", "data": { "message": "认证失败" } }));
             return;
         }
 
-        let sftp = match session.sftp() {
+        // 打开 SFTP 通道
+        let channel = match handle.channel_open_session().await {
+            Ok(c) => c,
+            Err(e) => {
+                let _ = event_tx.send(json!({ "type": "sftp-error", "data": { "message": format!("打开通道失败: {}", e) } }));
+                return;
+            }
+        };
+        if let Err(e) = channel.request_subsystem(true, "sftp").await {
+            let _ = event_tx.send(json!({ "type": "sftp-error", "data": { "message": format!("请求 SFTP 子系统失败: {}", e) } }));
+            return;
+        }
+
+        // SFTP 初始化
+        let sftp = match SftpSession::new(channel.into_stream()).await {
             Ok(s) => s,
             Err(e) => {
-                let _ = event_tx.send(json!({ "type": "sftp-error", "data": { "message": format!("SFTP 初始化失败: {}", e) } }));
+                let _ = event_tx.send(json!({ "type": "sftp-error", "data": { "message": format!("SFTP 会话初始化失败: {}", e) } }));
                 return;
             }
         };
 
-        let home = sftp.realpath(std::path::Path::new(".")).ok()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|| "/".to_string());
+        let home = sftp.canonicalize(".").await.unwrap_or_else(|_| "/".to_string());
         let _ = event_tx.send(json!({ "type": "sftp-ready", "data": { "home": home } }));
 
-        sftp_main_loop(&session, &sftp, &rx, &event_tx);
+        sftp_main_loop(sftp, &mut rx, &event_tx).await;
     });
 
     Ok(SftpWorker { tx })
@@ -306,14 +329,13 @@ pub fn start_sftp_worker(
 
 /* ── SFTP 主循环 ── */
 
-fn sftp_main_loop(
-    session: &Session,
-    sftp: &Sftp,
-    rx: &mpsc::Receiver<WorkerReq>,
-    event_tx: &tokio::sync::mpsc::UnboundedSender<Value>,
+async fn sftp_main_loop(
+    sftp: SftpSession,
+    rx: &mut tokio_mpsc::UnboundedReceiver<WorkerReq>,
+    event_tx: &tokio_mpsc::UnboundedSender<Value>,
 ) {
     struct UploadSession {
-        file: ssh2::File,
+        file: File,
         bytes: i64,
         file_size: i64,
         remote_path: String,
@@ -323,40 +345,41 @@ fn sftp_main_loop(
     let mut download_cancel: HashMap<String, bool> = HashMap::new();
     let mut dir_size_cache: HashMap<String, (i64, i64)> = HashMap::new();
 
-    while let Ok(req) = rx.recv() {
+    while let Some(req) = rx.recv().await {
         match req {
             WorkerReq::Disconnect => break,
             WorkerReq::List { path, request_id } => {
-                match sftp.readdir(std::path::Path::new(&path)) {
+                match sftp.read_dir(&path).await {
                     Ok(list) => {
                         let mut entries = Vec::new();
                         let mut pending = Vec::new();
-                        for (p, stat) in list {
-                            let file_name = p.file_name().and_then(|v| v.to_str()).unwrap_or("").to_string();
+                        for entry in list {
+                            let file_name = entry.file_name();
                             if file_name == "." || file_name == ".." { continue; }
-                            let full_path = if path == "/" { format!("/{}", file_name) } else { format!("{}/{}", path, file_name) };
-                            let mut entry = sftp_entry_from_stat(&full_path, &stat);
-                            if sftp_type_from_perm(stat.perm) == "dir" {
+                            let full_path = format!("{}/{}", path.trim_end_matches('/'), file_name);
+                            let metadata = entry.metadata();
+                            let mut sftp_entry = sftp_entry_from_meta(&full_path, &metadata);
+                            if metadata.is_dir() {
                                 if let Some((size, at)) = dir_size_cache.get(&full_path) {
                                     if Utc::now().timestamp() - *at < 300 {
-                                        entry["size"] = Value::Number((*size).into());
+                                        sftp_entry["size"] = Value::Number((*size).into());
                                     } else {
-                                        entry["size"] = Value::Number((-1).into());
+                                        sftp_entry["size"] = Value::Number((-1).into());
                                         pending.push(full_path.clone());
                                     }
                                 } else {
-                                    entry["size"] = Value::Number((-1).into());
+                                    sftp_entry["size"] = Value::Number((-1).into());
                                     pending.push(full_path.clone());
                                 }
                             }
-                            entries.push(entry);
+                            entries.push(sftp_entry);
                         }
                         let mut payload = json!({ "type": "sftp-list-result", "data": { "path": path, "entries": entries } });
                         if let Some(rid) = request_id.clone() { payload["requestId"] = Value::String(rid); }
                         let _ = event_tx.send(payload);
 
                         for dir in pending {
-                            if let Ok(size) = compute_dir_size(sftp, &dir, &mut HashMap::new()) {
+                            if let Ok(size) = compute_dir_size(&sftp, &dir, &mut HashMap::new()).await {
                                 dir_size_cache.insert(dir.clone(), (size, Utc::now().timestamp()));
                                 let _ = event_tx.send(json!({ "type": "sftp-dir-size", "data": { "path": dir, "size": size } }));
                             }
@@ -366,9 +389,9 @@ fn sftp_main_loop(
                 }
             }
             WorkerReq::Stat { path, request_id } => {
-                match sftp.stat(std::path::Path::new(&path)) {
-                    Ok(stat) => {
-                        let entry = sftp_entry_from_stat(&path, &stat);
+                match sftp.metadata(&path).await {
+                    Ok(meta) => {
+                        let entry = sftp_entry_from_meta(&path, &meta);
                         let mut payload = json!({ "type": "sftp-stat-result", "data": entry });
                         if let Some(rid) = request_id { payload["requestId"] = Value::String(rid); }
                         let _ = event_tx.send(payload);
@@ -377,26 +400,26 @@ fn sftp_main_loop(
                 }
             }
             WorkerReq::Mkdir { path, request_id } => {
-                match sftp.mkdir(std::path::Path::new(&path), 0o755) {
+                match sftp.create_dir(&path).await {
                     Ok(_) => send_worker_ok(event_tx, "sftp-mkdir-ok", json!({ "path": path }), request_id),
                     Err(e) => send_worker_error(event_tx, "sftp-error", format!("{}", e), request_id),
                 }
             }
             WorkerReq::Rename { old_path, new_path, request_id } => {
-                match sftp.rename(std::path::Path::new(&old_path), std::path::Path::new(&new_path), None) {
+                match sftp.rename(&old_path, &new_path).await {
                     Ok(_) => send_worker_ok(event_tx, "sftp-rename-ok", json!({ "oldPath": old_path, "newPath": new_path }), request_id),
                     Err(e) => send_worker_error(event_tx, "sftp-error", format!("{}", e), request_id),
                 }
             }
             WorkerReq::Delete { path, is_dir, request_id } => {
-                let result = if is_dir { remove_dir_recursive(sftp, &path) } else { sftp.unlink(std::path::Path::new(&path)).map(|_| ()) };
+                let result = if is_dir { remove_dir_recursive(&sftp, &path).await } else { sftp.remove_file(&path).await.map_err(|e| e.to_string()) };
                 match result {
                     Ok(_) => send_worker_ok(event_tx, "sftp-delete-ok", json!({ "path": path }), request_id),
                     Err(e) => send_worker_error(event_tx, "sftp-error", format!("{}", e), request_id),
                 }
             }
             WorkerReq::ReadFile { path, request_id } => {
-                match read_text_file(sftp, &path) {
+                match read_text_file(&sftp, &path).await {
                     Ok(content) => {
                         let mut payload = json!({ "type": "sftp-read-file-result", "data": { "path": path, "content": content } });
                         if let Some(rid) = request_id { payload["requestId"] = Value::String(rid); }
@@ -406,18 +429,17 @@ fn sftp_main_loop(
                 }
             }
             WorkerReq::WriteFile { path, content, request_id } => {
-                match write_text_file(sftp, &path, &content) {
+                match write_text_file(&sftp, &path, &content).await {
                     Ok(_) => send_worker_ok(event_tx, "sftp-write-file-ok", json!({ "path": path }), request_id),
                     Err(e) => send_worker_error(event_tx, "sftp-error", e, request_id),
                 }
             }
             WorkerReq::UploadStart { transfer_id, remote_path, file_size, request_id } => {
-                match sftp.create(std::path::Path::new(&remote_path)) {
+                match sftp.create(&remote_path).await {
                     Ok(file) => {
                         upload_sessions.insert(transfer_id.clone(), UploadSession {
                             file, bytes: 0, file_size, remote_path: remote_path.clone(),
                         });
-                        let _ = request_id;
                     }
                     Err(e) => send_worker_error(event_tx, "sftp-error", format!("上传失败: {}", e), request_id),
                 }
@@ -425,7 +447,7 @@ fn sftp_main_loop(
             WorkerReq::UploadChunk { transfer_id, chunk, request_id: _ } => {
                 if let Some(session) = upload_sessions.get_mut(&transfer_id) {
                     if let Ok(bytes) = BASE64_STD.decode(chunk) {
-                        let _ = session.file.write_all(&bytes);
+                        let _ = session.file.write_all(&bytes).await;
                         session.bytes += bytes.len() as i64;
                         let _ = event_tx.send(json!({
                             "type": "sftp-upload-progress",
@@ -436,7 +458,7 @@ fn sftp_main_loop(
             }
             WorkerReq::UploadEnd { transfer_id, request_id } => {
                 if let Some(mut session) = upload_sessions.remove(&transfer_id) {
-                    let _ = session.file.flush();
+                    let _ = session.file.shutdown().await;
                     send_worker_ok(event_tx, "sftp-upload-ok", json!({
                         "transferId": transfer_id, "remotePath": session.remote_path, "bytesTransferred": session.bytes
                     }), request_id);
@@ -445,16 +467,16 @@ fn sftp_main_loop(
                 }
             }
             WorkerReq::DownloadStart { transfer_id, remote_path, request_id } => {
-                match sftp.open(std::path::Path::new(&remote_path)) {
+                match sftp.open(&remote_path).await {
                     Ok(mut file) => {
-                        let stat = sftp.stat(std::path::Path::new(&remote_path)).ok();
-                        let file_size = stat.and_then(|s| s.size).unwrap_or(0) as i64;
-                        let file_name = std::path::Path::new(&remote_path).file_name().and_then(|v| v.to_str()).unwrap_or("").to_string();
+                        let meta = sftp.metadata(&remote_path).await.ok();
+                        let file_size = meta.and_then(|m| m.size).unwrap_or(0) as i64;
+                        let file_name = remote_path.rsplit('/').next().unwrap_or(&remote_path).to_string();
                         let mut buffer = vec![0u8; 64 * 1024];
                         let mut transferred = 0i64;
                         loop {
                             if *download_cancel.get(&transfer_id).unwrap_or(&false) { break; }
-                            let read = match file.read(&mut buffer) {
+                            let read = match file.read(&mut buffer).await {
                                 Ok(0) => break,
                                 Ok(n) => n,
                                 Err(_) => break,
@@ -478,39 +500,21 @@ fn sftp_main_loop(
                 download_cancel.insert(transfer_id, true);
             }
             WorkerReq::Chmod { path, mode, recursive, request_id } => {
-                let result = if recursive { chmod_recursive(sftp, &path, mode) } else { set_perm(sftp, &path, mode) };
+                let result = if recursive { Box::pin(chmod_recursive(&sftp, &path, mode)).await } else { set_perm(&sftp, &path, mode).await };
                 match result {
                     Ok(_) => send_worker_ok(event_tx, "sftp-chmod-ok", json!({ "path": path, "mode": format!("{:o}", mode) }), request_id),
                     Err(e) => send_worker_error(event_tx, "sftp-error", format!("{}", e), request_id),
                 }
             }
             WorkerReq::Touch { path, is_dir, request_id } => {
-                let result = if is_dir { sftp.mkdir(std::path::Path::new(&path), 0o755).map(|_| ()) } else { sftp.create(std::path::Path::new(&path)).map(|_| ()) };
+                let result = if is_dir { sftp.create_dir(&path).await.map_err(|e| e.to_string()) } else { sftp.create(&path).await.map(|_| ()).map_err(|e| e.to_string()) };
                 match result {
                     Ok(_) => send_worker_ok(event_tx, "sftp-touch-ok", json!({ "path": path, "isDir": is_dir }), request_id),
                     Err(e) => send_worker_error(event_tx, "sftp-error", format!("{}", e), request_id),
                 }
             }
             WorkerReq::Exec { command, request_id } => {
-                let first = command.split_whitespace().next().unwrap_or("");
-                if !SFTP_ALLOWED_COMMANDS.contains(&first) {
-                    send_worker_error(event_tx, "sftp-error", format!("命令 \"{}\" 不在白名单中", first), request_id);
-                    continue;
-                }
-                let mut channel = match session.channel_session() {
-                    Ok(c) => c,
-                    Err(e) => { send_worker_error(event_tx, "sftp-error", format!("{}", e), request_id); continue; }
-                };
-                if channel.exec(&command).is_err() {
-                    send_worker_error(event_tx, "sftp-error", "执行失败".to_string(), request_id);
-                    continue;
-                }
-                let mut stdout = String::new();
-                let mut stderr = String::new();
-                let _ = channel.read_to_string(&mut stdout);
-                let _ = channel.stderr().read_to_string(&mut stderr);
-                let code = channel.exit_status().unwrap_or(0);
-                send_worker_ok(event_tx, "sftp-exec-result", json!({ "stdout": stdout, "stderr": stderr, "code": code }), request_id);
+                send_worker_error(event_tx, "sftp-error", format!("SFTP 模式暂不支持命令执行: {}", command), request_id);
             }
         }
     }

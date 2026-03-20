@@ -25,6 +25,7 @@ export default function Header() {
   const applySettings = useSettingsStore((s) => s.applySettings)
   const loaded = useSettingsStore((s) => s._loaded)
   const setLocked = useUIStore((s) => s.setLocked)
+  const syncRemoteAvailable = useUIStore((s) => s.syncRemoteAvailable)
 
   const activeTab = tabs.find(t => t.id === activeTabId)
   const isAssetTab = activeTab?.type === 'asset'
@@ -126,9 +127,12 @@ export default function Header() {
               <TooltipTrigger asChild>
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowSyncPopover(prev => !prev) }}
-                  className={`transition-colors ${showSyncPopover ? 'text-primary' : 'hover:text-text-1'}`}
+                  className={`relative transition-colors ${showSyncPopover ? 'text-primary' : 'hover:text-text-1'}`}
                 >
                   <AppIcon icon={icons.cloud} size={15} />
+                  {syncRemoteAvailable && (
+                    <span className="absolute -top-0.5 -right-0.5 w-[6px] h-[6px] rounded-full bg-[#FF4D4F] ring-1 ring-bg-card" />
+                  )}
                 </button>
               </TooltipTrigger>
               {!showSyncPopover && <TooltipContent>数据同步</TooltipContent>}

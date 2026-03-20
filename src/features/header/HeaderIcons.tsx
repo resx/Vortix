@@ -32,6 +32,17 @@ export function CloudClockIcon({ className }: { className?: string }) {
   )
 }
 
+export function RegexIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6.5a2.5 2.5 0 0 1 5 0v11a2.5 2.5 0 0 1-5 0" />
+      <path d="M20 6.5a2.5 2.5 0 0 0-5 0v11a2.5 2.5 0 0 0 5 0" />
+      <path d="m10 9 4 6" />
+      <path d="m14 9-4 6" />
+    </svg>
+  )
+}
+
 export function HeaderTopButton({ icon: Icon, onClick, tooltip, isActive = false }: {
   icon: React.ComponentType<{ className?: string }>
   onClick?: (e: React.MouseEvent) => void

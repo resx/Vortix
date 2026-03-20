@@ -3,7 +3,7 @@ use serde_json::Value;
 
 use crate::db::Db;
 use crate::server::response::{ApiResponse, ApiError};
-use crate::server::types::{SyncRequestBody, SyncFileInfo, SyncImportResult, SyncConflictInfo, SyncLocalState};
+use crate::server::types::{SyncRequestBody, SyncFileInfo, SyncImportResult, SyncConflictInfo, SyncLocalState, RemoteCheckResult};
 use crate::sync;
 
 pub async fn sync_test(
@@ -59,4 +59,11 @@ pub async fn sync_check_pull(
     Json(body): Json<SyncRequestBody>,
 ) -> Result<Json<ApiResponse<SyncConflictInfo>>, ApiError> {
     sync::sync_check_pull(db, body).await
+}
+
+pub async fn sync_check_remote(
+    State(db): State<Db>,
+    Json(body): Json<SyncRequestBody>,
+) -> Result<Json<ApiResponse<RemoteCheckResult>>, ApiError> {
+    sync::sync_check_remote(db, body).await
 }

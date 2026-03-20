@@ -360,6 +360,13 @@ export interface SyncConflictInfo {
   remoteExportedAt?: string
 }
 
+/** 轻量级远端变更检测结果 */
+export interface RemoteCheckResult {
+  hasUpdate: boolean
+  remoteHash: string
+  localHash: string
+}
+
 /** 同步请求体（多源通用） */
 export interface SyncRequestBody {
   repoSource: string

@@ -1,6 +1,6 @@
 // src/lib/window-state.ts
 
-import { getCurrentWindow, PhysicalSize, PhysicalPosition } from '@tauri-apps/api/window'
+import { getCurrentWindow, currentMonitor as tauriCurrentMonitor, PhysicalSize, PhysicalPosition } from '@tauri-apps/api/window'
 import { LazyStore } from '@tauri-apps/plugin-store'
 
 const store = new LazyStore('.window-state.dat')
@@ -40,7 +40,7 @@ export async function restoreWindowState(): Promise<boolean> {
     const window = getCurrentWindow()
 
     // 安全校验：确保坐标在合理范围内，避免窗口飞到屏幕外
-    const monitor = await window.currentMonitor()
+    const monitor = await tauriCurrentMonitor()
     if (monitor) {
       const { width: mw, height: mh } = monitor.size
       const safeX = Math.max(-100, Math.min(state.x, mw - 100))

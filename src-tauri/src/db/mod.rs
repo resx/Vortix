@@ -24,10 +24,12 @@ const DIR_CACHE: &str = "cache";
 pub struct Db {
     pub pool: SqlitePool,
     pub crypto: Crypto,
+    #[allow(dead_code)]
     pub paths: DbPaths,
     pub app_handle: tauri::AppHandle,
 }
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct DbPaths {
     /// ~/.vortix
@@ -144,6 +146,7 @@ pub async fn init(app: &tauri::AppHandle) -> Result<Db> {
     })
 }
 
+#[allow(dead_code)]
 pub async fn export_backup(db: &Db) -> Result<()> {
     let backup_path = db.paths.backup_dir.join(format!(
         "vortix-backup-{}.json",

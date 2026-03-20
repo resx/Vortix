@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 /* ── SQLite -> JSON 备份导出 ── */
 
 use anyhow::{Context, Result};

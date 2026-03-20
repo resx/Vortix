@@ -3,6 +3,75 @@ import * as api from "../api/client";
 import { getThemeById } from "../components/terminal/themes/index";
 import { loadLocale } from "../i18n";
 
+export interface TerminalHighlightRule {
+  id: string;
+  name: string;
+  pattern: string;
+  flags: string;
+  color: string;
+  builtin: boolean;
+}
+
+export const DEFAULT_TERMINAL_HIGHLIGHT_RULES: TerminalHighlightRule[] = [
+  { id: "builtin-error", name: "Error", pattern: "\\b(error|ERROR|fail|FAIL|failed|FAILED|fatal|FATAL|panic|PANIC)\\b", flags: "g", color: "#F53F3F", builtin: true },
+  { id: "builtin-warning", name: "Warning", pattern: "\\b(warning|WARNING|warn|WARN|deprecated|DEPRECATED)\\b", flags: "g", color: "#E6A23C", builtin: true },
+  { id: "builtin-ok", name: "OK", pattern: "\\b(ok|OK|success|SUCCESS|succeeded|SUCCEEDED|passed|PASSED|done|DONE)\\b", flags: "g", color: "#00B42A", builtin: true },
+  { id: "builtin-info", name: "Info", pattern: "\\b(info|INFO|notice|NOTICE)\\b", flags: "g", color: "#4080FF", builtin: true },
+  { id: "builtin-debug", name: "Debug", pattern: "\\b(debug|DEBUG|trace|TRACE)\\b", flags: "g", color: "#86909C", builtin: true },
+  { id: "builtin-ipMac", name: "IP & MAC", pattern: "\\b(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?\\b|(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\\b", flags: "g", color: "#9A7ECC", builtin: true },
+  { id: "builtin-path", name: "Path", pattern: "(?:\\/[\\w.-]+){2,}(?:\\.\\w+)?", flags: "g", color: "#D2B48C", builtin: true },
+  { id: "builtin-url", name: "URL", pattern: "https?:\\/\\/[^\\s'\")\\]>]+", flags: "g", color: "#00B4D8", builtin: true },
+  { id: "builtin-timestamp", name: "Timestamp", pattern: "\\b\\d{4}[-/]\\d{2}[-/]\\d{2}[T ]\\d{2}:\\d{2}(?::\\d{2})?(?:\\.\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})?\\b", flags: "g", color: "#8B8682", builtin: true },
+  { id: "builtin-env", name: "Env", pattern: "\\$\\{?\\w+\\}?", flags: "g", color: "#61AFEF", builtin: true },
+];
+
+function normalizeRegexFlags(flags?: string): string {
+  const valid = new Set(["g", "i", "m", "s", "u", "y"]);
+  const uniq: string[] = [];
+  for (const ch of (flags ?? "").toLowerCase()) {
+    if (valid.has(ch) && !uniq.includes(ch)) uniq.push(ch);
+  }
+  if (!uniq.includes("g")) uniq.unshift("g");
+  return uniq.join("");
+}
+
+function normalizeHexColor(color?: string): string | null {
+  const v = (color ?? "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(v)) return v.toUpperCase();
+  return null;
+}
+
+export function normalizeTerminalHighlightRules(input: unknown): TerminalHighlightRule[] {
+  const defaults = DEFAULT_TERMINAL_HIGHLIGHT_RULES.map((rule) => ({ ...rule }));
+  if (!Array.isArray(input)) return defaults;
+
+  const builtinById = new Map(defaults.map((rule) => [rule.id, rule]));
+  const customRules: TerminalHighlightRule[] = [];
+
+  for (const raw of input) {
+    if (!raw || typeof raw !== "object") continue;
+    const obj = raw as Record<string, unknown>;
+    const id = typeof obj.id === "string" ? obj.id : "";
+    if (!id) continue;
+
+    const isBuiltin = builtinById.has(id);
+    const base = builtinById.get(id);
+
+    const name = typeof obj.name === "string" && obj.name.trim() ? obj.name : (base?.name ?? id);
+    const pattern = typeof obj.pattern === "string" && obj.pattern.trim() ? obj.pattern : (base?.pattern ?? "");
+    const flags = normalizeRegexFlags(typeof obj.flags === "string" ? obj.flags : (base?.flags ?? "g"));
+    const color = normalizeHexColor(typeof obj.color === "string" ? obj.color : undefined) ?? (base?.color ?? "#86909C");
+
+    if (isBuiltin) {
+      builtinById.set(id, { ...base!, name, pattern, flags, color, builtin: true });
+    } else {
+      customRules.push({ id, name, pattern, flags, color, builtin: false });
+    }
+  }
+
+  return [...defaults.map((rule) => builtinById.get(rule.id) ?? rule), ...customRules];
+}
+
 export interface SettingsState {
   // ── 基础设置 ──
   language: string;
@@ -48,18 +117,7 @@ export interface SettingsState {
   termLetterSpacing: number;
   termZoomEnabled: boolean;
   termStripeEnabled: boolean;
-  keywordHighlights: {
-    error: string;
-    warning: string;
-    ok: string;
-    info: string;
-    debug: string;
-    ipMac: string;
-    path?: string;
-    url?: string;
-    timestamp?: string;
-    env?: string;
-  };
+  termHighlightRules: TerminalHighlightRule[];
   activeProfileId: string;
 
   // ── SSH 设置 ──
@@ -114,6 +172,7 @@ export interface SettingsState {
   // ── 云同步 ──
   syncRepoSource: 'local' | 'git' | 'webdav' | 's3';
   syncAutoSync: boolean;
+  syncCheckInterval: number; // 远端变更检测间隔（分钟），默认 15
   syncEncryptionKey: string;
   syncTlsVerify: boolean;
   // 本地文件
@@ -190,18 +249,7 @@ const DEFAULTS: SettingsState = {
   termLetterSpacing: 0,
   termZoomEnabled: true,
   termStripeEnabled: false,
-  keywordHighlights: {
-    error: "#F53F3F",
-    warning: "#E6A23C",
-    ok: "#00B42A",
-    info: "#4080FF",
-    debug: "#86909C",
-    ipMac: "#9A7ECC",
-    path: "#D2B48C",
-    url: "#00B4D8",
-    timestamp: "#8B8682",
-    env: "#61AFEF",
-  },
+  termHighlightRules: DEFAULT_TERMINAL_HIGHLIGHT_RULES.map((rule) => ({ ...rule })),
   activeProfileId: "__default__",
 
   // ── SSH 设置 ──
@@ -256,6 +304,7 @@ const DEFAULTS: SettingsState = {
   // ── 云同步 ──
   syncRepoSource: "local",
   syncAutoSync: false,
+  syncCheckInterval: 15,
   syncEncryptionKey: "",
   syncTlsVerify: true,
   // 本地文件
@@ -377,6 +426,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
           (merged as Record<string, unknown>)[k] = v;
         }
       }
+      merged.termHighlightRules = normalizeTerminalHighlightRules((remote as Record<string, unknown>).termHighlightRules);
 
       // 向后兼容：旧字体字段 string → string[]
       const FONT_KEYS = [
@@ -448,7 +498,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       "termLineHeight",
       "termLetterSpacing",
       "termScrollback",
-      "keywordHighlights",
+      "termHighlightRules",
       "activeProfileId",
     ];
     const preserved: Partial<SettingsState> = {};

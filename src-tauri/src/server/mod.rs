@@ -75,6 +75,7 @@ pub async fn start(port: u16, db: Db) {
         .route("/api/sync/remote", delete(routes::sync::sync_delete_remote))
         .route("/api/sync/check-push", post(routes::sync::sync_check_push))
         .route("/api/sync/check-pull", post(routes::sync::sync_check_pull))
+        .route("/api/sync/check-remote", post(routes::sync::sync_check_remote))
         // 主题
         .route("/api/themes", get(routes::themes::get_themes).post(routes::themes::create_theme))
         .route("/api/themes/{id}", get(routes::themes::get_theme).put(routes::themes::update_theme).delete(routes::themes::delete_theme))

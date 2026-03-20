@@ -17,4 +17,5 @@ pub use service::{
     sync_delete_remote,
     sync_check_push,
     sync_check_pull,
+    sync_check_remote,
 };

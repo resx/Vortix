@@ -13,6 +13,8 @@ export interface TerminalSession {
   fitAddon: FitAddon
   searchAddon: SearchAddon
   webglAddon: WebglAddon | null
+  /** term.open() 是否已执行完成 */
+  isOpened: boolean
   ws: WebSocket | null
   reconnectTimer: ReturnType<typeof setTimeout> | null
   reconnectCount: number

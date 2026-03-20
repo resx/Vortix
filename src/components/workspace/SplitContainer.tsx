@@ -1,6 +1,6 @@
 /* ── 分支节点容器 + Resizer ── */
 
-import { useCallback, useRef } from 'react'
+import { Fragment, useCallback, useRef } from 'react'
 import SplitTreeRenderer from './SplitTreeRenderer'
 import { useWorkspaceStore } from '../../stores/useWorkspaceStore'
 import type { SplitBranch } from '../../types/workspace'
@@ -51,6 +51,7 @@ function Resizer({
 
   return (
     <div
+      data-resizer="true"
       className={`shrink-0 z-10 group
         ${isHorizontal
           ? 'w-[6px] cursor-col-resize hover:bg-primary/30 active:bg-primary/50'
@@ -119,16 +120,14 @@ export default function SplitContainer({ node, tabId, tab }: Props) {
       className={`flex ${isHorizontal ? 'flex-row' : 'flex-col'} w-full h-full min-w-0 min-h-0`}
     >
       {node.children.map((child, i) => (
-        <div key={child.id} className="contents">
+        <Fragment key={child.id}>
           {i > 0 && (
-            <div data-resizer="true">
-              <Resizer direction={node.direction} onResize={handleResize(i - 1)} onResizeEnd={handleResizeEnd} />
-            </div>
+            <Resizer direction={node.direction} onResize={handleResize(i - 1)} onResizeEnd={handleResizeEnd} />
           )}
           <div style={{ flex: `${child.flexGrow} 0 0px` }} className="min-w-0 min-h-0 flex">
             <SplitTreeRenderer node={child} tabId={tabId} tab={tab} />
           </div>
-        </div>
+        </Fragment>
       ))}
     </div>
   )

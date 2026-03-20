@@ -56,6 +56,7 @@ pub struct PresetPublicRow {
     pub updated_at: String,
 }
 
+#[allow(dead_code)]
 #[derive(FromRow)]
 pub struct PresetRow {
     pub id: String,
@@ -90,6 +91,7 @@ pub struct SshKeyRow {
     pub created_at: String,
 }
 
+#[allow(dead_code)]
 #[derive(FromRow)]
 pub struct SshKeyRawRow {
     pub id: String,
@@ -271,6 +273,7 @@ pub struct CreateThemeDto {
     pub author: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 pub struct UpdateThemeDto {
     pub name: Option<String>,
@@ -385,6 +388,17 @@ pub struct SyncImportResult {
     pub shortcuts: usize,
     #[serde(rename = "sshKeys")]
     pub ssh_keys: usize,
+}
+
+/// 轻量级远端变更检测结果
+#[derive(Serialize, Clone)]
+pub struct RemoteCheckResult {
+    #[serde(rename = "hasUpdate")]
+    pub has_update: bool,
+    #[serde(rename = "remoteHash")]
+    pub remote_hash: String,
+    #[serde(rename = "localHash")]
+    pub local_hash: String,
 }
 
 #[derive(Serialize)]
@@ -508,6 +522,7 @@ pub struct SyncData {
     pub ssh_keys: Vec<SyncSshKey>,
 }
 
+#[allow(dead_code)]
 #[derive(Deserialize)]
 pub struct SyncPayloadV3Wire {
     #[serde(rename = "$schema")]

@@ -2,13 +2,31 @@
 
 use axum::http::StatusCode;
 use serde_json::Value;
-use ssh2::Session;
-use uuid::Uuid;
-use std::fs;
+use std::sync::Arc;
+use russh::client;
 
 use crate::db::Db;
 use super::response::{err, ApiError};
 use super::types::*;
+
+/* ── russh 基础 ── */
+
+#[derive(Clone)]
+pub struct SimpleHandler;
+
+impl client::Handler for SimpleHandler {
+    type Error = russh::Error;
+    async fn check_server_key(&mut self, _key: &russh::keys::ssh_key::PublicKey) -> Result<bool, Self::Error> {
+        Ok(true)
+    }
+}
+
+pub async fn establish_russh_session(host: &str, port: u16) -> Result<client::Handle<SimpleHandler>, String> {
+    let config = Arc::new(client::Config::default());
+    client::connect(config, (host, port), SimpleHandler)
+        .await
+        .map_err(|e| format!("russh 连接失败: {}", e))
+}
 
 pub fn parse_json_value(raw: &str, fallback: Value) -> Value {
     serde_json::from_str(raw).unwrap_or(fallback)
@@ -105,15 +123,3 @@ pub async fn update_connection_row(db: &Db, row: &ConnectionRow) -> Result<(), A
     Ok(())
 }
 
-pub fn userauth_pubkey_with_tempfile(
-    session: &Session,
-    username: &str,
-    private_key: &str,
-    passphrase: Option<&str>,
-) -> Result<(), String> {
-    let temp_path = std::env::temp_dir().join(format!("vortix-ssh-key-{}.pem", Uuid::new_v4()));
-    fs::write(&temp_path, private_key).map_err(|e| format!("写入临时私钥失败: {}", e))?;
-    let result = session.userauth_pubkey_file(username, None, &temp_path, passphrase);
-    let _ = fs::remove_file(&temp_path);
-    result.map_err(|e| e.to_string())
-}

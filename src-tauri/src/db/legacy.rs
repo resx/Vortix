@@ -138,10 +138,14 @@ struct LogRow {
 
 #[derive(Deserialize)]
 struct SyncState {
-    deviceId: String,
-    lastSyncRevision: i64,
-    lastSyncAt: Option<String>,
-    localDirty: bool,
+    #[serde(rename = "deviceId")]
+    device_id: String,
+    #[serde(rename = "lastSyncRevision")]
+    last_sync_revision: i64,
+    #[serde(rename = "lastSyncAt")]
+    last_sync_at: Option<String>,
+    #[serde(rename = "localDirty")]
+    local_dirty: bool,
 }
 
 pub fn has_legacy_data(legacy_dir: &Path) -> bool {
@@ -347,10 +351,10 @@ pub async fn import_all(legacy_dir: &Path, pool: &SqlitePool) -> Result<ImportSu
         sqlx::query(
             "INSERT OR REPLACE INTO sync_state (id, device_id, last_sync_revision, last_sync_at, local_dirty) VALUES (1, ?, ?, ?, ?)",
         )
-        .bind(state.deviceId)
-        .bind(state.lastSyncRevision)
-        .bind(state.lastSyncAt)
-        .bind(if state.localDirty { 1 } else { 0 })
+        .bind(state.device_id)
+        .bind(state.last_sync_revision)
+        .bind(state.last_sync_at)
+        .bind(if state.local_dirty { 1 } else { 0 })
         .execute(&mut *tx)
         .await?;
     }

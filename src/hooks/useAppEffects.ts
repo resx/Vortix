@@ -1,12 +1,13 @@
 /* ── App 全局副作用 hooks ── */
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useSettingsStore, buildSyncBody } from '../stores/useSettingsStore'
 import { useAssetStore } from '../stores/useAssetStore'
 import { useShortcutStore } from '../stores/useShortcutStore'
 import { useTerminalProfileStore } from '../stores/useTerminalProfileStore'
+import { useThemeStore } from '../stores/useThemeStore'
 import { useTabStore } from '../stores/useTabStore'
 import { useUIStore } from '../stores/useUIStore'
 import { useToastStore } from '../stores/useToastStore'
@@ -22,6 +23,7 @@ export function useAppInit() {
       useSettingsStore.getState().loadSettings(),
       useAssetStore.getState().fetchAssets(),
       useShortcutStore.getState().fetchShortcuts(),
+      useThemeStore.getState().loadCustomThemes().catch(() => {}),
     ]).then(() => {
       useTerminalProfileStore.getState().loadProfiles()
       const lang = useSettingsStore.getState().language
@@ -167,6 +169,7 @@ export function useConfigChangedListener() {
     const unlisten = listen('config-changed', () => {
       useSettingsStore.getState().loadSettings().then(() => {
         useTerminalProfileStore.getState().loadProfiles()
+        useThemeStore.getState().loadCustomThemes().catch(() => {})
         const lang = useSettingsStore.getState().language
         loadLocale(lang)
       })
@@ -175,7 +178,7 @@ export function useConfigChangedListener() {
   }, [])
 }
 
-/** 自动同步: 轮询本地 dirty 状态并在可配置时自动推送 */
+/** 自动同步: 拆分为两层 —— dirty push（30s）+ remote check（可配置间隔） */
 export function useAutoSyncEffect() {
   const loaded = useSettingsStore((s) => s._loaded)
   const autoSync = useSettingsStore((s) => s.syncAutoSync)
@@ -184,6 +187,7 @@ export function useAutoSyncEffect() {
   const syncGitUrl = useSettingsStore((s) => s.syncGitUrl)
   const syncWebdavEndpoint = useSettingsStore((s) => s.syncWebdavEndpoint)
   const syncS3Endpoint = useSettingsStore((s) => s.syncS3Endpoint)
+  const syncCheckInterval = useSettingsStore((s) => s.syncCheckInterval)
   const syncConflictOpen = useUIStore((s) => s.syncConflictOpen)
   const addToast = useToastStore((s) => s.addToast)
 
@@ -194,6 +198,7 @@ export function useAutoSyncEffect() {
     (repoSource === 's3' && !!syncS3Endpoint.trim())
   )
 
+  // ── 层 1: dirty push（本地有变更时推送，30s 间隔）──
   useEffect(() => {
     if (!loaded || !autoSync || repoSource === 'local' || !isConfigured) return
 
@@ -210,19 +215,19 @@ export function useAutoSyncEffect() {
 
     const tick = async () => {
       if (disposed || running) {
-        schedule(3000)
+        schedule(5000)
         return
       }
       running = true
       try {
         if (useUIStore.getState().syncConflictOpen) {
-          schedule(3000)
+          schedule(5000)
           return
         }
 
         const localState = await api.getSyncLocalState()
         if (!localState.localDirty) {
-          schedule(5000)
+          schedule(30000)
           return
         }
 
@@ -230,30 +235,96 @@ export function useAutoSyncEffect() {
         const conflict = await api.checkPushConflict(body)
         if (conflict.hasConflict) {
           useUIStore.getState().openSyncConflict({ info: conflict, action: 'push', body })
-          schedule(15000)
+          schedule(30000)
           return
         }
 
         await api.syncExport(body)
-        schedule(5000)
+        schedule(30000)
       } catch (e) {
         const now = Date.now()
-        if (now - lastErrorAt > 30000) {
+        if (now - lastErrorAt > 60000) {
           lastErrorAt = now
           addToast('error', `自动同步失败: ${(e as Error).message || '未知错误'}`)
         }
-        schedule(10000)
+        schedule(30000)
       } finally {
         running = false
       }
     }
 
-    schedule(1200)
+    schedule(3000)
     return () => {
       disposed = true
       if (timer) clearTimeout(timer)
     }
   }, [loaded, autoSync, repoSource, isConfigured, syncConflictOpen, addToast])
+
+  // ── 层 2: remote check（轻量级远端变更检测，可配置间隔，默认 15min）──
+  useEffect(() => {
+    if (!loaded || !autoSync || repoSource === 'local' || !isConfigured) return
+
+    let disposed = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const intervalMs = Math.max(1, syncCheckInterval) * 60 * 1000
+
+    const check = async () => {
+      if (disposed) return
+      try {
+        const body = buildSyncBody()
+        const result = await api.checkRemoteChanged(body)
+        if (result.hasUpdate) {
+          useUIStore.getState().setSyncRemoteAvailable(true)
+        }
+      } catch { /* 静默 */ }
+      if (!disposed) {
+        timer = setTimeout(check, intervalMs)
+      }
+    }
+
+    // 启动后延迟 5s 执行首次检测
+    timer = setTimeout(check, 5000)
+    return () => {
+      disposed = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [loaded, autoSync, repoSource, isConfigured, syncCheckInterval])
+}
+
+/** 窗口重获焦点时轻量检测远端变更（防抖 5 分钟） */
+export function useWindowFocusSyncCheck() {
+  const lastCheckRef = useRef(0)
+
+  useEffect(() => {
+    if (!('__TAURI_INTERNALS__' in window)) return
+
+    const unlisten = listen('tauri://focus', async () => {
+      const { syncAutoSync, syncRepoSource, syncGitUrl, syncWebdavEndpoint, syncS3Endpoint, syncLocalPath } = useSettingsStore.getState()
+      if (!syncAutoSync || syncRepoSource === 'local') return
+
+      const isConfigured = (
+        (syncRepoSource === 'git' && !!syncGitUrl.trim()) ||
+        (syncRepoSource === 'webdav' && !!syncWebdavEndpoint.trim()) ||
+        (syncRepoSource === 's3' && !!syncS3Endpoint.trim()) ||
+        (syncRepoSource === 'local' && !!syncLocalPath.trim())
+      )
+      if (!isConfigured) return
+
+      const now = Date.now()
+      if (now - lastCheckRef.current < 5 * 60 * 1000) return
+      lastCheckRef.current = now
+
+      try {
+        const body = buildSyncBody()
+        const result = await api.checkRemoteChanged(body)
+        if (result.hasUpdate) {
+          useUIStore.getState().setSyncRemoteAvailable(true)
+        }
+      } catch { /* 静默 */ }
+    })
+
+    return () => { unlisten.then(fn => fn()) }
+  }, [])
 }
 
 /** 主题切换 */

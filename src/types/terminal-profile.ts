@@ -15,18 +15,6 @@ export interface TerminalProfile {
   cursorStyle: 'block' | 'underline' | 'bar'
   cursorBlink: boolean
   scrollback: number
-  keywordHighlights: {
-    error: string
-    warning: string
-    ok: string
-    info: string
-    debug: string
-    ipMac: string
-    path?: string
-    url?: string
-    timestamp?: string
-    env?: string
-  }
 }
 
 /** 解析后的 Profile，供 SshTerminal 直接消费 */

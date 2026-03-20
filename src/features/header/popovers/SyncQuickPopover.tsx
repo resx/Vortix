@@ -6,6 +6,7 @@ import { useSettingsStore, buildSyncBody } from '../../../stores/useSettingsStor
 import { useAssetStore } from '../../../stores/useAssetStore'
 import { useShortcutStore } from '../../../stores/useShortcutStore'
 import { useToastStore } from '../../../stores/useToastStore'
+import { useUIStore } from '../../../stores/useUIStore'
 import { openSettingsWindow } from '../../../lib/window'
 import * as api from '../../../api/client'
 
@@ -17,6 +18,7 @@ export default function SyncQuickPopover({ onClose }: { onClose: () => void }) {
   const repoSource = useSettingsStore((s) => s.syncRepoSource)
   const autoSync = useSettingsStore((s) => s.syncAutoSync)
   const addToast = useToastStore((s) => s.addToast)
+  const syncRemoteAvailable = useUIStore((s) => s.syncRemoteAvailable)
   const [syncing, setSyncing] = useState<'push' | 'pull' | null>(null)
   const [fileInfo, setFileInfo] = useState<{ exists: boolean; lastModified: string | null } | null>(null)
 
@@ -58,6 +60,7 @@ export default function SyncQuickPopover({ onClose }: { onClose: () => void }) {
       }
       const result = await api.syncImport(buildSyncBody())
       addToast('success', `拉取成功：${result.folders} 文件夹、${result.connections} 连接、${result.shortcuts} 快捷命令、${result.sshKeys} 密钥`)
+      useUIStore.getState().setSyncRemoteAvailable(false)
       await Promise.all([
         useSettingsStore.getState().loadSettings(),
         useAssetStore.getState().fetchAssets(),
@@ -114,6 +117,12 @@ export default function SyncQuickPopover({ onClose }: { onClose: () => void }) {
               <div className="flex items-center gap-1.5 mt-1.5">
                 <AppIcon icon={icons.refresh} size={11} className="text-primary" />
                 <span className="text-primary">自动同步已开启</span>
+              </div>
+            )}
+            {syncRemoteAvailable && (
+              <div className="flex items-center gap-1.5 mt-1.5">
+                <AppIcon icon={icons.cloudArrowDown} size={11} className="text-[#FF4D4F]" />
+                <span className="text-[#FF4D4F]">远端存在新配置，请拉取以保持一致</span>
               </div>
             )}
           </div>

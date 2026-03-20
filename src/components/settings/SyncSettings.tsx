@@ -11,6 +11,32 @@ import type { SyncFileInfo, ImportResult, SyncConflictInfo } from '../../api/typ
 import { AppIcon, icons } from '../icons/AppIcon'
 import KeyPickerModal from './KeyPickerModal'
 
+type SyncConnectionState = 'idle' | 'ok' | 'error'
+
+const formatSyncSize = (size: number | null): string => {
+  if (size == null) return '--'
+  if (size < 1024) return `${size} B`
+  if (size < 1048576) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / 1048576).toFixed(2)} MB`
+}
+
+const formatSyncTime = (time: string | null): string => {
+  if (!time) return '--'
+  const normalized = time.replace('T', ' ').replace('Z', '')
+  return normalized.slice(0, 16)
+}
+
+const SYNC_VERIFIED_SIGNATURE_HASH_KEY = 'vortix.sync.verifiedSignatureHash.v1'
+
+const hashSyncSignature = (value: string): string => {
+  let hash = 2166136261
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(16)
+}
+
 /* ── 仓库源显示名 ── */
 const REPO_LABELS: Record<string, string> = {
   local: '本地文件', git: 'GIT', webdav: 'WEBDAV', s3: 'S3',
@@ -95,6 +121,8 @@ export default function SyncSettings() {
   const [testing, setTesting] = useState(false)
   const addToast = useToastStore((s) => s.addToast)
   const [fileInfo, setFileInfo] = useState<SyncFileInfo | null>(null)
+  const [connectionState, setConnectionState] = useState<SyncConnectionState>('idle')
+  const [connectionHint, setConnectionHint] = useState('')
   const [confirmImport, setConfirmImport] = useState(false)
   const [confirmExport, setConfirmExport] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
@@ -125,18 +153,69 @@ export default function SyncSettings() {
     return gitSshKey.replace(/[^\r\n]/g, '•')
   }, [gitSshKey])
 
-  const refreshFileInfo = useCallback(async () => {
-    if (repoSource === 'local' && !syncLocalPath.trim()) { setFileInfo(null); return }
-    if (repoSource === 'git' && !gitUrl.trim()) { setFileInfo(null); return }
-    if (repoSource === 'webdav' && !webdavEndpoint.trim()) { setFileInfo(null); return }
-    if (repoSource === 's3' && !s3Endpoint.trim()) { setFileInfo(null); return }
+  const configSignature = useMemo(() => {
+    if (repoSource === 'local') return `local|${syncLocalPath}`
+    if (repoSource === 'git') {
+      if (gitAuthType === 'ssh') {
+        return `git|ssh|${gitUrl}|${gitBranch}|${gitPath}|${gitSshKey}|${syncGitSshKeyLabel}|${syncGitSshKeyMode}`
+      }
+      return `git|https|${gitUrl}|${gitBranch}|${gitPath}|${gitUsername}|${gitPassword}`
+    }
+    if (repoSource === 'webdav') return `webdav|${webdavEndpoint}|${webdavPath}|${webdavUsername}|${webdavPassword}`
+    return `s3|${s3Style}|${s3Endpoint}|${s3Path}|${s3Region}|${s3Bucket}|${s3AccessKey}|${s3SecretKey}`
+  }, [
+    repoSource, syncLocalPath, gitAuthType, gitUrl, gitBranch, gitPath, gitSshKey, syncGitSshKeyLabel, syncGitSshKeyMode,
+    gitUsername, gitPassword, webdavEndpoint, webdavPath, webdavUsername, webdavPassword,
+    s3Style, s3Endpoint, s3Path, s3Region, s3Bucket, s3AccessKey, s3SecretKey,
+  ])
+
+  const configSignatureHash = useMemo(() => hashSyncSignature(configSignature), [configSignature])
+
+  const persistVerifiedSignature = useCallback((verified: boolean) => {
+    try {
+      if (verified) {
+        window.localStorage.setItem(SYNC_VERIFIED_SIGNATURE_HASH_KEY, configSignatureHash)
+        return
+      }
+      if (window.localStorage.getItem(SYNC_VERIFIED_SIGNATURE_HASH_KEY) === configSignatureHash) {
+        window.localStorage.removeItem(SYNC_VERIFIED_SIGNATURE_HASH_KEY)
+      }
+    } catch {
+      // ignore localStorage failures in restricted environments
+    }
+  }, [configSignatureHash])
+
+  useEffect(() => {
+    setConnectionHint('')
+    setFileInfo(null)
+    let isVerified = false
+    try {
+      isVerified = window.localStorage.getItem(SYNC_VERIFIED_SIGNATURE_HASH_KEY) === configSignatureHash
+    } catch {
+      isVerified = false
+    }
+    setConnectionState(isVerified ? 'ok' : 'idle')
+  }, [configSignatureHash])
+
+  const refreshFileInfo = useCallback(async (): Promise<boolean> => {
+    if (repoSource === 'local' && !syncLocalPath.trim()) { setFileInfo(null); return false }
+    if (repoSource === 'git' && !gitUrl.trim()) { setFileInfo(null); return false }
+    if (repoSource === 'webdav' && !webdavEndpoint.trim()) { setFileInfo(null); return false }
+    if (repoSource === 's3' && !s3Endpoint.trim()) { setFileInfo(null); return false }
     try {
       const info = await api.getSyncStatus(syncBody)
       setFileInfo(info)
-    } catch { setFileInfo(null) }
+      return true
+    } catch {
+      setFileInfo(null)
+      return false
+    }
   }, [gitUrl, repoSource, s3Endpoint, syncBody, syncLocalPath, webdavEndpoint])
 
-  useEffect(() => { refreshFileInfo() }, [refreshFileInfo])
+  useEffect(() => {
+    if (connectionState !== 'ok') return
+    void refreshFileInfo()
+  }, [connectionState, refreshFileInfo])
 
   const handleTest = async () => {
     if (repoSource === 'local' && !syncLocalPath.trim()) {
@@ -152,11 +231,19 @@ export default function SyncSettings() {
       addToast('error', '请填写 S3 Endpoint'); return
     }
     setTesting(true)
+    setConnectionHint('')
     try {
       await api.syncTest(syncBody)
+      setConnectionState('ok')
+      persistVerifiedSignature(true)
       addToast('success', repoSource === 'local' ? '路径检查成功' : '连接测试成功')
-      await refreshFileInfo()
+      const statusOk = await refreshFileInfo()
+      if (!statusOk) setConnectionHint('连接成功，但远端状态获取失败，可继续拉取或推送')
     } catch (e) {
+      setConnectionState('error')
+      setFileInfo(null)
+      persistVerifiedSignature(false)
+      setConnectionHint((e as Error).message)
       addToast('error', (e as Error).message)
     } finally {
       setTesting(false)
@@ -165,10 +252,15 @@ export default function SyncSettings() {
 
   /* 导出（推送前检测冲突） */
   const handleExport = async (force = false) => {
+    if (connectionState !== 'ok') {
+      addToast('error', '请先测试连接')
+      return
+    }
     if (repoSource === 'local' && !syncLocalPath.trim()) {
       addToast('error', '请填写同步路径'); return
     }
     setSyncing(true)
+    setConnectionHint('')
     try {
       // 非强制推送时先检测冲突
       if (!force) {
@@ -180,19 +272,27 @@ export default function SyncSettings() {
         }
       }
       await api.syncExport(syncBody)
+      setConnectionState('ok')
       addToast('success', '推送成功')
       await refreshFileInfo()
     } catch (e) {
+      setConnectionState('error')
+      setConnectionHint((e as Error).message)
       addToast('error', (e as Error).message)
     } finally { setSyncing(false) }
   }
 
   /* 导入（拉取前检测冲突） */
   const handleImport = async (force = false) => {
+    if (connectionState !== 'ok') {
+      addToast('error', '请先测试连接')
+      return
+    }
     if (repoSource === 'local' && !syncLocalPath.trim()) {
       addToast('error', '请填写同步路径'); return
     }
     setSyncing(true); setConfirmImport(false)
+    setConnectionHint('')
     try {
       // 非强制拉取时先检测冲突
       if (!force) {
@@ -204,6 +304,7 @@ export default function SyncSettings() {
         }
       }
       const result: ImportResult = await api.syncImport(syncBody)
+      setConnectionState('ok')
       addToast('success', `拉取成功：${result.folders} 个文件夹、${result.connections} 个连接、${result.shortcuts} 个快捷命令、${result.sshKeys} 个密钥`)
       await Promise.all([
         useSettingsStore.getState().loadSettings(),
@@ -212,6 +313,8 @@ export default function SyncSettings() {
       ])
       await refreshFileInfo()
     } catch (e) {
+      setConnectionState('error')
+      setConnectionHint((e as Error).message)
       addToast('error', (e as Error).message)
     } finally { setSyncing(false) }
   }
@@ -231,11 +334,15 @@ export default function SyncSettings() {
   /* 删除远端同步文件 */
   const handleDeleteRemote = async () => {
     setSyncing(true); setConfirmDeleteRemote(false)
+    setConnectionHint('')
     try {
       await api.deleteSyncRemote(syncBody)
+      setConnectionState('ok')
       addToast('success', repoSource === 'local' ? '本地同步文件已清理' : '远端同步数据已删除')
       await refreshFileInfo()
     } catch (e) {
+      setConnectionState('error')
+      setConnectionHint((e as Error).message)
       addToast('error', (e as Error).message)
     } finally { setSyncing(false) }
   }
@@ -244,6 +351,21 @@ export default function SyncSettings() {
   /* 通用输入框样式 */
   const inputCls = "island-control px-2 text-[11px] placeholder-text-disabled shrink min-w-0"
   const smallIslandBtn = 'island-btn h-[26px] px-2.5 text-[11px] text-text-2 inline-flex items-center justify-center transition-colors'
+  const syncActionsEnabled = connectionState === 'ok' && !syncing && !testing
+  const preferPull = connectionState === 'ok' && fileInfo?.exists === true
+  const preferPush = connectionState === 'ok' && fileInfo?.exists === false
+
+  const syncHintText = useMemo(() => {
+    if (connectionState === 'idle') return '请先测试连接，成功后再拉取或推送。'
+    if (connectionState === 'error') return connectionHint || '连接失败，请检查地址或凭据后重试。'
+    if (fileInfo?.exists) {
+      const when = formatSyncTime(fileInfo.lastModified)
+      const size = formatSyncSize(fileInfo.size)
+      return `☁️ 远端存在备份（更新于 ${when}，${size}）`
+    }
+    if (fileInfo && !fileInfo.exists) return '☁️ 远端仓库为空，随时可推送。'
+    return connectionHint || '连接成功，可执行拉取或推送。'
+  }, [connectionHint, connectionState, fileInfo])
 
   return (
     <>
@@ -283,37 +405,40 @@ export default function SyncSettings() {
         </SettingRow>
 
         <SettingRow label="云端同步">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-text-3 truncate">拉取将覆盖本地数据，推送将覆盖远端数据</span>
+          <div className="flex min-w-0 flex-col items-end gap-1.5">
             <div className="flex gap-1.5 shrink-0">
               <button
                 disabled={syncing || testing}
                 onClick={handleTest}
-                className={`${smallIslandBtn} gap-1 disabled:opacity-50`}
+                className={`${smallIslandBtn} gap-1 disabled:opacity-50 ${connectionState === 'idle' ? 'border-primary/40 bg-primary/10 text-primary' : ''}`}
               >
                 {testing ? <AppIcon icon={icons.loader} size={11} className="animate-spin" /> : <AppIcon icon={icons.cloudCog} size={11} />}
                 {testing ? '测试中...' : (repoSource === 'local' ? '检查路径' : '测试连接')}
               </button>
               <button
-                disabled={syncing}
+                disabled={!syncActionsEnabled}
                 onClick={() => setConfirmImport(true)}
-                className={`${smallIslandBtn} gap-1 disabled:opacity-50`}
+                className={`${smallIslandBtn} gap-1 disabled:opacity-50 ${preferPull ? 'border-primary/40 bg-primary/10 text-primary' : ''}`}
               >
                 {syncing ? <AppIcon icon={icons.loader} size={11} className="animate-spin" /> : <AppIcon icon={icons.download} size={11} />}
                 拉取
               </button>
               <button
-                disabled={syncing}
+                disabled={!syncActionsEnabled}
                 onClick={() => {
                   if (fileInfo?.exists) setConfirmExport(true)
                   else handleExport()
                 }}
-                className={`${smallIslandBtn} gap-1 disabled:opacity-50`}
+                className={`${smallIslandBtn} gap-1 disabled:opacity-50 ${preferPush ? 'border-primary/40 bg-primary/10 text-primary' : ''}`}
               >
                 {syncing ? <AppIcon icon={icons.loader} size={11} className="animate-spin" /> : <AppIcon icon={icons.upload} size={11} />}
                 推送
               </button>
             </div>
+            <div className={`max-w-[420px] text-[12px] leading-[1.4] text-right ${connectionState === 'error' ? 'text-status-error' : 'text-text-3'}`}>
+              {syncHintText}
+            </div>
+            <div className="text-[11px] text-text-3/80">ⓘ 同步内容会加密后写入远端。</div>
           </div>
         </SettingRow>
 
@@ -408,14 +533,14 @@ export default function SyncSettings() {
 
           {/* ── Git ── */}
           {repoSource === 'git' && (
-            <>
+            <div className="sync-provider-grid">
               <SettingRow label="仓库地址">
                 <input
                   type="text"
                   value={gitUrl}
                   onChange={(e) => update('syncGitUrl', e.target.value)}
                   placeholder="https:// 或 git@"
-                  className={`${inputCls} w-full max-w-[320px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <SettingRow label="分支">
@@ -423,7 +548,7 @@ export default function SyncSettings() {
                   type="text"
                   value={gitBranch}
                   onChange={(e) => update('syncGitBranch', e.target.value)}
-                  className={`${inputCls} w-full max-w-[200px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <SettingRow label="存储路径" desc="留空则写入仓库根目录；可指定子目录，如 Vortix 或 backup/vortix">
@@ -432,7 +557,7 @@ export default function SyncSettings() {
                   value={gitPath}
                   onChange={(e) => update('syncGitPath', e.target.value)}
                   placeholder="仓库内相对子目录，可留空"
-                  className={`${inputCls} w-full max-w-[240px] font-mono`}
+                  className={`${inputCls} w-full max-w-[360px] font-mono`}
                 />
               </SettingRow>
               {gitAuthType === 'https' ? (
@@ -442,7 +567,7 @@ export default function SyncSettings() {
                       type="text"
                       value={gitUsername}
                       onChange={(e) => update('syncGitUsername', e.target.value)}
-                      className={`${inputCls} w-full max-w-[240px]`}
+                      className={`${inputCls} w-full max-w-[360px]`}
                     />
                   </SettingRow>
                   <SettingRow label="密码/Token" desc="建议使用 Personal Access Token">
@@ -450,7 +575,7 @@ export default function SyncSettings() {
                       type="password"
                       value={gitPassword}
                       onChange={(e) => update('syncGitPassword', e.target.value)}
-                      className={`${inputCls} w-full max-w-[240px]`}
+                      className={`${inputCls} w-full max-w-[360px]`}
                     />
                   </SettingRow>
                   <TlsToggleRow />
@@ -596,19 +721,19 @@ export default function SyncSettings() {
                 </SettingRow>
               )}
               <EncryptionKeyRow />
-            </>
+            </div>
           )}
 
           {/* ── WebDAV ── */}
           {repoSource === 'webdav' && (
-            <>
+            <div className="sync-provider-grid">
               <SettingRow label="Endpoint">
                 <input
                   type="text"
                   value={webdavEndpoint}
                   onChange={(e) => update('syncWebdavEndpoint', e.target.value)}
                   placeholder="http://webdav.com"
-                  className={`${inputCls} w-full max-w-[320px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <SettingRow label="路径">
@@ -616,7 +741,7 @@ export default function SyncSettings() {
                   type="text"
                   value={webdavPath}
                   onChange={(e) => update('syncWebdavPath', e.target.value)}
-                  className={`${inputCls} w-full max-w-[240px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <SettingRow label="用户名">
@@ -624,7 +749,7 @@ export default function SyncSettings() {
                   type="text"
                   value={webdavUsername}
                   onChange={(e) => update('syncWebdavUsername', e.target.value)}
-                  className={`${inputCls} w-full max-w-[240px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <SettingRow label="密码">
@@ -632,17 +757,17 @@ export default function SyncSettings() {
                   type="password"
                   value={webdavPassword}
                   onChange={(e) => update('syncWebdavPassword', e.target.value)}
-                  className={`${inputCls} w-full max-w-[240px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <EncryptionKeyRow />
               <TlsToggleRow />
-            </>
+            </div>
           )}
 
           {/* ── S3 ── */}
           {repoSource === 's3' && (
-            <>
+            <div className="sync-provider-grid">
               <SettingRow label="Addressing Style">
                 <SettingsDropdown
                   value={s3Style}
@@ -651,7 +776,8 @@ export default function SyncSettings() {
                     { value: 'path', label: 'Path Style' },
                   ]}
                   onChange={(v) => update('syncS3Style', v)}
-                  width="w-[180px]"
+                  width="w-[220px]"
+                  triggerWidth="w-[360px] max-w-full"
                 />
               </SettingRow>
               <SettingRow label="Endpoint">
@@ -659,7 +785,7 @@ export default function SyncSettings() {
                   type="text"
                   value={s3Endpoint}
                   onChange={(e) => update('syncS3Endpoint', e.target.value)}
-                  className={`${inputCls} w-full max-w-[320px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <SettingRow label="路径">
@@ -667,7 +793,7 @@ export default function SyncSettings() {
                   type="text"
                   value={s3Path}
                   onChange={(e) => update('syncS3Path', e.target.value)}
-                  className={`${inputCls} w-full max-w-[240px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <SettingRow label="Region">
@@ -675,7 +801,7 @@ export default function SyncSettings() {
                   type="text"
                   value={s3Region}
                   onChange={(e) => update('syncS3Region', e.target.value)}
-                  className={`${inputCls} w-full max-w-[200px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <SettingRow label="Bucket">
@@ -683,7 +809,7 @@ export default function SyncSettings() {
                   type="text"
                   value={s3Bucket}
                   onChange={(e) => update('syncS3Bucket', e.target.value)}
-                  className={`${inputCls} w-full max-w-[240px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <SettingRow label="AccessKey">
@@ -691,7 +817,7 @@ export default function SyncSettings() {
                   type="text"
                   value={s3AccessKey}
                   onChange={(e) => update('syncS3AccessKey', e.target.value)}
-                  className={`${inputCls} w-full max-w-[240px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <SettingRow label="SecretAccessKey">
@@ -699,37 +825,19 @@ export default function SyncSettings() {
                   type="password"
                   value={s3SecretKey}
                   onChange={(e) => update('syncS3SecretKey', e.target.value)}
-                  className={`${inputCls} w-full max-w-[240px]`}
+                  className={`${inputCls} w-full max-w-[360px]`}
                 />
               </SettingRow>
               <EncryptionKeyRow />
               <TlsToggleRow />
-            </>
+            </div>
           )}
 
         </SettingGroup>
       </div>
 
       {/* 同步文件状态 */}
-      {fileInfo && (
-        <div className="island-surface mt-4 flex items-center gap-4 px-4 py-2.5 rounded-xl text-[11px] text-text-2">
-          <span className="flex items-center gap-1">
-            {fileInfo.exists
-              ? <><AppIcon icon={icons.checkCircle} size={12} className="text-chart-green" /> 同步文件已存在，如需恢复数据请点击「拉取」</>
-              : <><AppIcon icon={icons.cloudOff} size={12} className="text-text-3" /> 同步文件不存在</>
-            }
-          </span>
-          {fileInfo.lastModified && (
-            <span>修改时间: {fileInfo.lastModified.replace('T', ' ').slice(0, 19)}</span>
-          )}
-          {fileInfo.size !== null && (
-            <span>大小: {fileInfo.size < 1024 ? `${fileInfo.size} B` : fileInfo.size < 1048576 ? `${(fileInfo.size / 1024).toFixed(1)} KB` : `${(fileInfo.size / 1048576).toFixed(2)} MB`}</span>
-          )}
-          <button onClick={refreshFileInfo} className="p-1 hover:bg-border rounded transition-colors">
-            <AppIcon icon={icons.refresh} size={11} className="text-text-3" />
-          </button>
-        </div>
-      )}
+      
 
       {/* 导入确认弹窗 */}
       {confirmImport && (
@@ -804,10 +912,7 @@ export default function SyncSettings() {
       )}
 
       {/* 安全提示 */}
-      <div className="island-surface mt-6 flex items-start gap-2 px-4 py-3 rounded-xl text-[11px] text-text-3">
-        <AppIcon icon={icons.info} size={13} className="shrink-0 mt-0.5" />
-        <span>同步数据始终加密传输。未设置自定义密钥时使用内置加密（防止明文泄露），设置后使用强加密（跨设备恢复需要密钥）。Git 仓库仅保留最新一次同步记录。</span>
-      </div>
+      
 
       {/* 私钥选择弹窗 */}
       {showKeyPicker && (

@@ -4,14 +4,16 @@ import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { WebLinksAddon } from '@xterm/addon-web-links'
-import { useSettingsStore } from '../../stores/useSettingsStore'
+import { DEFAULT_TERMINAL_HIGHLIGHT_RULES, normalizeTerminalHighlightRules, useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
+import { useThemeStore } from '../../stores/useThemeStore'
 import { useMonitorStore } from '../../stores/useMonitorStore'
 import { useTabStore } from '../../stores/useTabStore'
 import { useKeywordHighlight } from './useKeywordHighlight'
 import { getSession, setSession, notifyInputListeners, addInputListener, removeInputListener } from '../../stores/terminalSessionRegistry'
 import { getWsBaseUrl, addHistory, getHistory } from '../../api/client'
 import type { TerminalSession } from '../../stores/terminalSessionRegistry'
+import type { TerminalHighlightRule } from '../../stores/useSettingsStore'
 import '@xterm/xterm/css/xterm.css'
 
 /** 使用 Web Audio API 播放终端铃声 */
@@ -78,6 +80,84 @@ interface XtermInternalCore {
   }
 }
 
+function normalizeRegexFlags(flags?: string): string {
+  const valid = new Set(['g', 'i', 'm', 's', 'u', 'y'])
+  const uniq: string[] = []
+  for (const ch of (flags ?? '').toLowerCase()) {
+    if (valid.has(ch) && !uniq.includes(ch)) uniq.push(ch)
+  }
+  if (!uniq.includes('g')) uniq.unshift('g')
+  return uniq.join('')
+}
+
+function compileHighlightRules(rules: TerminalHighlightRule[]): { color: string; pattern: RegExp }[] {
+  const out: { color: string; pattern: RegExp }[] = []
+  for (const rule of rules) {
+    if (!rule.pattern?.trim()) continue
+    try {
+      const flags = normalizeRegexFlags(rule.flags)
+      out.push({ color: rule.color, pattern: new RegExp(rule.pattern, flags) })
+    } catch {
+      // 忽略非法正则，避免终端渲染链路被阻断
+    }
+  }
+  return out
+}
+
+const ANSI_ESCAPE_REGEX = new RegExp(String.raw`\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)`, 'g')
+
+function isVortixStatusLine(text: string): boolean {
+  const plain = text.replace(ANSI_ESCAPE_REGEX, '')
+  return plain.trimStart().startsWith('[Vortix]')
+}
+
+function hexToRgb(hex: string): [number, number, number] | null {
+  const raw = hex.trim().replace(/^#/, '')
+  if (!/^[0-9a-fA-F]{6}$/.test(raw)) return null
+  const n = Number.parseInt(raw, 16)
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff]
+}
+
+function colorWrap(text: string, color: string): string {
+  const rgb = hexToRgb(color)
+  if (!rgb) return text
+  return `\x1b[38;2;${rgb[0]};${rgb[1]};${rgb[2]}m${text}\x1b[39m`
+}
+
+function applyHighlightToPlainText(
+  text: string,
+  rules: { color: string; pattern: RegExp }[],
+): string {
+  let output = text
+  for (const rule of rules) {
+    output = output.replace(rule.pattern, (m) => colorWrap(m, rule.color))
+  }
+  return output
+}
+
+function applyAnsiSafeHighlight(
+  text: string,
+  rules: { color: string; pattern: RegExp }[],
+): string {
+  if (isVortixStatusLine(text)) return text
+  let result = ''
+  let last = 0
+  ANSI_ESCAPE_REGEX.lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = ANSI_ESCAPE_REGEX.exec(text)) !== null) {
+    const idx = match.index
+    if (idx > last) {
+      result += applyHighlightToPlainText(text.slice(last, idx), rules)
+    }
+    result += match[0]
+    last = idx + match[0].length
+  }
+  if (last < text.length) {
+    result += applyHighlightToPlainText(text.slice(last), rules)
+  }
+  return result
+}
+
 export default function SshTerminal({ paneId, tabId, wsUrl, connection, connectionId, profileId, onStatusChange, onContextMenu }: SshTerminalProps) {
   const resolvedWsUrl = wsUrl || `${getWsBaseUrl()}/ws/ssh`
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -122,8 +202,8 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
 
   const stabilizeTerminalLayout = useCallback((session: TerminalSession, preferredFont?: string) => {
     const run = () => {
-      session.term.refresh(0, session.term.rows - 1)
       safeFit(session.fitAddon)
+      session.term.refresh(0, session.term.rows - 1)
       const dims = getProposedDimensions(session.fitAddon)
       if (dims && session.ws?.readyState === WebSocket.OPEN) {
         session.ws.send(JSON.stringify({ type: 'resize', data: { cols: dims.cols, rows: dims.rows } }))
@@ -178,17 +258,24 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
   const sendHighlightConfig = useCallback((ws: WebSocket) => {
     if (ws.readyState !== WebSocket.OPEN) return
     const settings = useSettingsStore.getState()
-    const ps = useTerminalProfileStore.getState()
-    const profile = ps.getProfileById(profileId ?? settings.activeProfileId)
-      ?? ps.getDefaultProfile()
+    const rules = normalizeTerminalHighlightRules(settings.termHighlightRules)
+    const colors = Object.fromEntries(rules.map(rule => [rule.id, rule.color]))
     ws.send(JSON.stringify({
       type: 'highlight-config',
       data: {
         enabled: settings.termHighlightEnhance,
-        colors: profile.keywordHighlights,
+        colors,
       },
     }))
-  }, [profileId])
+  }, [])
+
+  const getResolvedHighlightRules = useCallback((): { color: string; pattern: RegExp }[] => {
+    const settings = useSettingsStore.getState()
+    const sourceRules = normalizeTerminalHighlightRules(settings.termHighlightRules)
+    const compiled = compileHighlightRules(sourceRules)
+    if (compiled.length > 0) return compiled
+    return compileHighlightRules(DEFAULT_TERMINAL_HIGHLIGHT_RULES)
+  }, [])
 
   /** 建立 WebSocket 连接（支持重连） */
   const connectWs = useCallback((session: TerminalSession, conn: NonNullable<SshTerminalProps['connection']>) => {
@@ -237,8 +324,14 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data)
       switch (msg.type) {
-        case 'output':
-          term.write(msg.data)
+        case 'output': {
+          const outputText = String(msg.data ?? '')
+          const settingsNow = useSettingsStore.getState()
+          const rendered = settingsNow.termHighlightEnhance
+            ? applyAnsiSafeHighlight(outputText, getResolvedHighlightRules())
+            : outputText
+          term.write(rendered)
+        }
           // 非活跃标签页有输出时标记活动
           if (tabId && useSettingsStore.getState().tabFlashNotify) {
             const tabStore = useTabStore.getState()
@@ -328,7 +421,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       onStatusChangeRef.current?.('error')
     }
 
-  }, [connectionId, getProposedDimensions, resolvedWsUrl, safeFit, sendHighlightConfig, tabId])
+  }, [connectionId, getProposedDimensions, getResolvedHighlightRules, resolvedWsUrl, safeFit, sendHighlightConfig, tabId])
   useEffect(() => { connectWsRef.current = connectWs }, [connectWs])
 
   // 主 effect：挂载恢复 / 首次创建
@@ -341,6 +434,10 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     if (existing) {
       // ── 恢复已有会话：复用 DOM + Terminal + WebSocket ──
       wrapper.appendChild(existing.containerEl)
+      if (!existing.isOpened) {
+        existing.term.open(existing.containerEl)
+        existing.isOpened = true
+      }
       termRef.current = existing.term
       fitAddonRef.current = existing.fitAddon
       wsRef.current = existing.ws
@@ -406,18 +503,17 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       containerEl.style.width = '100%'
       containerEl.style.height = '100%'
       wrapper.appendChild(containerEl)
-      term.open(containerEl)
-      safeFit(fitAddon)
+      // 注意：不在此处立即 safeFit，等字体加载完成后再测量，避免缓存错误的 cell 尺寸
 
       const session: TerminalSession = {
         containerEl, term, fitAddon, searchAddon,
         webglAddon: null,
+        isOpened: false,
         ws: null, reconnectTimer: null, reconnectCount: 0, isManualDisconnect: false,
         inputDisposable: null, reconnectInputDisposable: null,
         commandBuffer: '', historyCache: [], lastRecordedCommand: '',
       }
       setSession(paneId, session)
-      applyPerformanceMode(session, settings.termHighPerformance)
 
       termRef.current = term
       fitAddonRef.current = fitAddon
@@ -448,18 +544,37 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         : `正在连接 ${(connection as SshConnection).host}:${(connection as SshConnection).port} ...`
       term.writeln('\x1b[36m[Vortix]\x1b[0m ' + connectMsg)
       onStatusChangeRef.current?.('connecting')
-      const preferredFont = resolved.fontFamily.split(',')[0]?.trim()
+      const preferredFont = resolved.fontFamily.split(',')[0]?.trim().replace(/^['"]|['"]$/g, '')
 
-      // 延迟连接，确保容器布局完全稳定后再取尺寸
-      setTimeout(() => {
+      // ???????,???????????? term.open + fit + ??
+      const fontSize = resolved.profile.fontSize ?? 14
+      const waitForTerminalReady = async () => {
+        if (document.fonts?.ready) {
+          await Promise.race([
+            document.fonts.ready,
+            new Promise<void>((resolve) => window.setTimeout(resolve, 500)),
+          ]).catch(() => {})
+        }
+        if (preferredFont && document.fonts?.load) {
+          await Promise.race([
+            document.fonts.load(`${fontSize}px "${preferredFont}"`),
+            new Promise<FontFace[]>((resolve) => window.setTimeout(() => resolve([]), 500)),
+          ]).catch(() => {})
+        }
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+      }
+
+      void waitForTerminalReady().then(() => {
+        // ?????????/?????????? term.open,???? metrics ????????????
+        if (!session.isOpened) {
+          term.open(containerEl)
+          session.isOpened = true
+        }
+        applyPerformanceMode(session, settings.termHighPerformance)
         stabilizeTerminalLayout(session, preferredFont)
         connectWs(session, connection)
         updateCellHeight()
-      }, 50)
-
-      // 字体加载完成后强制重绘 + 重新 fit（修复 Canvas 渲染器缓存错误的字符宽度）
-      document.fonts.ready.then(() => {
-        stabilizeTerminalLayout(session, preferredFont)
       })
     }
 
@@ -539,10 +654,13 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     }
 
     const unsub1 = useTerminalProfileStore.subscribe(applyProfile)
+    const unsubTheme = useThemeStore.subscribe(applyProfile)
     // 只监听终端相关设置字段变化
     const unsub2 = useSettingsStore.subscribe((s, prev) => {
       if (
         s.activeProfileId !== prev.activeProfileId ||
+        s.termThemeLight !== prev.termThemeLight ||
+        s.termThemeDark !== prev.termThemeDark ||
         s.fontLigatures !== prev.fontLigatures ||
         s.termFontFamily !== prev.termFontFamily ||
         s.termFontSize !== prev.termFontSize ||
@@ -551,7 +669,8 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         s.termScrollback !== prev.termScrollback ||
         s.termCursorStyle !== prev.termCursorStyle ||
         s.termCursorBlink !== prev.termCursorBlink ||
-        s.termHighPerformance !== prev.termHighPerformance
+        s.termHighPerformance !== prev.termHighPerformance ||
+        s.termStripeEnabled !== prev.termStripeEnabled
       ) {
         applyProfile()
       }
@@ -559,7 +678,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     const observer = new MutationObserver(applyProfile)
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 
-    return () => { unsub1(); unsub2(); observer.disconnect() }
+    return () => { unsub1(); unsubTheme(); unsub2(); observer.disconnect() }
   }, [applyPerformanceMode, paneId, profileId, safeFit, stabilizeTerminalLayout, updateCellHeight])
 
   // 鼠标选中自动复制
@@ -755,7 +874,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     const unsub1 = useTerminalProfileStore.subscribe(pushConfig)
     const unsub2 = useSettingsStore.subscribe((s, prev) => {
       if (s.termHighlightEnhance !== prev.termHighlightEnhance ||
-          s.keywordHighlights !== prev.keywordHighlights) {
+          s.termHighlightRules !== prev.termHighlightRules) {
         pushConfig()
       }
     })
@@ -845,12 +964,16 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
   // P6-3: Tab 键接受提示 — 已合并到 customKeyEventHandler 中
 
   const termStripeEnabled = useSettingsStore((s) => s.termStripeEnabled)
+  const fallbackStripeHeight = useSettingsStore((s) => Math.max(1, Math.round((s.termFontSize || 14) * (s.termLineHeight || 1))))
   const displayedHint = termCommandHint && sshHistoryEnabled ? hintText : ''
-  const stripeBackgroundImage = termStripeEnabled && cellHeight > 0
+  const stripeHeight = cellHeight > 0
+    ? cellHeight
+    : fallbackStripeHeight
+  const stripeBackgroundImage = termStripeEnabled
     ? `repeating-linear-gradient(to bottom,
-      transparent 0px, transparent ${cellHeight}px,
-      ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${cellHeight}px,
-      ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${cellHeight * 2}px)`
+      transparent 0px, transparent ${stripeHeight}px,
+      ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${stripeHeight}px,
+      ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${stripeHeight * 2}px)`
     : undefined
 
   return (
@@ -922,3 +1045,4 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     </div>
   )
 }
+

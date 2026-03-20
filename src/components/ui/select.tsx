@@ -93,14 +93,15 @@ interface SettingsDropdownProps {
   options: { value: string; label: string }[]
   onChange: (v: string) => void
   width?: string
+  triggerWidth?: string
 }
 
-function SettingsDropdown({ value, options, onChange, width = 'w-auto' }: SettingsDropdownProps) {
+function SettingsDropdown({ value, options, onChange, width = 'w-auto', triggerWidth }: SettingsDropdownProps) {
   const selectedLabel = options.find((o) => o.value === value)?.label ?? value
 
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger>
+      <SelectTrigger className={triggerWidth}>
         <SelectValue>{selectedLabel}</SelectValue>
       </SelectTrigger>
       <SelectContent className={width}>

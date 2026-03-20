@@ -465,6 +465,13 @@ export async function checkPullConflict(body: import('./types').SyncRequestBody)
   })
 }
 
+export async function checkRemoteChanged(body: import('./types').SyncRequestBody): Promise<import('./types').RemoteCheckResult> {
+  return request<import('./types').RemoteCheckResult>('/sync/check-remote', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
 export async function purgeAllData(): Promise<void> {
   return request<void>('/maintenance/purge-all', { method: 'POST' })
 }

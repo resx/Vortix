@@ -534,3 +534,13 @@ pub async fn sync_check_pull(db: Db, body: SyncRequestBody) -> Result<Json<ApiRe
         remote_device_id: None, remote_exported_at: None,
     }))
 }
+
+/// 轻量级远端变更检测：不下载同步数据，仅比较标识符
+pub async fn sync_check_remote(db: Db, body: SyncRequestBody) -> Result<Json<ApiResponse<RemoteCheckResult>>, ApiError> {
+    let provider = create_provider(&body).map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
+    let state = get_sync_state(&db).await?;
+    let known_hash = state.last_sync_at.unwrap_or_default();
+    let result = provider.check_remote_changed(SYNC_FILENAME, &known_hash).await
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+    Ok(ok(result))
+}

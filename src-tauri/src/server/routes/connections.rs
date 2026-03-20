@@ -2,12 +2,13 @@
 
 use axum::{extract::{State, Query}, http::StatusCode, response::Json};
 use chrono::Utc;
+use russh::client::{self, Handler};
+use russh::keys::{self, PrivateKeyWithHashAlg};
 use serde_json::{json, Map, Value};
-use ssh2::Session;
+
 use std::collections::HashMap;
-use std::io::Read as IoRead;
-use std::net::{TcpStream as StdTcpStream, ToSocketAddrs};
 use std::process::Command;
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 use tokio::net::TcpStream;
@@ -17,7 +18,7 @@ use uuid::Uuid;
 use crate::db::Db;
 use super::super::response::{ok, ok_empty, err, ApiResponse};
 use super::super::types::*;
-use super::super::helpers::{to_connection_public, mark_local_dirty, insert_connection, update_connection_row, userauth_pubkey_with_tempfile};
+use super::super::helpers::{establish_russh_session, to_connection_public, mark_local_dirty, insert_connection, update_connection_row};
 
 pub async fn get_connections(
     State(db): State<Db>,
@@ -423,10 +424,19 @@ pub async fn test_ssh_connection(
     State(db): State<Db>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    #[derive(Clone, Default)]
+    struct TestClientHandler;
+    impl Handler for TestClientHandler {
+        type Error = russh::Error;
+        async fn check_server_key(&mut self, _key: &russh::keys::ssh_key::PublicKey) -> Result<bool, Self::Error> {
+            Ok(true)
+        }
+    }
+
     let host = body.get("host").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     let username = body.get("username").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     if host.is_empty() || username.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": "主机和用户名不能为空" }))));
+        return Err((StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": "连接参数不完整" }))));
     }
     let port = body.get("port").and_then(|v| v.as_u64()).unwrap_or(22) as u16;
     let mut resolved_username = username;
@@ -444,36 +454,49 @@ pub async fn test_ssh_connection(
         }
     }
 
-    let result = time::timeout(Duration::from_secs(10), tokio::task::spawn_blocking(move || {
-        let mut last_err: Option<String> = None;
-        let mut tcp: Option<StdTcpStream> = None;
-        if let Ok(addrs) = (host.as_str(), port).to_socket_addrs() {
-            for addr in addrs {
-                match StdTcpStream::connect_timeout(&addr, Duration::from_secs(8)) {
-                    Ok(s) => { tcp = Some(s); break; }
-                    Err(e) => last_err = Some(e.to_string()),
-                }
-            }
-        }
-        let tcp = tcp.ok_or_else(|| last_err.unwrap_or_else(|| "连接失败".to_string()))?;
-        let mut sess = Session::new().map_err(|e| format!("无法初始化 SSH 会话: {}", e))?;
-        sess.set_tcp_stream(tcp);
-        sess.handshake().map_err(|e| format!("SSH 握手失败: {}", e))?;
+    let result = time::timeout(Duration::from_secs(10), async move {
+        let config = Arc::new(client::Config::default());
+        let addr = format!("{host}:{port}");
+        let mut session = client::connect(config, addr, TestClientHandler)
+            .await
+            .map_err(|e| format!("连接失败: {e}"))?;
+
         if let Some(pk) = private_key.as_deref() {
-            userauth_pubkey_with_tempfile(&sess, &resolved_username, pk, passphrase.as_deref())
-                .map_err(|e| format!("认证失败: {}", e))?;
+            let key_pair = keys::decode_secret_key(pk, passphrase.as_deref())
+                .map_err(|e| format!("私钥解析失败: {e}"))?;
+            let auth_res = session
+                .authenticate_publickey(
+                    &resolved_username,
+                    PrivateKeyWithHashAlg::new(
+                        Arc::new(key_pair),
+                        session.best_supported_rsa_hash().await.map_err(|e| e.to_string())?.flatten(),
+                    ),
+                )
+                .await
+                .map_err(|e| format!("认证失败: {e}"))?;
+            if !auth_res.success() {
+                return Err("认证失败".to_string());
+            }
         } else if let Some(pwd) = resolved_password.as_deref() {
-            sess.userauth_password(&resolved_username, pwd).map_err(|e| format!("认证失败: {}", e))?;
-        } else { return Err("缺少认证方式".to_string()); }
-        if !sess.authenticated() { return Err("认证失败".to_string()); }
-        Ok(())
-    })).await;
+            let auth_res = session
+                .authenticate_password(&resolved_username, pwd)
+                .await
+                .map_err(|e| format!("认证失败: {e}"))?;
+            if !auth_res.success() {
+                return Err("认证失败".to_string());
+            }
+        } else {
+            return Err("缺少认证方式".to_string());
+        }
+
+        let _ = session.disconnect(russh::Disconnect::ByApplication, "", "en").await;
+        Ok::<(), String>(())
+    }).await;
 
     match result {
-        Err(_) => Ok(Json(json!({ "success": false, "error": "连接超时（10s）" }))),
-        Ok(Err(e)) => Ok(Json(json!({ "success": false, "error": format!("{}", e) }))),
-        Ok(Ok(Err(e))) => Ok(Json(json!({ "success": false, "error": e }))),
-        Ok(Ok(Ok(()))) => Ok(Json(json!({ "success": true, "message": "连接成功" }))),
+        Err(_) => Ok(Json(json!({ "success": false, "error": "连接超时(10s)" }))),
+        Ok(Err(e)) => Ok(Json(json!({ "success": false, "error": e }))),
+        Ok(Ok(())) => Ok(Json(json!({ "success": true, "message": "连接成功" }))),
     }
 }
 
@@ -483,17 +506,17 @@ pub async fn test_local_terminal(
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let shell = body.get("shell").and_then(|v| v.as_str()).unwrap_or("").trim().to_string();
     if shell.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": "Shell 类型不能为空" }))));
+        return Err((StatusCode::BAD_REQUEST, Json(json!({ "success": false, "error": "Shell 参数不能为空" }))));
     }
     let working_dir = body.get("workingDir").and_then(|v| v.as_str()).map(|s| s.to_string());
     if let Some(dir) = &working_dir {
         match std::fs::metadata(dir) {
             Ok(meta) => {
                 if !meta.is_dir() {
-                    return Ok(Json(json!({ "success": false, "error": format!("工作路径不存在或不是目录: {}", dir) })));
+                    return Ok(Json(json!({ "success": false, "error": format!("工作目录不是文件夹: {}", dir) })));
                 }
             }
-            Err(_) => return Ok(Json(json!({ "success": false, "error": format!("无法访问工作路径: {}", dir) }))),
+            Err(_) => return Ok(Json(json!({ "success": false, "error": format!("工作目录不存在: {}", dir) }))),
         }
     }
 
@@ -513,7 +536,7 @@ pub async fn test_local_terminal(
     if let Some(dir) = &working_dir { command.current_dir(dir); }
     let mut child = match command.spawn() {
         Ok(c) => c,
-        Err(e) => return Ok(Json(json!({ "success": false, "error": format!("无法启动 {}: {}", shell, e) }))),
+        Err(e) => return Ok(Json(json!({ "success": false, "error": format!("启动 {} 失败: {}", shell, e) }))),
     };
 
     let deadline = Instant::now() + Duration::from_secs(10);
@@ -522,14 +545,14 @@ pub async fn test_local_terminal(
             Ok(Some(status)) => {
                 let code = status.code();
                 if status.success() || (shell == "wsl" && code.is_some()) {
-                    return Ok(Json(json!({ "success": true, "message": "终端可用" })));
+                    return Ok(Json(json!({ "success": true, "message": "连接成功" })));
                 }
-                return Ok(Json(json!({ "success": false, "error": format!("Shell 退出码: {:?}", code) })));
+                return Ok(Json(json!({ "success": false, "error": format!("Shell 退出码异常: {:?}", code) })));
             }
             Ok(None) => {
                 if Instant::now() > deadline {
                     let _ = child.kill();
-                    return Ok(Json(json!({ "success": false, "error": "终端启动超时（10s）" })));
+                    return Ok(Json(json!({ "success": false, "error": "连接超时(10s)" })));
                 }
                 thread::sleep(Duration::from_millis(50));
             }
@@ -591,45 +614,60 @@ pub async fn upload_ssh_key(
     let username = conn.username.clone();
     let public_key = public_key.trim_end().to_string();
 
-    let result = time::timeout(Duration::from_secs(10), tokio::task::spawn_blocking(move || {
-        let mut last_err: Option<String> = None;
-        let mut tcp: Option<StdTcpStream> = None;
-        if let Ok(addrs) = (host.as_str(), port).to_socket_addrs() {
-            for addr in addrs {
-                match StdTcpStream::connect_timeout(&addr, Duration::from_secs(8)) {
-                    Ok(s) => { tcp = Some(s); break; }
-                    Err(e) => last_err = Some(e.to_string()),
-                }
-            }
-        }
-        let tcp = tcp.ok_or_else(|| last_err.unwrap_or_else(|| "连接失败".to_string()))?;
-        let mut sess = Session::new().map_err(|e| format!("无法初始化 SSH 会话: {}", e))?;
-        sess.set_tcp_stream(tcp);
-        sess.handshake().map_err(|e| format!("SSH 握手失败: {}", e))?;
-        if let Some(pk) = private_key.as_deref() {
-            userauth_pubkey_with_tempfile(&sess, &username, pk, passphrase.as_deref())
-                .map_err(|e| format!("认证失败: {}", e))?;
+    let result = time::timeout(Duration::from_secs(15), async move {
+        let mut handle = establish_russh_session(&host, port).await?;
+        
+        let auth_res = if let Some(pk) = private_key.as_deref() {
+            let key_pair = keys::decode_secret_key(pk, passphrase.as_deref())
+                .map_err(|e| format!("私钥解析失败: {e}"))?;
+            handle.authenticate_publickey(
+                &username,
+                PrivateKeyWithHashAlg::new(
+                    Arc::new(key_pair),
+                    handle.best_supported_rsa_hash().await.map_err(|e| e.to_string())?.flatten(),
+                ),
+            ).await.map_err(|e| format!("认证失败: {e}"))?
         } else if let Some(pwd) = password.as_deref() {
-            sess.userauth_password(&username, pwd).map_err(|e| format!("认证失败: {}", e))?;
-        } else { return Err("缺少认证方式".to_string()); }
-        if !sess.authenticated() { return Err("认证失败".to_string()); }
+            handle.authenticate_password(&username, pwd)
+                .await.map_err(|e| format!("认证失败: {e}"))?
+        } else {
+            return Err("缺少认证方式".to_string());
+        };
 
+        if !auth_res.success() {
+            return Err("认证被拒绝".to_string());
+        }
+
+        let mut channel = handle.channel_open_session().await.map_err(|e| e.to_string())?;
         let escaped = public_key.replace("'", "'\\''");
         let cmd = format!("mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '{}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys", escaped);
-        let mut channel = sess.channel_session().map_err(|e| e.to_string())?;
-        channel.exec(&cmd).map_err(|e| e.to_string())?;
+        
+        channel.exec(true, cmd).await.map_err(|e| e.to_string())?;
+        
+        let mut stdout = String::new();
         let mut stderr = String::new();
-        let _ = channel.stderr().read_to_string(&mut stderr);
-        let code = channel.exit_status().unwrap_or(0);
-        if code == 0 { Ok(()) } else {
-            Err(if stderr.trim().is_empty() { format!("退出码: {}", code) } else { stderr })
+        let mut exit_status: u32 = 0;
+
+        while let Some(msg) = channel.wait().await {
+            match msg {
+                russh::ChannelMsg::Data { data } => stdout.push_str(&String::from_utf8_lossy(&data)),
+                russh::ChannelMsg::ExtendedData { data, ext: _ } => stderr.push_str(&String::from_utf8_lossy(&data)),
+                russh::ChannelMsg::ExitStatus { exit_status: code } => exit_status = code,
+                russh::ChannelMsg::Eof | russh::ChannelMsg::Close => break,
+                _ => {}
+            }
         }
-    })).await;
+
+        if exit_status == 0 {
+            Ok(())
+        } else {
+            Err(if stderr.trim().is_empty() { format!("命令退出码: {}", exit_status) } else { stderr })
+        }
+    }).await;
 
     match result {
-        Err(_) => Err(err(StatusCode::BAD_REQUEST, "连接超时（10s）")),
+        Err(_) => Err(err(StatusCode::BAD_REQUEST, "连接超时（15s）")),
         Ok(Err(e)) => Err(err(StatusCode::BAD_REQUEST, format!("{}", e))),
-        Ok(Ok(Err(e))) => Err(err(StatusCode::BAD_REQUEST, e)),
-        Ok(Ok(Ok(()))) => Ok(ok(json!({ "message": "公钥上传成功" }))),
+        Ok(Ok(())) => Ok(ok(json!({ "message": "公钥上传成功" }))),
     }
 }
