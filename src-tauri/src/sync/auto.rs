@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 static AUTO_SYNC_ENABLED: AtomicBool = AtomicBool::new(true);
 

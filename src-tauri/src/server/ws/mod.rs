@@ -1,20 +1,22 @@
-/* ── WebSocket 模块（SSH 终端 / 本地终端 / SFTP） ── */
+/* WebSocket module: SSH terminal / local terminal / SFTP */
 
-pub mod ssh_worker;
 pub mod local_pty_worker;
 pub mod sftp_worker;
+pub mod ssh_worker;
 
-use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{
+    State,
+    ws::{Message, WebSocket, WebSocketUpgrade},
+};
 use axum::response::IntoResponse;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::time;
 
-use ssh_worker::{SshWorker, SshReq, start_ssh_worker};
-use local_pty_worker::{LocalPtyWorker, LocalPtyReq, start_local_pty_worker};
+use crate::db::Db;
+use local_pty_worker::{LocalPtyReq, LocalPtyWorker, start_local_pty_worker};
 use sftp_worker::{SftpWorker, WorkerReq, build_worker_req, start_sftp_worker};
-
-/* ── 共享类型 ── */
+use ssh_worker::{HostKeyDecision, SshReq, SshWorker, start_ssh_worker};
 
 #[derive(Deserialize)]
 pub struct WsMessage {
@@ -29,22 +31,19 @@ enum TerminalWorker {
     Local(LocalPtyWorker),
 }
 
-/* ── 升级处理器 ── */
-
-pub async fn ws_upgrade_ssh(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(ws_ssh)
+pub async fn ws_upgrade_ssh(State(db): State<Db>, ws: WebSocketUpgrade) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| ws_ssh(socket, db))
 }
 
-pub async fn ws_upgrade_sftp(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(ws_sftp)
+pub async fn ws_upgrade_sftp(State(db): State<Db>, ws: WebSocketUpgrade) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| ws_sftp(socket, db))
 }
 
-/* ── SSH / 本地终端 WebSocket ── */
-
-async fn ws_ssh(mut socket: WebSocket) {
+async fn ws_ssh(mut socket: WebSocket, db: Db) {
     let mut interval = time::interval(std::time::Duration::from_secs(30));
     let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel::<Value>();
     let mut worker: Option<TerminalWorker> = None;
+
     loop {
         tokio::select! {
             _ = interval.tick() => {
@@ -60,6 +59,7 @@ async fn ws_ssh(mut socket: WebSocket) {
                         if parsed.r#type == "pong" {
                             continue;
                         }
+
                         match parsed.r#type.as_str() {
                             "connect" => {
                                 if let Some(data) = parsed.data {
@@ -69,21 +69,28 @@ async fn ws_ssh(mut socket: WebSocket) {
                                             TerminalWorker::Local(l) => { let _ = l.tx.send(LocalPtyReq::Disconnect); }
                                         }
                                     }
+
                                     if data.get("type").and_then(|v| v.as_str()) == Some("local") {
                                         match start_local_pty_worker(data, event_tx.clone()) {
                                             Ok(w) => worker = Some(TerminalWorker::Local(w)),
                                             Err(e) => {
                                                 let _ = socket.send(Message::Text(json!({
-                                                    "type": "error", "data": e
+                                                    "type": "error",
+                                                    "data": e,
                                                 }).to_string().into())).await;
                                             }
                                         }
                                     } else {
-                                        match start_ssh_worker(data, event_tx.clone()) {
+                                        match start_ssh_worker(
+                                            data,
+                                            event_tx.clone(),
+                                            db.paths.known_hosts_path.clone(),
+                                        ) {
                                             Ok(w) => worker = Some(TerminalWorker::Ssh(w)),
                                             Err(e) => {
                                                 let _ = socket.send(Message::Text(json!({
-                                                    "type": "error", "data": e
+                                                    "type": "error",
+                                                    "data": e,
                                                 }).to_string().into())).await;
                                             }
                                         }
@@ -113,25 +120,35 @@ async fn ws_ssh(mut socket: WebSocket) {
                                 }
                             }
                             "pwd" => {
-                                let request_id = parsed.data
+                                let request_id = parsed
+                                    .data
                                     .as_ref()
                                     .and_then(|v| v.get("requestId"))
                                     .and_then(|v| v.as_str())
                                     .map(|s| s.to_string());
+
                                 if let Some(w) = &worker {
                                     match w {
                                         TerminalWorker::Ssh(s) => { let _ = s.tx.send(SshReq::Pwd { request_id }); }
                                         TerminalWorker::Local(_) => {
                                             let _ = socket.send(Message::Text(json!({
                                                 "type": "pwd-result",
-                                                "data": { "requestId": request_id, "path": null, "error": "本地终端不支持" }
+                                                "data": {
+                                                    "requestId": request_id,
+                                                    "path": null,
+                                                    "error": "PWD is not supported for local terminals",
+                                                }
                                             }).to_string().into())).await;
                                         }
                                     }
                                 } else {
                                     let _ = socket.send(Message::Text(json!({
                                         "type": "pwd-result",
-                                        "data": { "requestId": request_id, "path": null, "error": "未连接" }
+                                        "data": {
+                                            "requestId": request_id,
+                                            "path": null,
+                                            "error": "Terminal is not connected",
+                                        }
                                     }).to_string().into())).await;
                                 }
                             }
@@ -160,9 +177,31 @@ async fn ws_ssh(mut socket: WebSocket) {
                                     let _ = s.tx.send(SshReq::MonitorStop);
                                 }
                             }
+                            "hostkey-verification-decision" => {
+                                if let (Some(TerminalWorker::Ssh(s)), Some(data)) = (&worker, parsed.data) {
+                                    let request_id = data
+                                        .get("requestId")
+                                        .and_then(|v| v.as_str())
+                                        .map(|v| v.to_string());
+                                    let trust = data.get("trust").and_then(|v| v.as_bool()).unwrap_or(false);
+                                    let replace_existing = data
+                                        .get("replaceExisting")
+                                        .and_then(|v| v.as_bool())
+                                        .unwrap_or(false);
+
+                                    if let Some(request_id) = request_id {
+                                        let _ = s.hostkey_tx.send(HostKeyDecision {
+                                            request_id,
+                                            trust,
+                                            replace_existing,
+                                        });
+                                    }
+                                }
+                            }
                             _ => {
                                 let _ = socket.send(Message::Text(json!({
-                                    "type": "error", "data": "请求类型无效"
+                                    "type": "error",
+                                    "data": "Invalid request type",
                                 }).to_string().into())).await;
                             }
                         }
@@ -171,20 +210,24 @@ async fn ws_ssh(mut socket: WebSocket) {
             }
         }
     }
+
     if let Some(w) = &worker {
         match w {
-            TerminalWorker::Ssh(s) => { let _ = s.tx.send(SshReq::Disconnect); }
-            TerminalWorker::Local(l) => { let _ = l.tx.send(LocalPtyReq::Disconnect); }
+            TerminalWorker::Ssh(s) => {
+                let _ = s.tx.send(SshReq::Disconnect);
+            }
+            TerminalWorker::Local(l) => {
+                let _ = l.tx.send(LocalPtyReq::Disconnect);
+            }
         }
     }
 }
 
-/* ── SFTP WebSocket ── */
-
-async fn ws_sftp(mut socket: WebSocket) {
+async fn ws_sftp(mut socket: WebSocket, db: Db) {
     let mut interval = time::interval(std::time::Duration::from_secs(30));
     let (event_tx, mut event_rx) = tokio::sync::mpsc::unbounded_channel::<Value>();
     let mut sftp_worker: Option<SftpWorker> = None;
+
     loop {
         tokio::select! {
             _ = interval.tick() => {
@@ -200,10 +243,15 @@ async fn ws_sftp(mut socket: WebSocket) {
                         if parsed.r#type == "pong" {
                             continue;
                         }
+
                         match parsed.r#type.as_str() {
                             "sftp-connect" => {
                                 if let Some(data) = parsed.data {
-                                    match start_sftp_worker(data, event_tx.clone()) {
+                                    match start_sftp_worker(
+                                        data,
+                                        event_tx.clone(),
+                                        db.paths.known_hosts_path.clone(),
+                                    ) {
                                         Ok(w) => sftp_worker = Some(w),
                                         Err(e) => {
                                             let mut resp = json!({
@@ -215,6 +263,27 @@ async fn ws_sftp(mut socket: WebSocket) {
                                             }
                                             let _ = socket.send(Message::Text(resp.to_string().into())).await;
                                         }
+                                    }
+                                }
+                            }
+                            "hostkey-verification-decision" => {
+                                if let (Some(w), Some(data)) = (&sftp_worker, parsed.data) {
+                                    let request_id = data
+                                        .get("requestId")
+                                        .and_then(|v| v.as_str())
+                                        .map(|v| v.to_string());
+                                    let trust = data.get("trust").and_then(|v| v.as_bool()).unwrap_or(false);
+                                    let replace_existing = data
+                                        .get("replaceExisting")
+                                        .and_then(|v| v.as_bool())
+                                        .unwrap_or(false);
+
+                                    if let Some(request_id) = request_id {
+                                        let _ = w.hostkey_tx.send(HostKeyDecision {
+                                            request_id,
+                                            trust,
+                                            replace_existing,
+                                        });
                                     }
                                 }
                             }
@@ -231,7 +300,7 @@ async fn ws_sftp(mut socket: WebSocket) {
                                     } else {
                                         let mut resp = json!({
                                             "type": "sftp-error",
-                                            "data": { "message": "请求数据无效" }
+                                            "data": { "message": "Invalid SFTP request payload" }
                                         });
                                         if let Some(rid) = parsed.request_id.clone() {
                                             resp["requestId"] = Value::String(rid);
@@ -241,7 +310,7 @@ async fn ws_sftp(mut socket: WebSocket) {
                                 } else {
                                     let mut resp = json!({
                                         "type": "sftp-error",
-                                        "data": { "message": "SFTP 未连接" }
+                                        "data": { "message": "SFTP is not connected" }
                                     });
                                     if let Some(rid) = parsed.request_id.clone() {
                                         resp["requestId"] = Value::String(rid);

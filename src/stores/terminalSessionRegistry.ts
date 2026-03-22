@@ -6,6 +6,12 @@ import type { FitAddon } from '@xterm/addon-fit'
 import type { SearchAddon } from '@xterm/addon-search'
 import type { WebglAddon } from '@xterm/addon-webgl'
 
+export interface PersistedConnectionLoadingStep {
+  id: string
+  label: string
+  status: 'active' | 'done' | 'error'
+}
+
 export interface TerminalSession {
   /** xterm 渲染的 DOM 容器（保留滚动历史） */
   containerEl: HTMLDivElement
@@ -18,6 +24,7 @@ export interface TerminalSession {
   ws: WebSocket | null
   reconnectTimer: ReturnType<typeof setTimeout> | null
   reconnectCount: number
+  connectionStatus: 'connecting' | 'connected' | 'closed' | 'error'
   isManualDisconnect: boolean
   inputDisposable: IDisposable | null
   reconnectInputDisposable: IDisposable | null
@@ -27,6 +34,16 @@ export interface TerminalSession {
   historyCache: string[]
   /** 上一条已记录命令（去重） */
   lastRecordedCommand: string
+  /** 由 shell integration 提供可靠命令历史时启用 */
+  shellIntegrationHistory: boolean
+  /** 等待 shell 将 Tab 补全结果回显到终端 */
+  pendingTabCompletion: boolean
+  /** Tab 触发前的命令快照，用于从终端当前行回填补全后的命令 */
+  pendingTabCompletionBuffer: string
+  /** 持久化连接过程 UI 状态，避免分屏/重挂载后丢失 */
+  connectionStageText: string
+  connectionSteps: PersistedConnectionLoadingStep[]
+  connectionErrorText: string
 }
 
 const sessions = new Map<string, TerminalSession>()

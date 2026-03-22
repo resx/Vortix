@@ -110,10 +110,36 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
         const connId = tab.connectionId
         const quickConn = tab.quickConnect
         if (quickConn) {
-          await sftp.connect({ host: quickConn.host, port: quickConn.port, username: quickConn.username, password: quickConn.password, privateKey: quickConn.privateKey })
+          await sftp.connect({
+            host: quickConn.host,
+            port: quickConn.port,
+            username: quickConn.username,
+            password: quickConn.password,
+            privateKey: quickConn.privateKey,
+            passphrase: quickConn.passphrase,
+            jump: quickConn.jump,
+          })
         } else if (connId) {
           const cred = await api.getConnectionCredential(connId)
-          await sftp.connect({ host: cred.host, port: cred.port, username: cred.username, password: cred.password, privateKey: cred.private_key, passphrase: cred.passphrase, connectionId: connId })
+          await sftp.connect({
+            host: cred.host,
+            port: cred.port,
+            username: cred.username,
+            password: cred.password,
+            privateKey: cred.private_key,
+            passphrase: cred.passphrase,
+            connectionId: connId,
+            jump: cred.jump ? {
+              connectionId: cred.jump.connectionId,
+              connectionName: cred.jump.connectionName,
+              host: cred.jump.host,
+              port: cred.jump.port,
+              username: cred.jump.username,
+              password: cred.jump.password,
+              privateKey: cred.jump.private_key,
+              passphrase: cred.jump.passphrase,
+            } : undefined,
+          })
         } else if (tab.assetRow) {
           await sftp.connect({ host: tab.assetRow.host, port: 22, username: tab.assetRow.user })
         }

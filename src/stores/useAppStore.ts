@@ -137,7 +137,7 @@ interface AppState {
   /** @deprecated 使用 useTabStore */
   openAssetTab: (row: AssetRow) => void
   /** @deprecated 使用 useTabStore */
-  openQuickConnect: (config: { host: string; port: number; username: string; password?: string; privateKey?: string }) => void
+  openQuickConnect: (config: { host: string; port: number; username: string; password?: string; privateKey?: string; passphrase?: string; terminalEnhance?: boolean }) => void
   /** @deprecated 使用 useTabStore */
   closeTab: (id: string) => void
   /** @deprecated 使用 useTabStore */

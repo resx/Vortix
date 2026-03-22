@@ -103,6 +103,7 @@ export default function TerminalPanel() {
             key={activeTab.id}
             paneId={`legacy-${activeTab.id}`}
             connection={activeTab.connection}
+            connectionName={activeTab.label}
             onStatusChange={(status) => updateTabStatus(activeTab.id, status)}
             onContextMenu={(x, y, hasSelection) => {
               showContextMenu(x, y, 'terminal', { tabId: activeTab.id, paneId: '', hasSelection })

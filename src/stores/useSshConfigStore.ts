@@ -354,6 +354,20 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
         testPayload.password = s.password || undefined
       }
 
+      if (s.authType === 'jump' && s.jumpKeyId && !('privateKey' in testPayload)) {
+        try {
+          const keyData = await api.getSshKeyCredential(s.jumpKeyId)
+          testPayload.privateKey = keyData.private_key
+          if (keyData.passphrase) testPayload.passphrase = keyData.passphrase
+        } catch {
+          testPayload.password = s.password || undefined
+        }
+      }
+
+      if (s.proxyType === 'SSH跳板' && s.jumpServerId) {
+        testPayload.jump_server_id = s.jumpServerId
+      }
+
       const result = await api.testSshConnection(testPayload)
       set({ testResult: { success: result.success, message: result.message || result.error || '' } })
     } catch (e) {
@@ -416,6 +430,10 @@ export const useSshConfigStore = create<SshConfigState>((set, get) => ({
         privateKeyName: key?.name ?? '',
         jumpKeyName: jumpKey?.name ?? '',
       })
+      if (conn.jump_server_id) {
+        const jumpConnection = await api.getConnection(conn.jump_server_id).catch(() => null)
+        set({ jumpServerName: jumpConnection ? `${jumpConnection.name} (${jumpConnection.host})` : '' })
+      }
     } catch {
       set({ loading: false })
     }

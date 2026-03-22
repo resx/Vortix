@@ -153,8 +153,16 @@ export interface ConnectionCredential {
   password?: string
   private_key?: string
   passphrase?: string
-  jump_private_key?: string
-  jump_passphrase?: string
+  jump?: {
+    connectionId?: string
+    connectionName?: string
+    host: string
+    port: number
+    username: string
+    password?: string
+    private_key?: string
+    passphrase?: string
+  } | null
   proxy_password?: string
 }
 
@@ -170,10 +178,31 @@ export interface CommandHistory {
 }
 
 // 测试连接结果
+export interface HostKeyVerificationPayload {
+  reason: 'unknown' | 'mismatch'
+  host: string
+  port: number
+  username: string
+  keyType: string
+  fingerprintSha256: string
+  connectionId?: string | null
+  connectionName?: string | null
+  knownKeyType?: string | null
+  knownFingerprintSha256?: string | null
+}
+
 export interface TestResult {
   success: boolean
   message?: string
   error?: string
+  requiresHostTrust?: boolean
+  hostKey?: HostKeyVerificationPayload
+}
+
+export interface UploadSshKeyResult {
+  message?: string
+  requiresHostTrust?: boolean
+  hostKey?: HostKeyVerificationPayload
 }
 
 // 最近连接
@@ -348,6 +377,9 @@ export interface ImportResult {
   connections: number
   shortcuts: number
   sshKeys: number
+  settings: number
+  presets: number
+  themes: number
 }
 
 /** 冲突检测结果 */

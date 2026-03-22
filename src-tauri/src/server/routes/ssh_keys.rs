@@ -1,22 +1,29 @@
 /* ── SSH 密钥 CRUD + 导出 + 生成 ── */
 
-use axum::{extract::State, http::{StatusCode, header}, response::Json, response::Response as AxumResponse};
 use axum::body::Bytes;
+use axum::{
+    extract::State,
+    http::{StatusCode, header},
+    response::Json,
+    response::Response as AxumResponse,
+};
 use chrono::Utc;
 use flate2::{Compression, write::GzEncoder};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write as IoWrite;
 use std::process::Command;
 use uuid::Uuid;
 
-use crate::db::Db;
-use super::super::response::{ok, ok_empty, err, ApiResponse};
-use super::super::types::*;
 use super::super::helpers::mark_local_dirty;
+use super::super::response::{ApiResponse, err, ok, ok_empty};
+use super::super::types::*;
+use crate::db::Db;
 
-pub async fn get_ssh_keys(State(db): State<Db>) -> Result<Json<ApiResponse<Vec<SshKeyRow>>>, (StatusCode, Json<ApiResponse<Value>>)> {
+pub async fn get_ssh_keys(
+    State(db): State<Db>,
+) -> Result<Json<ApiResponse<Vec<SshKeyRow>>>, (StatusCode, Json<ApiResponse<Value>>)> {
     let rows = sqlx::query_as::<_, SshKeyRow>(
         "SELECT id, name, key_type, public_key, has_passphrase, certificate, remark, description, created_at FROM ssh_keys ORDER BY created_at DESC",
     )
@@ -34,7 +41,9 @@ pub async fn get_ssh_key(
     )
     .bind(&id).fetch_optional(&db.pool).await
     .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let Some(row) = row else { return Err(err(StatusCode::NOT_FOUND, "密钥不存在")); };
+    let Some(row) = row else {
+        return Err(err(StatusCode::NOT_FOUND, "密钥不存在"));
+    };
     Ok(ok(row))
 }
 
@@ -47,8 +56,12 @@ pub async fn get_ssh_key_private(
     )
     .bind(&id).fetch_optional(&db.pool).await
     .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let Some(row) = row else { return Err(err(StatusCode::NOT_FOUND, "密钥不存在")); };
-    let private_key = db.crypto.decrypt(&row.encrypted_private_key)
+    let Some(row) = row else {
+        return Err(err(StatusCode::NOT_FOUND, "密钥不存在"));
+    };
+    let private_key = db
+        .crypto
+        .decrypt(&row.encrypted_private_key)
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(ok(json!({ "private_key": private_key })))
 }
@@ -62,14 +75,24 @@ pub async fn get_ssh_key_credential(
     )
     .bind(&id).fetch_optional(&db.pool).await
     .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let Some(row) = row else { return Err(err(StatusCode::NOT_FOUND, "密钥不存在")); };
-    let private_key = db.crypto.decrypt(&row.encrypted_private_key)
+    let Some(row) = row else {
+        return Err(err(StatusCode::NOT_FOUND, "密钥不存在"));
+    };
+    let private_key = db
+        .crypto
+        .decrypt(&row.encrypted_private_key)
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let passphrase = match row.encrypted_passphrase {
-        Some(ref enc) => Some(db.crypto.decrypt(enc).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?),
+        Some(ref enc) => Some(
+            db.crypto
+                .decrypt(enc)
+                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+        ),
         None => None,
     };
-    Ok(ok(json!({ "private_key": private_key, "passphrase": passphrase })))
+    Ok(ok(
+        json!({ "private_key": private_key, "passphrase": passphrase }),
+    ))
 }
 
 pub async fn create_ssh_key(
@@ -82,10 +105,16 @@ pub async fn create_ssh_key(
     if body.name.len() > 255 {
         return Err(err(StatusCode::BAD_REQUEST, "名称长度不能超过 255"));
     }
-    let encrypted_private_key = db.crypto.encrypt(&body.private_key)
+    let encrypted_private_key = db
+        .crypto
+        .encrypt(&body.private_key)
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let encrypted_passphrase = match body.passphrase {
-        Some(ref pass) if !pass.trim().is_empty() => Some(db.crypto.encrypt(pass).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?),
+        Some(ref pass) if !pass.trim().is_empty() => Some(
+            db.crypto
+                .encrypt(pass)
+                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+        ),
         _ => None,
     };
     let key_type = body.key_type.unwrap_or_else(|| "unknown".to_string());
@@ -107,9 +136,15 @@ pub async fn create_ssh_key(
     mark_local_dirty(&db).await?;
 
     Ok(ok(SshKeyRow {
-        id, name: body.name, key_type, public_key: body.public_key,
+        id,
+        name: body.name,
+        key_type,
+        public_key: body.public_key,
         has_passphrase: if encrypted_passphrase.is_some() { 1 } else { 0 },
-        certificate: body.certificate, remark, description, created_at: now,
+        certificate: body.certificate,
+        remark,
+        description,
+        created_at: now,
     }))
 }
 
@@ -123,18 +158,27 @@ pub async fn update_ssh_key(
     )
     .bind(&id).fetch_optional(&db.pool).await
     .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let Some(existing) = existing else { return Err(err(StatusCode::NOT_FOUND, "密钥不存在")); };
+    let Some(existing) = existing else {
+        return Err(err(StatusCode::NOT_FOUND, "密钥不存在"));
+    };
 
     let name = body.name.unwrap_or(existing.name.clone());
     let public_key = body.public_key.or(existing.public_key.clone());
     let certificate = body.certificate.or(existing.certificate.clone());
     let remark = body.remark.unwrap_or(existing.remark.clone());
     let encrypted_private_key = match body.private_key {
-        Some(ref key) if !key.trim().is_empty() => db.crypto.encrypt(key).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+        Some(ref key) if !key.trim().is_empty() => db
+            .crypto
+            .encrypt(key)
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
         _ => existing.encrypted_private_key.clone(),
     };
     let encrypted_passphrase = match body.passphrase {
-        Some(ref pass) if !pass.trim().is_empty() => Some(db.crypto.encrypt(pass).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?),
+        Some(ref pass) if !pass.trim().is_empty() => Some(
+            db.crypto
+                .encrypt(pass)
+                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+        ),
         Some(_) => None,
         None => existing.encrypted_passphrase.clone(),
     };
@@ -151,8 +195,15 @@ pub async fn update_ssh_key(
     mark_local_dirty(&db).await?;
 
     Ok(ok(SshKeyRow {
-        id, name, key_type: existing.key_type, public_key, has_passphrase,
-        certificate, remark, description: existing.description, created_at: existing.created_at,
+        id,
+        name,
+        key_type: existing.key_type,
+        public_key,
+        has_passphrase,
+        certificate,
+        remark,
+        description: existing.description,
+        created_at: existing.created_at,
     }))
 }
 
@@ -161,7 +212,9 @@ pub async fn delete_ssh_key(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<ApiResponse<Value>>, (StatusCode, Json<ApiResponse<Value>>)> {
     let result = sqlx::query("DELETE FROM ssh_keys WHERE id = ?")
-        .bind(&id).execute(&db.pool).await
+        .bind(&id)
+        .execute(&db.pool)
+        .await
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     if result.rows_affected() == 0 {
         return Err(err(StatusCode::NOT_FOUND, "密钥不存在"));
@@ -182,12 +235,20 @@ pub async fn export_ssh_key(
     )
     .bind(&id).fetch_optional(&db.pool).await
     .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let Some(row) = row else { return Err(err(StatusCode::NOT_FOUND, "密钥不存在")); };
+    let Some(row) = row else {
+        return Err(err(StatusCode::NOT_FOUND, "密钥不存在"));
+    };
 
-    let private_key = db.crypto.decrypt(&row.encrypted_private_key)
+    let private_key = db
+        .crypto
+        .decrypt(&row.encrypted_private_key)
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let passphrase = match row.encrypted_passphrase {
-        Some(ref enc) => Some(db.crypto.decrypt(enc).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?),
+        Some(ref enc) => Some(
+            db.crypto
+                .decrypt(enc)
+                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+        ),
         None => None,
     };
 
@@ -206,12 +267,19 @@ pub async fn export_ssh_key(
 
     let tar = build_tar(&files);
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(&tar).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let gz = encoder.finish().map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    encoder
+        .write_all(&tar)
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let gz = encoder
+        .finish()
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mut resp = AxumResponse::new(Bytes::from(gz).into());
     *resp.status_mut() = StatusCode::OK;
-    resp.headers_mut().insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/gzip"));
+    resp.headers_mut().insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_static("application/gzip"),
+    );
     let filename = format!("{}.tar.gz", sanitize_filename(&row.name));
     resp.headers_mut().insert(
         header::CONTENT_DISPOSITION,
@@ -240,29 +308,50 @@ pub async fn generate_ssh_key(
     if let Some(bits) = body.bits {
         if let Some(list) = allowed_bits.get(key_type) {
             if !list.contains(&bits) {
-                return Err(err(StatusCode::BAD_REQUEST, format!("{} 不支持的 bits 值: {}", key_type, bits)));
+                return Err(err(
+                    StatusCode::BAD_REQUEST,
+                    format!("{} 不支持的 bits 值: {}", key_type, bits),
+                ));
             }
         }
     }
     if key_type == "ml-dsa" {
-        return Err(err(StatusCode::BAD_REQUEST, "Rust 端暂不支持 ML-DSA，请选择其他密钥类型"));
+        return Err(err(
+            StatusCode::BAD_REQUEST,
+            "Rust 端暂不支持 ML-DSA，请选择其他密钥类型",
+        ));
     }
     let bits = match key_type {
         "rsa" => Some(body.bits.unwrap_or(2048)),
         "ecdsa" => Some(body.bits.unwrap_or(256)),
         "ed25519" => None,
-        _ => return Err(err(StatusCode::BAD_REQUEST, format!("不支持的密钥类型: {}", key_type))),
+        _ => {
+            return Err(err(
+                StatusCode::BAD_REQUEST,
+                format!("不支持的密钥类型: {}", key_type),
+            ));
+        }
     };
 
     let (private_key, public_key_raw) = generate_keypair_with_ssh_keygen(
-        key_type, bits, body.passphrase.as_deref(), body.comment.as_deref(),
-    ).map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
+        key_type,
+        bits,
+        body.passphrase.as_deref(),
+        body.comment.as_deref(),
+    )
+    .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
 
     let public_key = append_vortix_tag(&public_key_raw);
-    let encrypted_private_key = db.crypto.encrypt(&private_key)
+    let encrypted_private_key = db
+        .crypto
+        .encrypt(&private_key)
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let encrypted_passphrase = match body.passphrase {
-        Some(ref pass) if !pass.trim().is_empty() => Some(db.crypto.encrypt(pass).map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?),
+        Some(ref pass) if !pass.trim().is_empty() => Some(
+            db.crypto
+                .encrypt(pass)
+                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+        ),
         _ => None,
     };
 
@@ -294,9 +383,15 @@ fn sanitize_filename(name: &str) -> String {
     for ch in name.chars() {
         if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' || ch == '.' || ch == ' ' {
             out.push(ch);
-        } else { out.push('_'); }
+        } else {
+            out.push('_');
+        }
     }
-    if out.is_empty() { "key".to_string() } else { out }
+    if out.is_empty() {
+        "key".to_string()
+    } else {
+        out
+    }
 }
 
 fn build_tar(files: &[(String, String)]) -> Vec<u8> {
@@ -315,13 +410,17 @@ fn build_tar(files: &[(String, String)]) -> Vec<u8> {
         header[156] = b'0';
         header[257..263].copy_from_slice(b"ustar\0");
         header[263..265].copy_from_slice(b"00");
-        for i in 148..156 { header[i] = b' '; }
+        for i in 148..156 {
+            header[i] = b' ';
+        }
         let checksum: u32 = header.iter().map(|b| *b as u32).sum();
         write_octal(&mut header[148..156], checksum as u64, 8);
         blocks.extend_from_slice(&header);
         blocks.extend_from_slice(content_bytes);
         let pad = 512 - (content_bytes.len() % 512);
-        if pad < 512 { blocks.extend_from_slice(&vec![0u8; pad]); }
+        if pad < 512 {
+            blocks.extend_from_slice(&vec![0u8; pad]);
+        }
     }
     blocks.extend_from_slice(&[0u8; 1024]);
     blocks
@@ -349,14 +448,19 @@ fn run_ssh_keygen(path: &str, args: &[String]) -> Result<(), std::io::Error> {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         let msg = if stderr.is_empty() {
             format!("ssh-keygen 退出码: {:?}", output.status.code())
-        } else { stderr };
+        } else {
+            stderr
+        };
         return Err(std::io::Error::new(std::io::ErrorKind::Other, msg));
     }
     Ok(())
 }
 
 fn generate_keypair_with_ssh_keygen(
-    key_type: &str, bits: Option<u32>, passphrase: Option<&str>, comment: Option<&str>,
+    key_type: &str,
+    bits: Option<u32>,
+    passphrase: Option<&str>,
+    comment: Option<&str>,
 ) -> Result<(String, String), String> {
     let temp_dir = std::env::temp_dir().join(format!("vortix-key-{}", Uuid::new_v4()));
     fs::create_dir_all(&temp_dir).map_err(|e| e.to_string())?;
@@ -365,9 +469,15 @@ fn generate_keypair_with_ssh_keygen(
     let mut args: Vec<String> = Vec::new();
     args.push("-t".to_string());
     args.push(key_type.to_string());
-    if let Some(b) = bits { args.push("-b".to_string()); args.push(b.to_string()); }
+    if let Some(b) = bits {
+        args.push("-b".to_string());
+        args.push(b.to_string());
+    }
     if let Some(c) = comment {
-        if !c.trim().is_empty() { args.push("-C".to_string()); args.push(c.to_string()); }
+        if !c.trim().is_empty() {
+            args.push("-C".to_string());
+            args.push(c.to_string());
+        }
     }
     args.push("-f".to_string());
     args.push(key_path.to_string_lossy().to_string());
@@ -384,12 +494,18 @@ fn generate_keypair_with_ssh_keygen(
     ];
     for path in candidates {
         match run_ssh_keygen(path, &args) {
-            Ok(_) => { ran = true; break; }
+            Ok(_) => {
+                ran = true;
+                break;
+            }
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
                 last_err = Some(format!("未找到 {}", path));
                 continue;
             }
-            Err(e) => { last_err = Some(e.to_string()); break; }
+            Err(e) => {
+                last_err = Some(e.to_string());
+                break;
+            }
         }
     }
     if !ran {
@@ -398,7 +514,8 @@ fn generate_keypair_with_ssh_keygen(
     }
 
     let private_key = fs::read_to_string(&key_path).map_err(|e| e.to_string())?;
-    let public_key = fs::read_to_string(key_path.with_extension("pub")).map_err(|e| e.to_string())?;
+    let public_key =
+        fs::read_to_string(key_path.with_extension("pub")).map_err(|e| e.to_string())?;
     let _ = fs::remove_file(&key_path);
     let _ = fs::remove_file(key_path.with_extension("pub"));
     let _ = fs::remove_dir_all(&temp_dir);

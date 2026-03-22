@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::server::types::SyncData;
+
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum SyncHashAlg {
@@ -70,4 +72,48 @@ pub struct SyncManifestV4 {
     #[serde(rename = "syncMeta")]
     pub sync_meta: SyncMetaV4,
     pub data: SyncManifestDataV4,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncKdfParamsV5 {
+    pub iterations: u32,
+    pub hash: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncEnvelopeHeaderV5 {
+    #[serde(rename = "$schema")]
+    pub schema: String,
+    pub version: i64,
+    #[serde(rename = "backupVersion")]
+    pub backup_version: i64,
+    #[serde(rename = "deviceId")]
+    pub device_id: String,
+    #[serde(rename = "exportedAt")]
+    pub exported_at: String,
+    pub revision: i64,
+    pub compression: String,
+    pub cipher: String,
+    pub kdf: String,
+    #[serde(rename = "kdfParams")]
+    pub kdf_params: SyncKdfParamsV5,
+    #[serde(rename = "encryptionSalt")]
+    pub encryption_salt: String,
+    #[serde(rename = "encryptionType")]
+    pub encryption_type: String,
+    pub iv: String,
+    #[serde(rename = "payloadHash")]
+    pub payload_hash: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncPayloadV5 {
+    #[serde(rename = "backupVersion")]
+    pub backup_version: i64,
+    #[serde(rename = "deviceId")]
+    pub device_id: String,
+    #[serde(rename = "exportedAt")]
+    pub exported_at: String,
+    pub revision: i64,
+    pub data: SyncData,
 }

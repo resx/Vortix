@@ -1,6 +1,6 @@
 use async_trait::async_trait;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use bytes::Bytes;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,7 +10,19 @@ use tokio::task;
 use tokio::time;
 
 use super::SyncProvider;
-use crate::server::types::{SyncFileInfo, SyncRequestBody, RemoteCheckResult};
+use crate::server::types::{RemoteCheckResult, SyncFileInfo, SyncRequestBody};
+
+fn resolve_cache_root() -> PathBuf {
+    if let Ok(value) = std::env::var("VORTIX_HOME") {
+        return PathBuf::from(value).join("cache");
+    }
+
+    if let Some(data_dir) = dirs::data_dir() {
+        return data_dir.join("Vortix").join("cache");
+    }
+
+    std::env::temp_dir().join("Vortix").join("cache")
+}
 
 /// 规范化 SSH 私钥文本（处理转义换行、BOM、CRLF 等）
 fn canonicalize_ssh_key(raw: &str) -> String {
@@ -55,7 +67,7 @@ impl GitProvider {
 
         let hash = URL_SAFE_NO_PAD.encode(url.as_bytes());
         let short = &hash[..hash.len().min(16)];
-        let work_dir = std::env::temp_dir().join("vortix-git-sync").join(short);
+        let work_dir = resolve_cache_root().join("git-sync").join(short);
 
         let clean = subdir.trim().trim_matches('/').replace('\\', "/");
         let sync_rel_path = if clean.is_empty() {
@@ -216,7 +228,9 @@ impl GitProvider {
                 .map_err(|e| format!("启动 git 失败（请确认已安装 git）: {}", e))?;
             Self::run_output(output, "ls-remote")
         })();
-        if let Some(ref p) = key_path { let _ = fs::remove_file(p); }
+        if let Some(ref p) = key_path {
+            let _ = fs::remove_file(p);
+        }
         result.map(|_| ())
     }
 
@@ -234,7 +248,9 @@ impl GitProvider {
             let stdout = Self::run_output(output, "ls-remote")?;
             Ok(!stdout.trim().is_empty())
         })();
-        if let Some(ref p) = key_path { let _ = fs::remove_file(p); }
+        if let Some(ref p) = key_path {
+            let _ = fs::remove_file(p);
+        }
         result
     }
 
@@ -247,14 +263,23 @@ impl GitProvider {
         let result = (|| {
             let output = self
                 .git_cmd_no_workdir(key_path.as_deref())
-                .args(["clone", "--branch", &self.branch, "--single-branch", "--depth", "1"])
+                .args([
+                    "clone",
+                    "--branch",
+                    &self.branch,
+                    "--single-branch",
+                    "--depth",
+                    "1",
+                ])
                 .arg(&self.auth_url())
                 .arg(&self.work_dir.to_string_lossy().as_ref())
                 .output()
                 .map_err(|e| format!("启动 git clone 失败: {}", e))?;
             Self::run_output(output, "clone")
         })();
-        if let Some(ref p) = key_path { let _ = fs::remove_file(p); }
+        if let Some(ref p) = key_path {
+            let _ = fs::remove_file(p);
+        }
         result.map(|_| ())?;
         self.configure_repo()
     }
@@ -262,14 +287,16 @@ impl GitProvider {
     fn init_empty_repo(&self) -> Result<(), String> {
         self.remove_workdir()?;
         fs::create_dir_all(&self.work_dir).map_err(|e| e.to_string())?;
-        let output = self.git_cmd(None)
+        let output = self
+            .git_cmd(None)
             .args(["init", "-b", &self.branch])
             .output()
             .map_err(|e| format!("git init 失败: {}", e))?;
         Self::run_output(output, "init")?;
         self.configure_repo()?;
         // 添加 remote
-        let output = self.git_cmd(None)
+        let output = self
+            .git_cmd(None)
             .args(["remote", "add", "origin", &self.url])
             .output()
             .map_err(|e| e.to_string())?;
@@ -278,26 +305,30 @@ impl GitProvider {
     }
 
     fn configure_repo(&self) -> Result<(), String> {
-        let output = self.git_cmd(None)
+        let output = self
+            .git_cmd(None)
             .args(["config", "user.name", "Vortix Sync"])
             .output()
             .map_err(|e| e.to_string())?;
         Self::run_output(output, "config user.name")?;
 
-        let output = self.git_cmd(None)
+        let output = self
+            .git_cmd(None)
             .args(["config", "user.email", "sync@vortix.local"])
             .output()
             .map_err(|e| e.to_string())?;
         Self::run_output(output, "config user.email")?;
 
         // 确保 remote URL 正确
-        let output = self.git_cmd(None)
+        let output = self
+            .git_cmd(None)
             .args(["remote", "set-url", "origin", &self.url])
             .output()
             .map_err(|e| e.to_string())?;
         // set-url 可能失败（remote 不存在），忽略
         if !output.status.success() {
-            let _ = self.git_cmd(None)
+            let _ = self
+                .git_cmd(None)
                 .args(["remote", "add", "origin", &self.url])
                 .output();
         }
@@ -330,12 +361,15 @@ impl GitProvider {
             Self::run_output(output, "clean")?;
             Ok(())
         })();
-        if let Some(ref p) = key_path { let _ = fs::remove_file(p); }
+        if let Some(ref p) = key_path {
+            let _ = fs::remove_file(p);
+        }
         result
     }
 
     fn has_pending_changes(&self) -> Result<bool, String> {
-        let output = self.git_cmd(None)
+        let output = self
+            .git_cmd(None)
             .args(["status", "--porcelain"])
             .output()
             .map_err(|e| e.to_string())?;
@@ -392,14 +426,23 @@ impl GitProvider {
             for entry in entries.flatten() {
                 let path = entry.path();
                 let name = entry.file_name();
-                if name.to_string_lossy() == ".git" { continue; }
-                if path.is_dir() { stack.push(path); continue; }
+                if name.to_string_lossy() == ".git" {
+                    continue;
+                }
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
                 let rel = match path.strip_prefix(&root) {
                     Ok(r) => r.to_string_lossy().replace('\\', "/"),
                     Err(_) => continue,
                 };
                 let fname = rel.rsplit('/').next().unwrap_or("");
-                if fname == "vortix-sync.dat" || (fname == "vortix-sync.json" && rel != target) {
+                if fname == "vortix-sync.dat"
+                    || fname == "vortix-sync.manifest.json"
+                    || fname == "vortix-sync.vxsync"
+                    || (fname == "vortix-sync.json" && rel != target)
+                {
                     let _ = fs::remove_file(&path);
                 }
             }
@@ -412,7 +455,8 @@ impl GitProvider {
         self.cleanup_old_files()?;
 
         // stage all
-        let output = self.git_cmd(None)
+        let output = self
+            .git_cmd(None)
             .args(["add", "-A"])
             .output()
             .map_err(|e| e.to_string())?;
@@ -424,7 +468,8 @@ impl GitProvider {
         }
 
         let message = format!("chore: vortix sync {}", chrono::Utc::now().to_rfc3339());
-        let output = self.git_cmd(None)
+        let output = self
+            .git_cmd(None)
             .args(["commit", "--allow-empty", "-m", &message])
             .output()
             .map_err(|e| e.to_string())?;
@@ -440,7 +485,9 @@ impl GitProvider {
                 .map_err(|e| format!("git push 失败: {}", e))?;
             Self::run_output(output, "push")
         })();
-        if let Some(ref p) = key_path { let _ = fs::remove_file(p); }
+        if let Some(ref p) = key_path {
+            let _ = fs::remove_file(p);
+        }
         result.map(|_| ())
     }
 
@@ -448,7 +495,8 @@ impl GitProvider {
     fn check_remote_hash(&self) -> Result<RemoteCheckResult, String> {
         // 本地 HEAD
         let local_hash = if self.has_repo() {
-            let output = self.git_cmd(None)
+            let output = self
+                .git_cmd(None)
                 .args(["rev-parse", "HEAD"])
                 .output()
                 .map_err(|e| format!("git rev-parse 失败: {}", e))?;
@@ -475,16 +523,26 @@ impl GitProvider {
             let remote_hash = stdout.split_whitespace().next().unwrap_or("").to_string();
             Ok(remote_hash)
         })();
-        if let Some(ref p) = key_path { let _ = fs::remove_file(p); }
+        if let Some(ref p) = key_path {
+            let _ = fs::remove_file(p);
+        }
         let remote_hash = result?;
 
-        let has_update = !remote_hash.is_empty()
-            && !local_hash.is_empty()
-            && remote_hash != local_hash;
-        Ok(RemoteCheckResult { has_update, remote_hash, local_hash })
+        let has_update =
+            !remote_hash.is_empty() && !local_hash.is_empty() && remote_hash != local_hash;
+        Ok(RemoteCheckResult {
+            has_update,
+            remote_hash,
+            local_hash,
+        })
     }
 
-    async fn run_blocking<T, F>(&self, label: &'static str, timeout_secs: u64, op: F) -> Result<T, String>
+    async fn run_blocking<T, F>(
+        &self,
+        label: &'static str,
+        timeout_secs: u64,
+        op: F,
+    ) -> Result<T, String>
     where
         T: Send + 'static,
         F: FnOnce(GitProvider) -> Result<T, String> + Send + 'static,
@@ -508,7 +566,8 @@ impl SyncProvider for GitProvider {
             let path = p.key_to_path(&key);
             let data = fs::read(&path).map_err(|e| e.to_string())?;
             Ok(Bytes::from(data))
-        }).await
+        })
+        .await
     }
 
     async fn write(&self, key: &str, data: Bytes) -> Result<(), String> {
@@ -520,7 +579,8 @@ impl SyncProvider for GitProvider {
                 fs::create_dir_all(parent).map_err(|e| e.to_string())?;
             }
             fs::write(&path, &data).map_err(|e| e.to_string())
-        }).await
+        })
+        .await
     }
 
     async fn delete(&self, key: &str) -> Result<(), String> {
@@ -532,7 +592,8 @@ impl SyncProvider for GitProvider {
                 fs::remove_file(&path).map_err(|e| e.to_string())?;
             }
             Ok(())
-        }).await
+        })
+        .await
     }
 
     async fn stat(&self, key: &str) -> Result<Option<SyncFileInfo>, String> {
@@ -557,13 +618,15 @@ impl SyncProvider for GitProvider {
                 last_modified,
                 size: Some(meta.len() as i64),
             }))
-        }).await
+        })
+        .await
     }
 
     async fn test(&self) -> Result<(), String> {
         self.run_blocking("test", Self::TEST_TIMEOUT_SECS, move |p| {
             p.test_remote_connection()
-        }).await
+        })
+        .await
     }
 
     async fn delete_prefix(&self, prefix: &str) -> Result<(), String> {
@@ -579,19 +642,26 @@ impl SyncProvider for GitProvider {
                 }
             }
             Ok(())
-        }).await
+        })
+        .await
     }
 
     async fn finalize(&self, _message: &str) -> Result<(), String> {
         self.run_blocking("push", Self::WRITE_TIMEOUT_SECS, move |p| {
             p.commit_and_push()
-        }).await
+        })
+        .await
     }
 
-    async fn check_remote_changed(&self, _key: &str, _known_hash: &str) -> Result<RemoteCheckResult, String> {
+    async fn check_remote_changed(
+        &self,
+        _key: &str,
+        _known_hash: &str,
+    ) -> Result<RemoteCheckResult, String> {
         self.run_blocking("check-remote", Self::TEST_TIMEOUT_SECS, move |p| {
             p.check_remote_hash()
-        }).await
+        })
+        .await
     }
 
     fn is_remote(&self) -> bool {
@@ -602,8 +672,3 @@ impl SyncProvider for GitProvider {
         "git"
     }
 }
-
-
-
-
-

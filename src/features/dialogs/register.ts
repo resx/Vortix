@@ -13,6 +13,7 @@ import ReloadConfirmDialog from '../../components/dialogs/ReloadConfirmDialog'
 import ShortcutDialog from '../../components/dialogs/ShortcutDialog'
 import BatchEditModal from '../../components/dialogs/BatchEditModal'
 import SyncConflictDialog from '../../components/dialogs/SyncConflictDialog'
+import HostKeyTrustDialog from '../../components/dialogs/HostKeyTrustDialog'
 
 export function registerDialogs(): () => void {
   const cleanups = [
@@ -26,6 +27,7 @@ export function registerDialogs(): () => void {
     registerDialog({ id: 'shortcut', component: ShortcutDialog, isOpen: () => useShortcutStore.getState().shortcutDialogOpen }),
     registerDialog({ id: 'batch-edit', component: BatchEditModal, isOpen: () => useUIStore.getState().batchEditOpen }),
     registerDialog({ id: 'sync-conflict', component: SyncConflictDialog, isOpen: () => useUIStore.getState().syncConflictOpen }),
+    registerDialog({ id: 'host-key-trust', component: HostKeyTrustDialog, isOpen: () => useUIStore.getState().hostKeyDialogOpen }),
   ]
   return () => cleanups.forEach(fn => fn())
 }

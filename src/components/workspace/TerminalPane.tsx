@@ -5,6 +5,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { AppIcon, icons } from '../icons/AppIcon'
 import SshTerminal from '../terminal/SshTerminal'
 import type { TerminalConnection } from '../terminal/SshTerminal'
+import { useT } from '../../i18n'
 import { useWorkspaceStore, collectLeafIds, findNode } from '../../stores/useWorkspaceStore'
 import { useTabStore } from '../../stores/useTabStore'
 import { useUIStore } from '../../stores/useUIStore'
@@ -53,7 +54,7 @@ function PaneToolbar({
   if (collapsed) {
     return (
       <button
-        className="absolute top-0 right-0 z-10 w-[26px] h-[26px] flex items-center justify-center rounded-bl-md bg-black/20 backdrop-blur-[2px] text-white/60 hover:bg-black/40 hover:text-white/90 transition-all"
+        className="absolute top-0 right-0 z-30 w-[26px] h-[26px] flex items-center justify-center rounded-bl-md bg-black/20 backdrop-blur-[2px] text-white/60 hover:bg-black/40 hover:text-white/90 transition-all"
         onClick={(e) => { e.stopPropagation(); toggleCollapsed(tabId, paneId) }}
       >
         <AppIcon icon={icons.chevronLeft} size={14} />
@@ -64,7 +65,7 @@ function PaneToolbar({
   // 展开态：浮动工具条
   return (
     <div
-      className="absolute top-0 right-0 z-10 flex items-center h-[24px] rounded-bl-md bg-black/25 backdrop-blur-[2px] text-white/90 px-1.5 gap-1 select-none hover:bg-black/45 transition-all"
+      className="absolute top-0 right-0 z-30 flex items-center h-[24px] rounded-bl-md bg-black/25 backdrop-blur-[2px] text-white/90 px-1.5 gap-1 select-none hover:bg-black/45 transition-all"
       draggable
       onDragStart={onDragStart}
       onMouseDown={(e) => e.stopPropagation()}
@@ -94,6 +95,7 @@ function PaneToolbar({
 }
 
 export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, paneIndex }: Props) {
+  const t = useT()
   const showContextMenu = useUIStore(s => s.showContextMenu)
   const updateTabStatus = useTabStore(s => s.updateTabStatus)
   const setActivePane = useWorkspaceStore(s => s.setActivePane)
@@ -106,6 +108,7 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
   const [dropZone, setDropZone] = useState<DropZone | null>(null)
   const [connection, setConnection] = useState<TerminalConnection | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [terminalRetryKey, setTerminalRetryKey] = useState(0)
   const loadedRef = useRef(false)
 
   // 加载凭据（每个 pane 独立加载一次）
@@ -133,7 +136,26 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
           })
         } else {
           const cred = await api.getConnectionCredential(connId)
-          setConnection({ host: cred.host, port: cred.port, username: cred.username, password: cred.password, privateKey: cred.private_key, passphrase: cred.passphrase })
+          const terminalEnhance = Boolean((conn.advanced as Record<string, unknown> | undefined)?.terminalEnhance)
+          setConnection({
+            host: cred.host,
+            port: cred.port,
+            username: cred.username,
+            password: cred.password,
+            privateKey: cred.private_key,
+            passphrase: cred.passphrase,
+            terminalEnhance,
+            jump: cred.jump ? {
+              connectionId: cred.jump.connectionId,
+              connectionName: cred.jump.connectionName,
+              host: cred.jump.host,
+              port: cred.jump.port,
+              username: cred.jump.username,
+              password: cred.jump.password,
+              privateKey: cred.jump.private_key,
+              passphrase: cred.jump.passphrase,
+            } : undefined,
+          })
         }
       } else if (assetRow) {
         setConnection({ host: assetRow.host, port: 22, username: assetRow.user })
@@ -150,6 +172,15 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
     }, 0)
     return () => window.clearTimeout(timer)
   }, [loadCredential])
+
+  const handleRetry = useCallback(() => {
+    loadedRef.current = false
+    setError(null)
+    setConnection(null)
+    destroySession(paneId)
+    setTerminalRetryKey((key) => key + 1)
+    void loadCredential()
+  }, [loadCredential, paneId])
 
   // 智能卸载：pane 被关闭时销毁会话，树结构重组（分屏）或跨标签页转移时保留
   useEffect(() => {
@@ -280,15 +311,28 @@ export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, 
         {error ? (
           <div className="flex-1 flex items-center justify-center text-text-3 h-full">
             <div className="text-center">
-              <div className="text-[14px] mb-2">连接失败</div>
+              <div className="text-[14px] mb-2">{t('connectionLoading.failedTitle')}</div>
               <div className="text-[12px] text-status-error">{error}</div>
+              <button
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-[12px] text-white transition-opacity hover:opacity-90"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleRetry()
+                }}
+              >
+                <AppIcon icon={icons.refresh} size={12} />
+                {t('common.retry')}
+              </button>
             </div>
           </div>
         ) : (
           <SshTerminal
+            key={`${paneId}-${terminalRetryKey}`}
             paneId={paneId}
             tabId={tabId}
             connection={connection}
+            connectionId={paneMeta?.connectionId ?? tab.connectionId}
+            connectionName={paneMeta?.label ?? tab.label ?? tab.assetRow?.host ?? null}
             onStatusChange={handleStatusChange}
             onContextMenu={handleContextMenu}
           />

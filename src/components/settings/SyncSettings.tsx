@@ -201,7 +201,10 @@ export default function SyncSettings() {
     if (repoSource === 'local' && !syncLocalPath.trim()) { setFileInfo(null); return false }
     if (repoSource === 'git' && !gitUrl.trim()) { setFileInfo(null); return false }
     if (repoSource === 'webdav' && !webdavEndpoint.trim()) { setFileInfo(null); return false }
-    if (repoSource === 's3' && !s3Endpoint.trim()) { setFileInfo(null); return false }
+    if (repoSource === 's3' && (!s3Endpoint.trim() || !s3Bucket.trim() || !s3AccessKey.trim() || !s3SecretKey.trim())) {
+      setFileInfo(null)
+      return false
+    }
     try {
       const info = await api.getSyncStatus(syncBody)
       setFileInfo(info)
@@ -210,7 +213,7 @@ export default function SyncSettings() {
       setFileInfo(null)
       return false
     }
-  }, [gitUrl, repoSource, s3Endpoint, syncBody, syncLocalPath, webdavEndpoint])
+  }, [gitUrl, repoSource, s3AccessKey, s3Bucket, s3Endpoint, s3SecretKey, syncBody, syncLocalPath, webdavEndpoint])
 
   useEffect(() => {
     if (connectionState !== 'ok') return

@@ -2,10 +2,10 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use std::fs;
-use std::path::{PathBuf};
+use std::path::PathBuf;
 
-use crate::server::types::SyncFileInfo;
 use super::SyncProvider;
+use crate::server::types::SyncFileInfo;
 
 pub struct LocalProvider {
     root: PathBuf,
@@ -13,8 +13,12 @@ pub struct LocalProvider {
 
 impl LocalProvider {
     pub fn new(path: &str) -> Result<Self, String> {
-        if path.trim().is_empty() { return Err("syncLocalPath required".to_string()); }
-        Ok(Self { root: PathBuf::from(path) })
+        if path.trim().is_empty() {
+            return Err("syncLocalPath required".to_string());
+        }
+        Ok(Self {
+            root: PathBuf::from(path),
+        })
     }
 
     fn resolve(&self, key: &str) -> PathBuf {
@@ -42,7 +46,9 @@ impl SyncProvider for LocalProvider {
 
     async fn delete(&self, key: &str) -> Result<(), String> {
         let path = self.resolve(key);
-        if path.exists() { fs::remove_file(&path).map_err(|e| e.to_string())?; }
+        if path.exists() {
+            fs::remove_file(&path).map_err(|e| e.to_string())?;
+        }
         Ok(())
     }
 
@@ -52,7 +58,10 @@ impl SyncProvider for LocalProvider {
             Ok(m) => m,
             Err(_) => return Ok(None),
         };
-        let last_modified = meta.modified().ok().map(|t| DateTime::<Utc>::from(t).to_rfc3339());
+        let last_modified = meta
+            .modified()
+            .ok()
+            .map(|t| DateTime::<Utc>::from(t).to_rfc3339());
         Ok(Some(SyncFileInfo {
             exists: true,
             last_modified,
@@ -82,6 +91,10 @@ impl SyncProvider for LocalProvider {
         Ok(())
     }
 
-    fn is_remote(&self) -> bool { false }
-    fn name(&self) -> &'static str { "local" }
+    fn is_remote(&self) -> bool {
+        false
+    }
+    fn name(&self) -> &'static str {
+        "local"
+    }
 }

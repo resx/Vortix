@@ -2,12 +2,12 @@
 
 use anyhow::{Context, Result};
 use chrono::Utc;
+use rand_core::RngCore;
 use serde::Deserialize;
 use serde_json::Value;
 use sqlx::SqlitePool;
 use std::fs;
 use std::path::Path;
-use rand_core::RngCore;
 
 #[derive(Default)]
 pub struct ImportSummary {
@@ -370,8 +370,14 @@ pub fn archive_legacy_data(legacy_dir: &Path) -> Result<()> {
 
     move_if_exists(&legacy_dir.join("config"), &archive_root.join("config"))?;
     move_if_exists(&legacy_dir.join("logs"), &archive_root.join("logs"))?;
-    move_if_exists(&legacy_dir.join("sync-state.json"), &archive_root.join("sync-state.json"))?;
-    move_if_exists(&legacy_dir.join("encryption.key"), &archive_root.join("encryption.key"))?;
+    move_if_exists(
+        &legacy_dir.join("sync-state.json"),
+        &archive_root.join("sync-state.json"),
+    )?;
+    move_if_exists(
+        &legacy_dir.join("encryption.key"),
+        &archive_root.join("encryption.key"),
+    )?;
 
     Ok(())
 }
@@ -386,7 +392,8 @@ fn read_json_array<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Option<V
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(path).with_context(|| format!("读取文件失败: {}", path.display()))?;
+    let content =
+        fs::read_to_string(path).with_context(|| format!("读取文件失败: {}", path.display()))?;
     let data = serde_json::from_str::<Vec<T>>(&content)
         .with_context(|| format!("解析 JSON 失败: {}", path.display()))?;
     Ok(Some(data))
@@ -396,7 +403,8 @@ fn read_json_object(path: &Path) -> Result<Option<serde_json::Map<String, Value>
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(path).with_context(|| format!("读取文件失败: {}", path.display()))?;
+    let content =
+        fs::read_to_string(path).with_context(|| format!("读取文件失败: {}", path.display()))?;
     let data = serde_json::from_str::<serde_json::Map<String, Value>>(&content)
         .with_context(|| format!("解析 JSON 失败: {}", path.display()))?;
     Ok(Some(data))
@@ -406,7 +414,8 @@ fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Option<T>> {
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(path).with_context(|| format!("读取文件失败: {}", path.display()))?;
+    let content =
+        fs::read_to_string(path).with_context(|| format!("读取文件失败: {}", path.display()))?;
     let data = serde_json::from_str::<T>(&content)
         .with_context(|| format!("解析 JSON 失败: {}", path.display()))?;
     Ok(Some(data))
@@ -416,7 +425,8 @@ fn read_jsonl<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Option<Vec<T>
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(path).with_context(|| format!("读取文件失败: {}", path.display()))?;
+    let content =
+        fs::read_to_string(path).with_context(|| format!("读取文件失败: {}", path.display()))?;
     let mut rows = Vec::new();
     for (idx, line) in content.lines().enumerate() {
         if line.trim().is_empty() {

@@ -8,6 +8,27 @@ type SyncConflictState = {
   body: SyncRequestBody
 }
 
+export type HostKeyDialogDecision = 'trust' | 'replace' | 'reject'
+export type HostKeyDialogHostRole = 'jump' | 'target'
+
+export interface HostKeyDialogPayload {
+  requestId: string
+  reason: 'unknown' | 'mismatch'
+  host: string
+  port: number
+  username: string
+  keyType: string
+  fingerprintSha256: string
+  connectionId?: string | null
+  connectionName?: string | null
+  knownKeyType?: string | null
+  knownFingerprintSha256?: string | null
+  hostRole?: HostKeyDialogHostRole | null
+  hopIndex?: number | null
+  hopCount?: number | null
+  onDecision: (decision: HostKeyDialogDecision) => void
+}
+
 interface UIState {
   // 侧边栏
   isSidebarOpen: boolean
@@ -82,6 +103,11 @@ interface UIState {
   syncConflict: SyncConflictState | null
   openSyncConflict: (payload: SyncConflictState) => void
   closeSyncConflict: () => void
+  hostKeyDialogOpen: boolean
+  hostKeyDialog: HostKeyDialogPayload | null
+  openHostKeyDialog: (payload: HostKeyDialogPayload) => void
+  closeHostKeyDialog: () => void
+  resolveHostKeyDialog: (decision: HostKeyDialogDecision) => void
 
   // 远端更新提示
   syncRemoteAvailable: boolean
@@ -169,6 +195,14 @@ export const useUIStore = create<UIState>((set) => ({
   syncConflict: null,
   openSyncConflict: (payload) => set({ syncConflictOpen: true, syncConflict: payload }),
   closeSyncConflict: () => set({ syncConflictOpen: false, syncConflict: null }),
+  hostKeyDialogOpen: false,
+  hostKeyDialog: null,
+  openHostKeyDialog: (payload) => set({ hostKeyDialogOpen: true, hostKeyDialog: payload }),
+  closeHostKeyDialog: () => set({ hostKeyDialogOpen: false, hostKeyDialog: null }),
+  resolveHostKeyDialog: (decision) => set((state) => {
+    state.hostKeyDialog?.onDecision(decision)
+    return { hostKeyDialogOpen: false, hostKeyDialog: null }
+  }),
 
   // 远端更新提示
   syncRemoteAvailable: false,

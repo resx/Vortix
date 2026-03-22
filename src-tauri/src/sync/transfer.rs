@@ -2,7 +2,7 @@ use bytes::BytesMut;
 use futures::stream::{FuturesUnordered, StreamExt};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use tokio::time::{sleep, Duration};
+use tokio::time::{Duration, sleep};
 
 use crate::sync::chunk::{ChunkData, decompress_chunk};
 use crate::sync::provider::DynProvider;
@@ -20,7 +20,9 @@ where
             Ok(v) => return Ok(v),
             Err(e) => {
                 attempt += 1;
-                if attempt >= 5 { return Err(e); }
+                if attempt >= 5 {
+                    return Err(e);
+                }
                 let jitter = (attempt as u64 * 37) % 100;
                 sleep(Duration::from_millis(delay + jitter)).await;
                 delay = (delay * 2).min(4000);
@@ -35,12 +37,18 @@ pub async fn upload_chunks(
     max_concurrency: usize,
     prefix: &str,
 ) -> Result<(), String> {
-    if chunks.is_empty() { return Ok(()); }
+    if chunks.is_empty() {
+        return Ok(());
+    }
     let sem = Arc::new(Semaphore::new(max_concurrency.max(1)));
     let mut tasks = FuturesUnordered::new();
 
     for chunk in chunks {
-        let permit = sem.clone().acquire_owned().await.map_err(|e| e.to_string())?;
+        let permit = sem
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| e.to_string())?;
         let provider = provider.clone();
         let key = format!("{}{}", prefix, chunk.hash);
         tasks.push(tokio::spawn(async move {
@@ -49,10 +57,9 @@ pub async fn upload_chunks(
                 let provider = provider.clone();
                 let data = chunk.bytes.clone();
                 let key = key.clone();
-                async move {
-                    provider.write(&key, data).await
-                }
-            }).await
+                async move { provider.write(&key, data).await }
+            })
+            .await
         }));
     }
 
@@ -85,7 +92,11 @@ pub async fn download_chunks(
         let end = start + chunk.size as usize;
         offset = end;
 
-        let permit = sem.clone().acquire_owned().await.map_err(|e| e.to_string())?;
+        let permit = sem
+            .clone()
+            .acquire_owned()
+            .await
+            .map_err(|e| e.to_string())?;
         let provider = provider.clone();
         let key = format!("{}{}", prefix, chunk.hash);
         let compressed = chunk.compressed;
@@ -95,7 +106,8 @@ pub async fn download_chunks(
                 let provider = provider.clone();
                 let key = key.clone();
                 async move { provider.read(&key).await }
-            }).await?;
+            })
+            .await?;
 
             let raw: Vec<u8> = if compressed {
                 decompress_chunk(&data).map_err(|e| e)?

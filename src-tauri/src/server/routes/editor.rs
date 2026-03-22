@@ -2,10 +2,10 @@
 
 use axum::{http::StatusCode, response::Json};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::process::Command;
 
-use super::super::response::{ok, err, ApiResponse};
+use super::super::response::{ApiResponse, err, ok};
 
 #[derive(Deserialize)]
 pub struct EditorOpenDto {
@@ -28,19 +28,23 @@ fn get_editor_command(editor_type: &str, file_path: &str, custom_command: Option
             }
         }
         "vscode" => format!("code \"{}\"", file_path),
-        "notepad++" => format!("\"C:\\Program Files\\Notepad++\\notepad++.exe\" \"{}\"", file_path),
+        "notepad++" => format!(
+            "\"C:\\Program Files\\Notepad++\\notepad++.exe\" \"{}\"",
+            file_path
+        ),
         "sublime" => {
             if cfg!(target_os = "windows") {
-                format!("\"C:\\Program Files\\Sublime Text\\subl.exe\" \"{}\"", file_path)
+                format!(
+                    "\"C:\\Program Files\\Sublime Text\\subl.exe\" \"{}\"",
+                    file_path
+                )
             } else {
                 format!("subl \"{}\"", file_path)
             }
         }
-        "custom" => {
-            custom_command
-                .map(|cmd| cmd.replace("{file}", file_path))
-                .unwrap_or_else(|| format!("start \"\" \"{}\"", file_path))
-        }
+        "custom" => custom_command
+            .map(|cmd| cmd.replace("{file}", file_path))
+            .unwrap_or_else(|| format!("start \"\" \"{}\"", file_path)),
         _ => format!("start \"\" \"{}\"", file_path),
     }
 }
@@ -61,20 +65,30 @@ pub async fn open_editor(
         return Err(err(StatusCode::BAD_REQUEST, "请先下载文件到本地"));
     }
 
-    let cmd = get_editor_command(&body.editor_type, local_path, body.custom_command.as_deref());
+    let cmd = get_editor_command(
+        &body.editor_type,
+        local_path,
+        body.custom_command.as_deref(),
+    );
 
     if cfg!(target_os = "windows") {
         Command::new("cmd").args(["/C", &cmd]).spawn()
     } else {
         Command::new("sh").args(["-c", &cmd]).spawn()
     }
-    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("启动编辑器失败: {}", e)))?;
+    .map_err(|e| {
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("启动编辑器失败: {}", e),
+        )
+    })?;
 
     Ok(ok(json!({})))
 }
 
 /// GET /api/editor/temp-dir — 获取临时目录路径
-pub async fn get_temp_dir() -> Result<Json<ApiResponse<Value>>, (StatusCode, Json<ApiResponse<Value>>)> {
+pub async fn get_temp_dir()
+-> Result<Json<ApiResponse<Value>>, (StatusCode, Json<ApiResponse<Value>>)> {
     let dir = std::env::temp_dir().join("vortix-editor");
     std::fs::create_dir_all(&dir)
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;

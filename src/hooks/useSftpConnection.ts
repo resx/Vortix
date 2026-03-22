@@ -6,6 +6,7 @@ import { useSettingsStore } from '../stores/useSettingsStore'
 import { handleDownloadChunk, handleDownloadComplete, handleDownloadError } from '../services/transfer-engine'
 import { getWsBaseUrl } from '../api/client'
 import type { SftpFileEntry, ExecResult, SftpDirSizeData } from '../types/sftp'
+import { closeHostKeyPrompt, promptHostKeyTrust } from '../utils/hostKeyPrompt'
 
 /** 获取后端 WebSocket 地址 */
 function getSftpWsUrl(): string {
@@ -21,6 +22,16 @@ interface ConnectParams {
   passphrase?: string
   connectionId?: string
   connectionName?: string
+  jump?: {
+    connectionId?: string
+    connectionName?: string
+    host: string
+    port: number
+    username: string
+    password?: string
+    privateKey?: string
+    passphrase?: string
+  }
 }
 
 let requestCounter = 0
@@ -31,8 +42,46 @@ function nextRequestId(): string {
 export function useSftpConnection() {
   const wsRef = useRef<WebSocket | null>(null)
   const pendingRef = useRef<Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>>(new Map())
+  const pendingHostKeyRequestIdRef = useRef<string | null>(null)
 
   const store = useSftpStore
+
+  const clearPendingHostKeyPrompt = useCallback(() => {
+    closeHostKeyPrompt(pendingHostKeyRequestIdRef.current)
+    pendingHostKeyRequestIdRef.current = null
+  }, [])
+
+  const handleHostKeyVerification = useCallback((data: Record<string, unknown>) => {
+    const requestId = String(data.requestId ?? '')
+    if (!requestId) return
+
+    pendingHostKeyRequestIdRef.current = requestId
+    void promptHostKeyTrust({
+      requestId,
+      reason: data.reason === 'mismatch' ? 'mismatch' : 'unknown',
+      host: String(data.host ?? ''),
+      port: Number(data.port ?? 22),
+      username: String(data.username ?? ''),
+      keyType: String(data.keyType ?? ''),
+      fingerprintSha256: String(data.fingerprintSha256 ?? ''),
+      connectionId: typeof data.connectionId === 'string' ? data.connectionId : null,
+      connectionName: typeof data.connectionName === 'string' ? data.connectionName : null,
+      knownKeyType: typeof data.knownKeyType === 'string' ? data.knownKeyType : null,
+      knownFingerprintSha256: typeof data.knownFingerprintSha256 === 'string' ? data.knownFingerprintSha256 : null,
+    }).then((decision) => {
+      pendingHostKeyRequestIdRef.current = null
+      const ws = wsRef.current
+      if (!ws || ws.readyState !== WebSocket.OPEN) return
+      ws.send(JSON.stringify({
+        type: 'hostkey-verification-decision',
+        data: {
+          requestId,
+          trust: decision !== 'reject',
+          replaceExisting: decision === 'replace',
+        },
+      }))
+    })
+  }, [])
 
   /** 发送消息并等待响应 */
   const request = useCallback(<T = unknown>(type: string, data?: unknown): Promise<T> => {
@@ -89,6 +138,9 @@ export function useSftpConnection() {
 
     // 无 requestId 的广播消息
     switch (msg.type) {
+      case 'hostkey-verification-required':
+        handleHostKeyVerification((msg.data ?? {}) as Record<string, unknown>)
+        break
       case 'sftp-dir-size': {
         const d = msg.data as SftpDirSizeData
         if (d?.path && typeof d.size === 'number') {
@@ -117,7 +169,7 @@ export function useSftpConnection() {
         break
       }
     }
-  }, [store])
+  }, [handleHostKeyVerification, store])
 
   /** 列出目录 */
   const listDir = useCallback(async (path: string) => {
@@ -155,7 +207,9 @@ export function useSftpConnection() {
       let msg: { type: string; data?: unknown; requestId?: string }
       try { msg = JSON.parse(ev.data) } catch { return }
 
-      if (msg.type === 'sftp-ready') {
+      if (msg.type === 'hostkey-verification-required') {
+        handleHostKeyVerification((msg.data ?? {}) as Record<string, unknown>)
+      } else if (msg.type === 'sftp-ready') {
         const home = (msg.data as { home: string })?.home || '/'
         const st = store.getState()
         st.setConnecting(false)
@@ -176,18 +230,20 @@ export function useSftpConnection() {
     }
 
     ws.onerror = () => {
+      clearPendingHostKeyPrompt()
       const st = store.getState()
       st.setConnecting(false)
       st.setError('WebSocket 连接失败')
     }
 
     ws.onclose = () => {
+      clearPendingHostKeyPrompt()
       wsRef.current = null
       const st = store.getState()
       st.setConnected(false)
       st.setConnecting(false)
     }
-  }, [store, handleMessage, listDir])
+  }, [clearPendingHostKeyPrompt, store, handleHostKeyVerification, handleMessage, listDir])
 
   /** 创建目录 */
   const mkdir = useCallback(async (path: string) => {
@@ -253,11 +309,12 @@ export function useSftpConnection() {
   useEffect(() => {
     const pending = pendingRef.current
     return () => {
+      clearPendingHostKeyPrompt()
       wsRef.current?.close()
       wsRef.current = null
       pending.clear()
     }
-  }, [])
+  }, [clearPendingHostKeyPrompt])
 
   return useMemo(() => ({
     connect,

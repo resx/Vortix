@@ -1,24 +1,32 @@
-/* ── SQLite 数据层初始化 + 旧 JSON 迁移 ── */
-
 use anyhow::{Context, Result};
 use chrono::Utc;
-use sqlx::{SqlitePool, sqlite::{SqlitePoolOptions, SqliteConnectOptions}};
+use sqlx::{
+    Row, SqlitePool,
+    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 use crate::crypto::Crypto;
 
-mod legacy;
 mod backup;
+mod legacy;
 
-/// ~/.vortix 子目录名
-const DIR_DB: &str = "db";
+const APP_DIR_NAME: &str = "Vortix";
+const DIR_CACHE: &str = "cache";
+const DIR_DATA: &str = "data";
+const DIR_REMOTE: &str = "remote";
+const DIR_HISTORY: &str = "history";
+const DIR_LOGS: &str = "logs";
+const DIR_REPOSITORY: &str = "repository";
 const DIR_KEYS: &str = "keys";
 const DIR_BACKUPS: &str = "backups";
-const DIR_LOGS: &str = "logs";
 const DIR_SYNC: &str = "sync";
-const DIR_CACHE: &str = "cache";
+
+const FILE_DB: &str = "vortix.db";
+const FILE_KEY: &str = "encryption.key";
+const FILE_KNOWN_HOSTS: &str = "known_hosts";
 
 #[derive(Clone)]
 pub struct Db {
@@ -32,83 +40,122 @@ pub struct Db {
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct DbPaths {
-    /// ~/.vortix
     pub root_dir: PathBuf,
-    /// ~/.vortix/db/vortix.db
-    pub db_path: PathBuf,
-    /// ~/.vortix/backups/
-    pub backup_dir: PathBuf,
-    /// ~/.vortix/keys/encryption.key
-    pub key_path: PathBuf,
-    /// ~/.vortix/logs/
-    pub log_dir: PathBuf,
-    /// ~/.vortix/sync/
-    pub sync_dir: PathBuf,
-    /// ~/.vortix/cache/
     pub cache_dir: PathBuf,
-    /// 旧数据目录（迁移用）
+    pub data_dir: PathBuf,
+    pub db_path: PathBuf,
+    pub log_dir: PathBuf,
+    pub remote_dir: PathBuf,
+    pub remote_history_dir: PathBuf,
+    pub known_hosts_path: PathBuf,
+    pub repository_dir: PathBuf,
+    pub backup_dir: PathBuf,
+    pub key_dir: PathBuf,
+    pub key_path: PathBuf,
+    pub sync_dir: PathBuf,
     pub legacy_dir: Option<PathBuf>,
 }
 
-/// 获取 ~/.vortix 根目录
 fn resolve_vortix_home() -> Result<PathBuf> {
-    // 优先使用环境变量覆盖（方便测试/开发）
     if let Ok(value) = std::env::var("VORTIX_HOME") {
         return Ok(PathBuf::from(value));
     }
-    // Windows: C:\Users\<user>\.vortix
-    // macOS/Linux: /home/<user>/.vortix
-    match dirs::home_dir() {
-        Some(home) => Ok(home.join(".vortix")),
-        None => {
-            // 回退：使用系统临时目录
-            tracing::warn!("[Vortix] 无法获取用户主目录，回退到临时目录");
-            Ok(std::env::temp_dir().join(".vortix"))
-        }
+
+    if let Some(data_dir) = dirs::data_dir() {
+        return Ok(data_dir.join(APP_DIR_NAME));
+    }
+
+    tracing::warn!("[Vortix] failed to resolve platform data dir, falling back to temp dir");
+    Ok(std::env::temp_dir().join(APP_DIR_NAME))
+}
+
+fn build_paths(root_dir: PathBuf) -> DbPaths {
+    let cache_dir = root_dir.join(DIR_CACHE);
+    let data_dir = root_dir.join(DIR_DATA);
+    let db_path = data_dir.join(FILE_DB);
+    let log_dir = data_dir.join(DIR_LOGS);
+    let remote_dir = data_dir.join(DIR_REMOTE);
+    let remote_history_dir = remote_dir.join(DIR_HISTORY);
+    let known_hosts_path = remote_dir.join(FILE_KNOWN_HOSTS);
+    let repository_dir = root_dir.join(DIR_REPOSITORY);
+    let backup_dir = repository_dir.join(DIR_BACKUPS);
+    let key_dir = repository_dir.join(DIR_KEYS);
+    let key_path = key_dir.join(FILE_KEY);
+    let sync_dir = repository_dir.join(DIR_SYNC);
+
+    DbPaths {
+        root_dir,
+        cache_dir,
+        data_dir,
+        db_path,
+        log_dir,
+        remote_dir,
+        remote_history_dir,
+        known_hosts_path,
+        repository_dir,
+        backup_dir,
+        key_dir,
+        key_path,
+        sync_dir,
+        legacy_dir: None,
     }
 }
 
-/// 创建所有子目录
-fn ensure_dirs(root: &PathBuf) -> Result<()> {
-    for sub in [DIR_DB, DIR_KEYS, DIR_BACKUPS, DIR_LOGS, DIR_SYNC, DIR_CACHE] {
-        fs::create_dir_all(root.join(sub))
-            .with_context(|| format!("创建目录失败: {}", root.join(sub).display()))?;
+fn ensure_dirs(paths: &DbPaths) -> Result<()> {
+    for dir in [
+        &paths.root_dir,
+        &paths.cache_dir,
+        &paths.data_dir,
+        &paths.log_dir,
+        &paths.remote_dir,
+        &paths.remote_history_dir,
+        &paths.repository_dir,
+        &paths.backup_dir,
+        &paths.key_dir,
+        &paths.sync_dir,
+    ] {
+        fs::create_dir_all(dir)
+            .with_context(|| format!("failed to create directory: {}", dir.display()))?;
     }
+
+    if !paths.known_hosts_path.exists() {
+        fs::write(&paths.known_hosts_path, b"").with_context(|| {
+            format!(
+                "failed to initialize known_hosts file: {}",
+                paths.known_hosts_path.display()
+            )
+        })?;
+    }
+
     Ok(())
 }
 
 pub async fn init(app: &tauri::AppHandle) -> Result<Db> {
     let root_dir = resolve_vortix_home()?;
-    tracing::info!("[Vortix] 数据根目录: {}", root_dir.display());
-    ensure_dirs(&root_dir)?;
+    let mut paths = build_paths(root_dir);
+    tracing::info!("[Vortix] data root: {}", paths.root_dir.display());
+    ensure_dirs(&paths)?;
 
-    let db_path = root_dir.join(DIR_DB).join("vortix.db");
-    let key_path = root_dir.join(DIR_KEYS).join("encryption.key");
-    let backup_dir = root_dir.join(DIR_BACKUPS);
-    let log_dir = root_dir.join(DIR_LOGS);
-    let sync_dir = root_dir.join(DIR_SYNC);
-    let cache_dir = root_dir.join(DIR_CACHE);
+    let legacy_dir = find_legacy_dir(app, &paths.root_dir);
+    let legacy_key_path = legacy_key_candidates(&legacy_dir);
+    let crypto = Crypto::load_or_migrate(&paths.key_path, legacy_key_path.as_deref())
+        .context("failed to initialize encryption key")?;
 
-    // 旧数据迁移：检查 Tauri AppData、项目根目录 data/、旧 ~/.vortix 平铺文件
-    let legacy_dir = find_legacy_dir(app);
-    let legacy_key_path = legacy_key_candidates(&legacy_dir, &root_dir);
-    let crypto = Crypto::load_or_migrate(&key_path, legacy_key_path.as_deref())
-        .context("初始化加密密钥失败")?;
-
-    // 如果旧位置有 db 文件但新位置没有，自动迁移
-    migrate_old_db(&legacy_dir, &root_dir, &db_path)?;
+    migrate_old_db(&legacy_dir, &paths.db_path)?;
+    paths.legacy_dir = legacy_dir.clone();
 
     let options = SqliteConnectOptions::new()
-        .filename(&db_path)
+        .filename(&paths.db_path)
         .create_if_missing(true);
     let pool = SqlitePoolOptions::new()
         .max_connections(5)
         .connect_with(options)
         .await
-        .with_context(|| format!("连接 SQLite 失败: {}", db_path.display()))?;
+        .with_context(|| format!("failed to open sqlite db: {}", paths.db_path.display()))?;
 
     apply_pragmas(&pool).await?;
     apply_migrations(&pool).await?;
+    repair_legacy_schema(&pool).await?;
     ensure_sync_state(&pool).await?;
 
     let is_empty = is_db_empty(&pool).await?;
@@ -118,30 +165,27 @@ pub async fn init(app: &tauri::AppHandle) -> Result<Db> {
                 let summary = legacy::import_all(legacy, &pool).await?;
                 legacy::archive_legacy_data(legacy)?;
                 tracing::info!(
-                    "[Vortix] 已导入旧数据: folders={}, connections={}, shortcuts={}, ssh_keys={}, presets={}, history={}, logs={}, themes={}, settings={}",
-                    summary.folders, summary.connections, summary.shortcuts,
-                    summary.ssh_keys, summary.presets, summary.history,
-                    summary.logs, summary.themes, summary.settings,
+                    "[Vortix] imported legacy data: folders={}, connections={}, shortcuts={}, ssh_keys={}, presets={}, history={}, logs={}, themes={}, settings={}",
+                    summary.folders,
+                    summary.connections,
+                    summary.shortcuts,
+                    summary.ssh_keys,
+                    summary.presets,
+                    summary.history,
+                    summary.logs,
+                    summary.themes,
+                    summary.settings,
                 );
             }
         }
     }
 
-    tracing::info!("[Vortix] 数据目录: {}", root_dir.display());
+    tracing::info!("[Vortix] active data root: {}", paths.root_dir.display());
 
     Ok(Db {
         pool,
         crypto,
-        paths: DbPaths {
-            root_dir,
-            db_path,
-            backup_dir,
-            key_path,
-            log_dir,
-            sync_dir,
-            cache_dir,
-            legacy_dir,
-        },
+        paths,
         app_handle: app.clone(),
     })
 }
@@ -156,10 +200,18 @@ pub async fn export_backup(db: &Db) -> Result<()> {
 }
 
 async fn apply_pragmas(pool: &SqlitePool) -> Result<()> {
-    sqlx::query("PRAGMA journal_mode = WAL;").execute(pool).await?;
-    sqlx::query("PRAGMA synchronous = NORMAL;").execute(pool).await?;
-    sqlx::query("PRAGMA foreign_keys = ON;").execute(pool).await?;
-    sqlx::query("PRAGMA temp_store = MEMORY;").execute(pool).await?;
+    sqlx::query("PRAGMA journal_mode = WAL;")
+        .execute(pool)
+        .await?;
+    sqlx::query("PRAGMA synchronous = NORMAL;")
+        .execute(pool)
+        .await?;
+    sqlx::query("PRAGMA foreign_keys = ON;")
+        .execute(pool)
+        .await?;
+    sqlx::query("PRAGMA temp_store = MEMORY;")
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
@@ -173,6 +225,85 @@ async fn apply_migrations(pool: &SqlitePool) -> Result<()> {
         .bind(applied_at)
         .execute(pool)
         .await?;
+    Ok(())
+}
+
+async fn repair_legacy_schema(pool: &SqlitePool) -> Result<()> {
+    ensure_columns(
+        pool,
+        "connections",
+        &[
+            ("environment", "TEXT NOT NULL DEFAULT '无'"),
+            ("auth_type", "TEXT NOT NULL DEFAULT 'password'"),
+            ("proxy_type", "TEXT NOT NULL DEFAULT '关闭'"),
+            ("proxy_host", "TEXT NOT NULL DEFAULT '127.0.0.1'"),
+            ("proxy_port", "INTEGER NOT NULL DEFAULT 7890"),
+            ("proxy_username", "TEXT NOT NULL DEFAULT ''"),
+            ("proxy_password", "TEXT NOT NULL DEFAULT ''"),
+            ("proxy_timeout", "INTEGER NOT NULL DEFAULT 5"),
+            ("jump_server_id", "TEXT NULL"),
+            ("preset_id", "TEXT NULL"),
+            ("private_key_id", "TEXT NULL"),
+            ("jump_key_id", "TEXT NULL"),
+            ("encrypted_passphrase", "TEXT NULL"),
+            ("tunnels", "TEXT NOT NULL DEFAULT '[]'"),
+            ("env_vars", "TEXT NOT NULL DEFAULT '[]'"),
+            ("advanced", "TEXT NOT NULL DEFAULT '{}'"),
+        ],
+    )
+    .await?;
+
+    ensure_columns(
+        pool,
+        "ssh_keys",
+        &[
+            ("public_key", "TEXT NULL"),
+            ("has_passphrase", "INTEGER NOT NULL DEFAULT 0"),
+            ("encrypted_passphrase", "TEXT NULL"),
+            ("certificate", "TEXT NULL"),
+            ("remark", "TEXT NOT NULL DEFAULT ''"),
+            ("description", "TEXT NOT NULL DEFAULT ''"),
+        ],
+    )
+    .await?;
+
+    ensure_columns(pool, "themes", &[("ui", "TEXT NULL")]).await?;
+
+    ensure_columns(
+        pool,
+        "sync_state",
+        &[
+            ("last_sync_at", "TEXT NULL"),
+            ("local_dirty", "INTEGER NOT NULL DEFAULT 0"),
+        ],
+    )
+    .await?;
+
+    Ok(())
+}
+
+pub async fn repair_runtime_schema(pool: &SqlitePool) -> Result<()> {
+    repair_legacy_schema(pool).await
+}
+
+async fn ensure_columns(pool: &SqlitePool, table: &str, columns: &[(&str, &str)]) -> Result<()> {
+    let pragma = format!("PRAGMA table_info({table})");
+    let existing = sqlx::query(&pragma).fetch_all(pool).await?;
+    let existing_names: std::collections::HashSet<String> = existing
+        .into_iter()
+        .filter_map(|row| row.try_get::<String, _>("name").ok())
+        .collect();
+
+    for (column, definition) in columns {
+        if existing_names.contains(*column) {
+            continue;
+        }
+
+        let sql = format!("ALTER TABLE {table} ADD COLUMN {column} {definition}");
+        tracing::info!("[Vortix] repairing schema: {}", sql);
+        sqlx::query(&sql).execute(pool).await?;
+    }
+
     Ok(())
 }
 
@@ -194,78 +325,111 @@ async fn ensure_sync_state(pool: &SqlitePool) -> Result<()> {
         .await?;
     if exists.is_none() {
         let device_id = legacy::generate_device_id();
-        sqlx::query("INSERT INTO sync_state (id, device_id, last_sync_revision, last_sync_at, local_dirty) VALUES (1, ?, 0, NULL, 0)")
-            .bind(device_id)
-            .execute(pool)
-            .await?;
+        sqlx::query(
+            "INSERT INTO sync_state (id, device_id, last_sync_revision, last_sync_at, local_dirty) VALUES (1, ?, 0, NULL, 0)",
+        )
+        .bind(device_id)
+        .execute(pool)
+        .await?;
     }
     Ok(())
 }
 
-/// 查找旧数据目录（按优先级）
-fn find_legacy_dir(app: &tauri::AppHandle) -> Option<PathBuf> {
-    // 1. 环境变量覆盖
+fn find_legacy_dir(app: &tauri::AppHandle, active_root: &Path) -> Option<PathBuf> {
     if let Ok(value) = std::env::var("VORTIX_LEGACY_DATA_DIR") {
-        let p = PathBuf::from(value);
-        if p.exists() { return Some(p); }
-    }
-
-    // 2. 旧 Tauri AppData 目录（可能有之前版本的数据）
-    if let Ok(app_data) = app.path().app_data_dir() {
-        if app_data.join("vortix.db").exists() || app_data.join("encryption.key").exists() {
-            return Some(app_data);
+        let candidate = PathBuf::from(value);
+        if candidate.exists() {
+            return Some(candidate);
         }
     }
 
-    // 3. 项目根目录 data/（Node.js 遗留）
-    let cwd = std::env::current_dir().ok()?;
-    let direct = cwd.join("data");
-    if direct.exists() { return Some(direct); }
+    let mut candidates = Vec::new();
 
-    let parent = cwd.join("..").join("data");
-    if parent.exists() { return Some(parent); }
-
-    None
-}
-
-/// 查找旧加密密钥路径
-fn legacy_key_candidates(legacy_dir: &Option<PathBuf>, root_dir: &PathBuf) -> Option<PathBuf> {
-    // 旧目录中的 encryption.key
-    if let Some(dir) = legacy_dir {
-        let key = dir.join("encryption.key");
-        if key.exists() { return Some(key); }
+    if let Ok(app_data) = app.path().app_data_dir() {
+        candidates.push(app_data);
     }
-    // ~/.vortix 根目录下的平铺 key（旧版可能直接放在根目录）
-    let flat_key = root_dir.join("encryption.key");
-    if flat_key.exists() { return Some(flat_key); }
+
+    if let Some(home) = dirs::home_dir() {
+        candidates.push(home.join(".vortix"));
+    }
+
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd.join("data"));
+        candidates.push(cwd.join("..").join("data"));
+    }
+
+    candidates
+        .into_iter()
+        .find(|candidate| candidate != active_root && is_legacy_candidate(candidate))
+}
+
+fn is_legacy_candidate(path: &Path) -> bool {
+    path.exists()
+        && (path.join(FILE_DB).exists()
+            || path.join("db").join(FILE_DB).exists()
+            || path.join(FILE_KEY).exists()
+            || path.join("keys").join(FILE_KEY).exists()
+            || legacy::has_legacy_data(path))
+}
+
+fn legacy_key_candidates(legacy_dir: &Option<PathBuf>) -> Option<PathBuf> {
+    let Some(dir) = legacy_dir.as_ref() else {
+        return None;
+    };
+
+    for candidate in [dir.join(FILE_KEY), dir.join("keys").join(FILE_KEY)] {
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+
     None
 }
 
-/// 从旧位置迁移 SQLite 数据库文件
-fn migrate_old_db(legacy_dir: &Option<PathBuf>, root_dir: &PathBuf, new_db_path: &PathBuf) -> Result<()> {
-    if new_db_path.exists() { return Ok(()); }
+fn migrate_old_db(legacy_dir: &Option<PathBuf>, new_db_path: &Path) -> Result<()> {
+    if new_db_path.exists() {
+        return Ok(());
+    }
 
-    // 检查旧位置的 db 文件
+    let Some(dir) = legacy_dir.as_ref() else {
+        return Ok(());
+    };
+
     let candidates = [
-        legacy_dir.as_ref().map(|d| d.join("vortix.db")),
-        Some(root_dir.join("vortix.db")),  // ~/.vortix/vortix.db（平铺旧版）
+        dir.join(FILE_DB),
+        dir.join("db").join(FILE_DB),
+        dir.join("data").join(FILE_DB),
     ];
 
-    for candidate in candidates.into_iter().flatten() {
-        if candidate.exists() {
-            tracing::info!("[Vortix] 迁移数据库: {} → {}", candidate.display(), new_db_path.display());
-            fs::copy(&candidate, new_db_path)
-                .with_context(|| format!("迁移数据库失败: {}", candidate.display()))?;
-            // 同时迁移 WAL/SHM 文件
-            for ext in ["db-wal", "db-shm"] {
-                let old = candidate.with_extension(ext);
-                if old.exists() {
-                    let new = new_db_path.with_extension(ext);
-                    let _ = fs::copy(&old, &new);
-                }
-            }
-            return Ok(());
+    for candidate in candidates {
+        if !candidate.exists() {
+            continue;
         }
+
+        if let Some(parent) = new_db_path.parent() {
+            fs::create_dir_all(parent).with_context(|| {
+                format!("failed to create sqlite parent dir: {}", parent.display())
+            })?;
+        }
+
+        tracing::info!(
+            "[Vortix] migrating sqlite db: {} -> {}",
+            candidate.display(),
+            new_db_path.display()
+        );
+        fs::copy(&candidate, new_db_path)
+            .with_context(|| format!("failed to migrate sqlite db: {}", candidate.display()))?;
+
+        for suffix in ["-wal", "-shm"] {
+            let from = PathBuf::from(format!("{}{}", candidate.display(), suffix));
+            if from.exists() {
+                let to = PathBuf::from(format!("{}{}", new_db_path.display(), suffix));
+                let _ = fs::copy(from, to);
+            }
+        }
+
+        return Ok(());
     }
+
     Ok(())
 }

@@ -1,10 +1,10 @@
 /* ── AES-256-GCM 加密/解密（兼容 Node 密文格式） ── */
 
-use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use aes_gcm::aead::{Aead, OsRng};
+use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use anyhow::{Context, Result};
-use base64::engine::general_purpose::STANDARD as BASE64_STD;
 use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STD;
 use rand_core::RngCore;
 use std::fs;
 use std::path::Path;
@@ -44,7 +44,8 @@ impl Crypto {
         OsRng.fill_bytes(&mut iv);
         let nonce = Nonce::from_slice(&iv);
 
-        let mut ciphertext = cipher.encrypt(nonce, plaintext.as_bytes())
+        let mut ciphertext = cipher
+            .encrypt(nonce, plaintext.as_bytes())
             .map_err(|_| anyhow::anyhow!("加密失败"))?;
 
         if ciphertext.len() < TAG_LEN {
@@ -79,7 +80,8 @@ impl Crypto {
 
         let cipher = Aes256Gcm::new_from_slice(&self.key).context("初始化解密器失败")?;
         let nonce = Nonce::from_slice(iv);
-        let plaintext = cipher.decrypt(nonce, combined.as_ref())
+        let plaintext = cipher
+            .decrypt(nonce, combined.as_ref())
             .map_err(|_| anyhow::anyhow!("解密失败"))?;
 
         Ok(String::from_utf8(plaintext).context("解密结果不是有效 UTF-8")?)

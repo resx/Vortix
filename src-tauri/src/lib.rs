@@ -1,15 +1,36 @@
 /* ── Tauri 库入口：Commands 注册 + 动态窗口尺寸 ── */
 
 mod commands;
-mod server;
-mod db;
 mod crypto;
+mod db;
+mod server;
 mod sync;
 
 use tauri::Manager;
 
 #[cfg(target_os = "macos")]
-use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
+use window_vibrancy::{NSVisualEffectMaterial, apply_vibrancy};
+
+#[cfg(target_os = "windows")]
+fn suppress_windows_error_dialogs() {
+    type WinDword = u32;
+    type WinHresult = i32;
+
+    const SEM_FAILCRITICALERRORS: WinDword = 0x0001;
+    const SEM_NOGPFAULTERRORBOX: WinDword = 0x0002;
+    const WER_FAULT_REPORTING_FLAG_QUEUE: WinDword = 0x0002;
+
+    unsafe extern "system" {
+        fn SetErrorMode(uMode: WinDword) -> WinDword;
+        fn WerSetFlags(dwFlags: WinDword) -> WinHresult;
+    }
+
+    unsafe {
+        let mode = SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+        let _ = SetErrorMode(mode | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
+        let _ = WerSetFlags(WER_FAULT_REPORTING_FLAG_QUEUE);
+    }
+}
 
 /// 内嵌 axum 服务器端口
 const AXUM_PORT: u16 = 3002;
@@ -39,7 +60,8 @@ fn calculate_initial_size(monitor: &tauri::Monitor) -> tauri::LogicalSize<f64> {
 
     tracing::info!(
         "[Vortix] 显示器: {}×{} 物理, scale={scale:.2}, 逻辑={logical_w:.0}×{logical_h:.0} → 初始窗口={init_w:.0}×{init_h:.0}",
-        physical.width, physical.height
+        physical.width,
+        physical.height
     );
 
     tauri::LogicalSize::new(init_w, init_h)
@@ -47,6 +69,9 @@ fn calculate_initial_size(monitor: &tauri::Monitor) -> tauri::LogicalSize<f64> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "windows")]
+    suppress_windows_error_dialogs();
+
     tracing_subscriber::fmt::init();
 
     tauri::Builder::default()

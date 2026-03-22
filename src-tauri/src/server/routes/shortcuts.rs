@@ -5,12 +5,14 @@ use chrono::Utc;
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::db::Db;
-use super::super::response::{ok, ok_empty, err, ApiResponse};
-use super::super::types::*;
 use super::super::helpers::mark_local_dirty;
+use super::super::response::{ApiResponse, err, ok, ok_empty};
+use super::super::types::*;
+use crate::db::Db;
 
-pub async fn get_shortcuts(State(db): State<Db>) -> Result<Json<ApiResponse<Vec<ShortcutRow>>>, (StatusCode, Json<ApiResponse<Value>>)> {
+pub async fn get_shortcuts(
+    State(db): State<Db>,
+) -> Result<Json<ApiResponse<Vec<ShortcutRow>>>, (StatusCode, Json<ApiResponse<Value>>)> {
     let rows = sqlx::query_as::<_, ShortcutRow>(
         "SELECT id, name, command, remark, sort_order, created_at, updated_at FROM shortcuts ORDER BY sort_order ASC, name ASC",
     )
@@ -43,7 +45,18 @@ pub async fn create_shortcut(
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     mark_local_dirty(&db).await?;
-    Ok((StatusCode::CREATED, ok(ShortcutRow { id, name: body.name, command: body.command, remark, sort_order, created_at: now.clone(), updated_at: now })))
+    Ok((
+        StatusCode::CREATED,
+        ok(ShortcutRow {
+            id,
+            name: body.name,
+            command: body.command,
+            remark,
+            sort_order,
+            created_at: now.clone(),
+            updated_at: now,
+        }),
+    ))
 }
 
 pub async fn update_shortcut(
@@ -61,11 +74,25 @@ pub async fn update_shortcut(
         return Err(err(StatusCode::NOT_FOUND, "快捷命令不存在"));
     };
 
-    let obj = body.as_object().ok_or_else(|| err(StatusCode::BAD_REQUEST, "请求体必须是对象"))?;
-    let name = match obj.get("name") { Some(Value::String(s)) => s.clone(), _ => existing.name.clone() };
-    let command = match obj.get("command") { Some(Value::String(s)) => s.clone(), _ => existing.command.clone() };
-    let remark = match obj.get("remark") { Some(Value::String(s)) => s.clone(), _ => existing.remark.clone() };
-    let sort_order = match obj.get("sort_order") { Some(Value::Number(n)) => n.as_i64().unwrap_or(existing.sort_order), _ => existing.sort_order };
+    let obj = body
+        .as_object()
+        .ok_or_else(|| err(StatusCode::BAD_REQUEST, "请求体必须是对象"))?;
+    let name = match obj.get("name") {
+        Some(Value::String(s)) => s.clone(),
+        _ => existing.name.clone(),
+    };
+    let command = match obj.get("command") {
+        Some(Value::String(s)) => s.clone(),
+        _ => existing.command.clone(),
+    };
+    let remark = match obj.get("remark") {
+        Some(Value::String(s)) => s.clone(),
+        _ => existing.remark.clone(),
+    };
+    let sort_order = match obj.get("sort_order") {
+        Some(Value::Number(n)) => n.as_i64().unwrap_or(existing.sort_order),
+        _ => existing.sort_order,
+    };
 
     let updated_at = Utc::now().to_rfc3339();
     sqlx::query("UPDATE shortcuts SET name = ?, command = ?, remark = ?, sort_order = ?, updated_at = ? WHERE id = ?")
@@ -74,7 +101,15 @@ pub async fn update_shortcut(
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     mark_local_dirty(&db).await?;
-    Ok(ok(ShortcutRow { id, name, command, remark, sort_order, created_at: existing.created_at, updated_at }))
+    Ok(ok(ShortcutRow {
+        id,
+        name,
+        command,
+        remark,
+        sort_order,
+        created_at: existing.created_at,
+        updated_at,
+    }))
 }
 
 pub async fn delete_shortcut(
@@ -82,7 +117,9 @@ pub async fn delete_shortcut(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<ApiResponse<Value>>, (StatusCode, Json<ApiResponse<Value>>)> {
     let result = sqlx::query("DELETE FROM shortcuts WHERE id = ?")
-        .bind(&id).execute(&db.pool).await
+        .bind(&id)
+        .execute(&db.pool)
+        .await
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     if result.rows_affected() == 0 {
         return Err(err(StatusCode::NOT_FOUND, "快捷命令不存在"));

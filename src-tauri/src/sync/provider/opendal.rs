@@ -1,17 +1,17 @@
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
+use futures::TryStreamExt;
+use moka::future::Cache;
+use opendal::Operator;
 use opendal::layers::HttpClientLayer;
 use opendal::raw::HttpClient;
 use opendal::services::{S3, Webdav};
-use opendal::Operator;
-use moka::future::Cache;
-use futures::TryStreamExt;
 use std::time::SystemTime;
 use tracing::warn;
 
-use crate::server::types::{SyncFileInfo, SyncRequestBody};
 use super::SyncProvider;
+use crate::server::types::{SyncFileInfo, SyncRequestBody};
 
 pub struct OpenDalProvider {
     op: Operator,
@@ -21,10 +21,16 @@ pub struct OpenDalProvider {
 
 impl OpenDalProvider {
     pub fn from_webdav(body: &SyncRequestBody) -> Result<Self, String> {
-        let endpoint = body.sync_webdav_endpoint.as_ref().ok_or("syncWebdavEndpoint required")?;
+        let endpoint = body
+            .sync_webdav_endpoint
+            .as_ref()
+            .ok_or("syncWebdavEndpoint required")?;
         let username = body.sync_webdav_username.clone().unwrap_or_default();
         let password = body.sync_webdav_password.clone().unwrap_or_default();
-        let root = body.sync_webdav_path.clone().unwrap_or_else(|| "vortix".to_string());
+        let root = body
+            .sync_webdav_path
+            .clone()
+            .unwrap_or_else(|| "vortix".to_string());
         let tls_verify = body.sync_tls_verify.unwrap_or(true);
 
         // opendal 0.55: builder 方法均为 take-self 模式，必须链式调用
@@ -37,25 +43,48 @@ impl OpenDalProvider {
         // OperatorBuilder<impl Access> 与 OperatorBuilder<HttpClientAccessor<impl Access>> 类型不同，
         // 不能用 mut 赋值切换，必须在两个分支各自 .finish() 统一为 Operator
         let op = if !tls_verify {
-            warn!("syncTlsVerify=false: WebDAV TLS 证书校验已关闭，这会降低安全性。仅建议在自签名证书或测试环境使用。");
+            warn!(
+                "syncTlsVerify=false: WebDAV TLS 证书校验已关闭，这会降低安全性。仅建议在自签名证书或测试环境使用。"
+            );
             let client = reqwest::Client::builder()
                 .danger_accept_invalid_certs(true)
                 .build()
                 .map_err(|e| e.to_string())?;
-            op_builder.layer(HttpClientLayer::new(HttpClient::with(client))).finish()
+            op_builder
+                .layer(HttpClientLayer::new(HttpClient::with(client)))
+                .finish()
         } else {
             op_builder.finish()
         };
-        Ok(Self { op, name: "webdav", stat_cache: Cache::new(1024) })
+        Ok(Self {
+            op,
+            name: "webdav",
+            stat_cache: Cache::new(1024),
+        })
     }
 
     pub fn from_s3(body: &SyncRequestBody) -> Result<Self, String> {
         let endpoint = body.sync_s3_endpoint.clone().unwrap_or_default();
-        let bucket = body.sync_s3_bucket.as_ref().ok_or("syncS3Bucket required")?;
-        let access_key = body.sync_s3_access_key.as_ref().ok_or("syncS3AccessKey required")?;
-        let secret_key = body.sync_s3_secret_key.as_ref().ok_or("syncS3SecretKey required")?;
-        let region = body.sync_s3_region.clone().unwrap_or_else(|| "us-east-1".to_string());
-        let root = body.sync_s3_path.clone().unwrap_or_else(|| "vortix".to_string());
+        let bucket = body
+            .sync_s3_bucket
+            .as_ref()
+            .ok_or("syncS3Bucket required")?;
+        let access_key = body
+            .sync_s3_access_key
+            .as_ref()
+            .ok_or("syncS3AccessKey required")?;
+        let secret_key = body
+            .sync_s3_secret_key
+            .as_ref()
+            .ok_or("syncS3SecretKey required")?;
+        let region = body
+            .sync_s3_region
+            .clone()
+            .unwrap_or_else(|| "us-east-1".to_string());
+        let root = body
+            .sync_s3_path
+            .clone()
+            .unwrap_or_else(|| "vortix".to_string());
         let tls_verify = body.sync_tls_verify.unwrap_or(true);
 
         // opendal 0.55: builder 方法均为 take-self 模式，必须链式调用
@@ -78,16 +107,24 @@ impl OpenDalProvider {
         };
         let op_builder = Operator::new(builder).map_err(|e| e.to_string())?;
         let op = if !tls_verify {
-            warn!("syncTlsVerify=false: S3 TLS 证书校验已关闭，这会降低安全性。仅建议在自签名证书或测试环境使用。");
+            warn!(
+                "syncTlsVerify=false: S3 TLS 证书校验已关闭，这会降低安全性。仅建议在自签名证书或测试环境使用。"
+            );
             let client = reqwest::Client::builder()
                 .danger_accept_invalid_certs(true)
                 .build()
                 .map_err(|e| e.to_string())?;
-            op_builder.layer(HttpClientLayer::new(HttpClient::with(client))).finish()
+            op_builder
+                .layer(HttpClientLayer::new(HttpClient::with(client)))
+                .finish()
         } else {
             op_builder.finish()
         };
-        Ok(Self { op, name: "s3", stat_cache: Cache::new(1024) })
+        Ok(Self {
+            op,
+            name: "s3",
+            stat_cache: Cache::new(1024),
+        })
     }
 
     fn key(&self, key: &str) -> String {
@@ -128,9 +165,9 @@ impl SyncProvider for OpenDalProvider {
             Err(_) => return Ok(None),
         };
         // opendal 0.55: Timestamp 实现 From<Timestamp> for SystemTime，再转 chrono
-        let last_modified = meta.last_modified().map(|t| {
-            DateTime::<Utc>::from(SystemTime::from(t)).to_rfc3339()
-        });
+        let last_modified = meta
+            .last_modified()
+            .map(|t| DateTime::<Utc>::from(SystemTime::from(t)).to_rfc3339());
         let info = SyncFileInfo {
             exists: true,
             last_modified,
@@ -143,7 +180,10 @@ impl SyncProvider for OpenDalProvider {
 
     async fn test(&self) -> Result<(), String> {
         let key = self.key(".vortix-test");
-        self.op.write(&key, Bytes::from_static(b"ok")).await.map_err(|e| e.to_string())?;
+        self.op
+            .write(&key, Bytes::from_static(b"ok"))
+            .await
+            .map_err(|e| e.to_string())?;
         let _ = self.op.delete(&key).await;
         Ok(())
     }
@@ -158,6 +198,10 @@ impl SyncProvider for OpenDalProvider {
         Ok(())
     }
 
-    fn is_remote(&self) -> bool { true }
-    fn name(&self) -> &'static str { self.name }
+    fn is_remote(&self) -> bool {
+        true
+    }
+    fn name(&self) -> &'static str {
+        self.name
+    }
 }

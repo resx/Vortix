@@ -1,124 +1,143 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AppIcon, icons } from '../../icons/AppIcon'
 import IslandModal from '../../ui/island-modal'
 import { useSshConfigStore } from '../../../stores/useSshConfigStore'
-import { MOCK_ASSET_TREE } from '../../../data/ssh-config-mock'
-import type { MockAssetNode } from '../../../data/ssh-config-mock'
+import * as api from '../../../api/client'
+import type { Connection } from '../../../api/types'
 
 export default function SelectAssetModal() {
   const toggleSubModal = useSshConfigStore((s) => s.toggleSubModal)
   const setField = useSshConfigStore((s) => s.setField)
-  const [selected, setSelected] = useState<MockAssetNode | null>(null)
+  const jumpServerId = useSshConfigStore((s) => s.jumpServerId)
+
+  const [connections, setConnections] = useState<Connection[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [selectedId, setSelectedId] = useState<string | null>(jumpServerId)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const rows = await api.getConnections()
+        if (!cancelled) {
+          setConnections(rows.filter((row) => row.protocol === 'ssh'))
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const filtered = useMemo(() => {
+    const keyword = search.trim().toLowerCase()
+    if (!keyword) return connections
+    return connections.filter((item) => {
+      return item.name.toLowerCase().includes(keyword)
+        || item.host.toLowerCase().includes(keyword)
+        || item.username.toLowerCase().includes(keyword)
+    })
+  }, [connections, search])
+
+  const selected = filtered.find((item) => item.id === selectedId)
+    ?? connections.find((item) => item.id === selectedId)
+    ?? null
 
   const handleConfirm = () => {
     if (selected) {
-      setField('jumpServerId', selected.name)
-      setField('jumpServerName', `${selected.name} (${selected.ip})`)
+      setField('jumpServerId', selected.id)
+      setField('jumpServerName', `${selected.name} (${selected.host})`)
     }
     toggleSubModal('selectAsset', false)
   }
 
   return (
     <IslandModal
-      title="请选择资产"
+      title="选择跳板机"
       isOpen
       onClose={() => toggleSubModal('selectAsset', false)}
-      width="max-w-[600px]"
+      width="max-w-[640px]"
       padding="p-0"
-      footer={
+      footer={(
         <div className="w-full flex items-center justify-between">
-          <span className="text-xs text-text-3">已选择: {selected ? 1 : 0} 个</span>
+          <span className="text-xs text-text-3">
+            {selected ? `已选择: ${selected.name}` : '未选择跳板机'}
+          </span>
           <button
-            className={`text-xs font-medium px-3 py-1.5 rounded transition-colors ${selected ? 'bg-primary text-white hover:opacity-90' : 'bg-border text-text-3 cursor-not-allowed'}`}
+            className={`text-xs font-medium px-3 py-1.5 rounded transition-colors ${
+              selected
+                ? 'bg-primary text-white hover:opacity-90'
+                : 'bg-border text-text-3 cursor-not-allowed'
+            }`}
             onClick={handleConfirm}
+            disabled={!selected}
           >
             确定
           </button>
         </div>
-      }
+      )}
     >
-      <div className="h-[360px] flex flex-col">
-        {/* 搜索栏 */}
+      <div className="h-[420px] flex flex-col">
         <div className="relative flex items-center gap-2 p-3 border-b border-border/50 bg-bg-card shrink-0">
           <div className="relative flex-1">
             <AppIcon icon={icons.search} size={14} className="absolute left-3 top-2 text-text-3" />
             <input
               type="text"
-              placeholder="搜索..."
+              placeholder="搜索名称、主机或用户名"
               className="w-full bg-bg-base border border-transparent rounded px-8 py-1.5 text-xs h-[30px] outline-none focus:bg-bg-card focus:border-primary transition-all text-text-1"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <button className="p-1.5 text-text-3 hover:bg-bg-hover rounded transition-colors"><AppIcon icon={icons.folderPlus} size={16} /></button>
-          <button className="p-1.5 text-text-3 hover:bg-bg-hover rounded transition-colors"><AppIcon icon={icons.copy} size={16} className="rotate-90" /></button>
         </div>
 
-        {/* 树 */}
         <div className="flex-1 overflow-y-auto custom-scrollbar p-2 bg-bg-card">
-          {MOCK_ASSET_TREE.map((node, i) => (
-            <TreeNode key={i} node={node} selected={selected} onSelect={setSelected} search={search} />
-          ))}
+          {loading && (
+            <div className="h-full flex items-center justify-center text-xs text-text-3">
+              正在加载跳板机列表...
+            </div>
+          )}
+
+          {!loading && filtered.length === 0 && (
+            <div className="h-full flex items-center justify-center text-xs text-text-3">
+              未找到可用的 SSH 连接
+            </div>
+          )}
+
+          {!loading && filtered.map((item) => {
+            const isSelected = item.id === selectedId
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className={`w-full text-left rounded-lg px-3 py-2 mb-1 border transition-colors ${
+                  isSelected
+                    ? 'border-primary bg-primary/10'
+                    : 'border-transparent bg-bg-base hover:bg-bg-hover'
+                }`}
+                onClick={() => setSelectedId(item.id)}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className={`text-sm truncate ${isSelected ? 'text-primary font-medium' : 'text-text-1'}`}>
+                      {item.name}
+                    </div>
+                    <div className="text-xs text-text-3 truncate">
+                      {item.username}@{item.host}:{item.port}
+                    </div>
+                  </div>
+                  <AppIcon
+                    icon={isSelected ? icons.check : icons.chevronRight}
+                    size={14}
+                    className={isSelected ? 'text-primary' : 'text-text-3'}
+                  />
+                </div>
+              </button>
+            )
+          })}
         </div>
       </div>
     </IslandModal>
-  )
-}
-
-function TreeNode({
-  node, level = 0, selected, onSelect, search,
-}: {
-  node: MockAssetNode; level?: number; selected: MockAssetNode | null; onSelect: (n: MockAssetNode) => void; search: string
-}) {
-  const [isOpen, setIsOpen] = useState(node.open !== false)
-  const isSelected = selected?.name === node.name && selected?.ip === node.ip
-
-  // 搜索过滤
-  if (search && node.type === 'server' && !node.name.toLowerCase().includes(search.toLowerCase()) && !node.ip?.includes(search)) {
-    return null
-  }
-
-  if (node.type === 'folder') {
-    const filteredChildren = search
-      ? node.children?.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.ip?.includes(search))
-      : node.children
-
-    if (search && (!filteredChildren || filteredChildren.length === 0)) return null
-
-    return (
-      <div className="w-full select-none">
-        <div
-          className="flex items-center px-2 py-1 hover:bg-bg-hover cursor-pointer text-xs text-text-1 rounded-md mx-1"
-          style={{ paddingLeft: `${level * 16 + 8}px` }}
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          <div className="mr-1 text-text-3 w-4 flex justify-center">
-            {isOpen ? <AppIcon icon={icons.chevronDown} size={14} /> : <AppIcon icon={icons.chevronRight} size={14} />}
-          </div>
-          <AppIcon icon={isOpen ? icons.folderOpenFill : icons.folderFill} size={15} className="mr-1.5 text-icon-folder" />
-          {node.name}
-        </div>
-        {isOpen && node.children && (
-          <div>
-            {(filteredChildren ?? node.children).map((child, i) => (
-              <TreeNode key={i} node={child} level={level + 1} selected={selected} onSelect={onSelect} search={search} />
-            ))}
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  return (
-    <div
-      className={`flex items-center px-2 py-1 cursor-pointer text-xs select-none transition-colors rounded-md mx-1 mt-0.5 ${isSelected ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-bg-hover text-text-2'}`}
-      style={{ paddingLeft: `${level * 16 + 28}px` }}
-      onClick={() => onSelect(node)}
-    >
-      <AppIcon icon={icons.monitor} size={14} className={`mr-1.5 ${isSelected ? 'text-primary' : 'text-text-3'}`} />
-      <span>{node.name}</span>
-      {node.ip && <span className={`ml-4 text-[10px] ${isSelected ? 'text-primary/70' : 'text-text-3'}`}>{node.ip}</span>}
-    </div>
   )
 }

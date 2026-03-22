@@ -1,7 +1,7 @@
 /* ── 共享类型定义（DTO / Row / 同步结构） ── */
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use sqlx::FromRow;
 
 // ── 文件夹 ──
@@ -388,6 +388,9 @@ pub struct SyncImportResult {
     pub shortcuts: usize,
     #[serde(rename = "sshKeys")]
     pub ssh_keys: usize,
+    pub settings: usize,
+    pub presets: usize,
+    pub themes: usize,
 }
 
 /// 轻量级远端变更检测结果
@@ -416,7 +419,7 @@ pub struct SyncConflictInfo {
     pub remote_exported_at: Option<String>,
 }
 
-#[derive(Clone, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
 pub struct SyncFolder {
     pub id: String,
     pub name: String,
@@ -428,7 +431,7 @@ pub struct SyncFolder {
     pub updated_at: String,
 }
 
-#[derive(Clone, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
 pub struct SyncShortcut {
     pub id: String,
     pub name: String,
@@ -445,7 +448,7 @@ pub fn json_value_default() -> Value {
     Value::Null
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SyncConnection {
     pub id: String,
     #[serde(default)]
@@ -494,7 +497,7 @@ pub struct SyncConnection {
     pub updated_at: String,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SyncSshKey {
     pub id: String,
     pub name: String,
@@ -513,13 +516,54 @@ pub struct SyncSshKey {
     pub created_at: String,
 }
 
-#[derive(Clone, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncPreset {
+    pub id: String,
+    pub name: String,
+    pub username: String,
+    pub password: String,
+    #[serde(default)]
+    pub remark: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+pub fn sync_theme_version_default() -> i64 {
+    1
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncTheme {
+    pub id: String,
+    pub name: String,
+    pub mode: String,
+    #[serde(default = "sync_theme_version_default")]
+    pub version: i64,
+    #[serde(default)]
+    pub author: String,
+    #[serde(default = "json_value_default")]
+    pub terminal: Value,
+    #[serde(default = "json_value_default")]
+    pub highlights: Value,
+    #[serde(default)]
+    pub ui: Option<Value>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct SyncData {
     pub folders: Vec<SyncFolder>,
     pub connections: Vec<SyncConnection>,
     pub shortcuts: Vec<SyncShortcut>,
     #[serde(default, rename = "sshKeys")]
     pub ssh_keys: Vec<SyncSshKey>,
+    #[serde(default)]
+    pub settings: Map<String, Value>,
+    #[serde(default)]
+    pub presets: Vec<SyncPreset>,
+    #[serde(default)]
+    pub themes: Vec<SyncTheme>,
 }
 
 #[allow(dead_code)]

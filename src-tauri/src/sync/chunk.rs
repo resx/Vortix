@@ -32,9 +32,15 @@ fn hash_chunk(chunk: &[u8], alg: SyncHashAlg) -> String {
 
 fn compress_chunk(chunk: &[u8]) -> Option<Vec<u8>> {
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    if encoder.write_all(chunk).is_err() { return None; }
+    if encoder.write_all(chunk).is_err() {
+        return None;
+    }
     let compressed = encoder.finish().ok()?;
-    if compressed.len() + 8 < chunk.len() { Some(compressed) } else { None }
+    if compressed.len() + 8 < chunk.len() {
+        Some(compressed)
+    } else {
+        None
+    }
 }
 
 pub fn chunk_bytes(

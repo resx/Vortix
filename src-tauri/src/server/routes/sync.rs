@@ -2,8 +2,11 @@ use axum::{extract::State, response::Json};
 use serde_json::Value;
 
 use crate::db::Db;
-use crate::server::response::{ApiResponse, ApiError};
-use crate::server::types::{SyncRequestBody, SyncFileInfo, SyncImportResult, SyncConflictInfo, SyncLocalState, RemoteCheckResult};
+use crate::server::response::{ApiError, ApiResponse};
+use crate::server::types::{
+    RemoteCheckResult, SyncConflictInfo, SyncFileInfo, SyncImportResult, SyncLocalState,
+    SyncRequestBody,
+};
 use crate::sync;
 
 pub async fn sync_test(

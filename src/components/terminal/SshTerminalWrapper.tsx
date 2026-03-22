@@ -18,6 +18,18 @@ interface ConnectionInfo {
   username: string
   password?: string
   privateKey?: string
+  passphrase?: string
+  terminalEnhance?: boolean
+  jump?: {
+    connectionId?: string
+    connectionName?: string
+    host: string
+    port: number
+    username: string
+    password?: string
+    privateKey?: string
+    passphrase?: string
+  }
 }
 
 export default function SshTerminalWrapper({ tab }: Props) {
@@ -38,8 +50,11 @@ export default function SshTerminalWrapper({ tab }: Props) {
           username: tab.quickConnect.username,
           password: tab.quickConnect.password,
           privateKey: tab.quickConnect.privateKey,
+          passphrase: tab.quickConnect.passphrase,
+          jump: tab.quickConnect.jump,
         })
       } else if (tab.connectionId) {
+        const conn = await api.getConnection(tab.connectionId)
         const cred = await api.getConnectionCredential(tab.connectionId)
         setConnection({
           host: cred.host,
@@ -47,6 +62,18 @@ export default function SshTerminalWrapper({ tab }: Props) {
           username: cred.username,
           password: cred.password,
           privateKey: cred.private_key,
+          passphrase: cred.passphrase,
+          terminalEnhance: Boolean((conn.advanced as Record<string, unknown> | undefined)?.terminalEnhance),
+          jump: cred.jump ? {
+            connectionId: cred.jump.connectionId,
+            connectionName: cred.jump.connectionName,
+            host: cred.jump.host,
+            port: cred.jump.port,
+            username: cred.jump.username,
+            password: cred.jump.password,
+            privateKey: cred.jump.private_key,
+            passphrase: cred.jump.passphrase,
+          } : undefined,
         })
       } else if (tab.assetRow) {
         setConnection({
@@ -99,6 +126,7 @@ export default function SshTerminalWrapper({ tab }: Props) {
       tabId={tab.id}
       connection={connection}
       connectionId={tab.connectionId}
+      connectionName={tab.label}
       onStatusChange={handleStatusChange}
       onContextMenu={handleContextMenu}
     />

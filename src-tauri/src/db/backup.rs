@@ -145,9 +145,11 @@ struct LogRow {
 }
 
 pub async fn export_to_json(pool: &SqlitePool, path: &Path) -> Result<()> {
-    let folders: Vec<FolderRow> = sqlx::query_as("SELECT id, name, parent_id, sort_order, created_at, updated_at FROM folders")
-        .fetch_all(pool)
-        .await?;
+    let folders: Vec<FolderRow> = sqlx::query_as(
+        "SELECT id, name, parent_id, sort_order, created_at, updated_at FROM folders",
+    )
+    .fetch_all(pool)
+    .await?;
 
     let connections: Vec<ConnectionRow> = sqlx::query_as(
         "SELECT id, folder_id, name, protocol, host, port, username, auth_method, encrypted_password, encrypted_private_key, sort_order, remark, color_tag, environment, auth_type, proxy_type, proxy_host, proxy_port, proxy_username, proxy_password, proxy_timeout, jump_server_id, preset_id, private_key_id, jump_key_id, encrypted_passphrase, tunnels, env_vars, advanced, created_at, updated_at FROM connections",
@@ -164,17 +166,22 @@ pub async fn export_to_json(pool: &SqlitePool, path: &Path) -> Result<()> {
         settings.insert(key, parsed);
     }
 
-    let history: Vec<HistoryRow> = sqlx::query_as("SELECT id, connection_id, command, executed_at FROM history")
-        .fetch_all(pool)
-        .await?;
+    let history: Vec<HistoryRow> =
+        sqlx::query_as("SELECT id, connection_id, command, executed_at FROM history")
+            .fetch_all(pool)
+            .await?;
 
-    let logs: Vec<LogRow> = sqlx::query_as("SELECT id, connection_id, event, message, duration_ms, created_at FROM logs")
-        .fetch_all(pool)
-        .await?;
+    let logs: Vec<LogRow> = sqlx::query_as(
+        "SELECT id, connection_id, event, message, duration_ms, created_at FROM logs",
+    )
+    .fetch_all(pool)
+    .await?;
 
-    let shortcuts: Vec<ShortcutRow> = sqlx::query_as("SELECT id, name, command, remark, sort_order, created_at, updated_at FROM shortcuts")
-        .fetch_all(pool)
-        .await?;
+    let shortcuts: Vec<ShortcutRow> = sqlx::query_as(
+        "SELECT id, name, command, remark, sort_order, created_at, updated_at FROM shortcuts",
+    )
+    .fetch_all(pool)
+    .await?;
 
     let ssh_keys: Vec<SshKeyRow> = sqlx::query_as("SELECT id, name, key_type, public_key, has_passphrase, encrypted_private_key, encrypted_passphrase, certificate, remark, description, created_at FROM ssh_keys")
         .fetch_all(pool)
@@ -189,12 +196,13 @@ pub async fn export_to_json(pool: &SqlitePool, path: &Path) -> Result<()> {
             .fetch_all(pool)
             .await?;
     let mut themes = Vec::with_capacity(theme_rows.len());
-    for (id, name, mode, version, author, terminal, highlights, ui, created_at, updated_at) in theme_rows {
+    for (id, name, mode, version, author, terminal, highlights, ui, created_at, updated_at) in
+        theme_rows
+    {
         let terminal_json = serde_json::from_str(&terminal).unwrap_or(Value::String(terminal));
-        let highlights_json = serde_json::from_str(&highlights).unwrap_or(Value::String(highlights));
-        let ui_json = ui
-            .as_ref()
-            .and_then(|raw| serde_json::from_str(raw).ok());
+        let highlights_json =
+            serde_json::from_str(&highlights).unwrap_or(Value::String(highlights));
+        let ui_json = ui.as_ref().and_then(|raw| serde_json::from_str(raw).ok());
         themes.push(ThemeRow {
             id,
             name,

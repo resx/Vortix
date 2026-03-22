@@ -10,7 +10,15 @@ export interface PaneMeta {
   label: string
   connectionId?: string
   assetRow?: import('./index').AssetRow
-  quickConnect?: { host: string; port: number; username: string; password?: string; privateKey?: string }
+  quickConnect?: {
+    host: string
+    port: number
+    username: string
+    password?: string
+    privateKey?: string
+    passphrase?: string
+    terminalEnhance?: boolean
+  }
   connectedAt?: string
 }
 

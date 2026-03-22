@@ -12,6 +12,8 @@ import { useTabStore } from '../../stores/useTabStore'
 import { useKeywordHighlight } from './useKeywordHighlight'
 import { getSession, setSession, notifyInputListeners, addInputListener, removeInputListener } from '../../stores/terminalSessionRegistry'
 import { getWsBaseUrl, addHistory, getHistory } from '../../api/client'
+import { t as translate } from '../../i18n'
+import ConnectionLoadingView, { type ConnectionLoadingHostKeyPrompt, type ConnectionLoadingStep } from './ConnectionLoadingView'
 import type { TerminalSession } from '../../stores/terminalSessionRegistry'
 import type { TerminalHighlightRule } from '../../stores/useSettingsStore'
 import '@xterm/xterm/css/xterm.css'
@@ -35,6 +37,17 @@ function playBellSound() {
 }
 
 /** SSH 连接参数 */
+interface JumpConnection {
+  connectionId?: string
+  connectionName?: string
+  host: string
+  port: number
+  username: string
+  password?: string
+  privateKey?: string
+  passphrase?: string
+}
+
 interface SshConnection {
   host: string
   port: number
@@ -42,6 +55,8 @@ interface SshConnection {
   password?: string
   privateKey?: string
   passphrase?: string
+  terminalEnhance?: boolean
+  jump?: JumpConnection
 }
 
 /** 本地终端参数 */
@@ -63,9 +78,26 @@ interface SshTerminalProps {
   connection: TerminalConnection | null
   /** 连接 ID，用于后端写入连接日志 */
   connectionId?: string | null
+  connectionName?: string | null
   profileId?: string | null
   onStatusChange?: (status: 'connecting' | 'connected' | 'closed' | 'error') => void
   onContextMenu?: (x: number, y: number, hasSelection: boolean) => void
+}
+
+interface ConnectionStagePayload {
+  role?: 'jump' | 'target'
+  phase?: string
+  host?: string
+  port?: number
+  username?: string
+  connectionId?: string | null
+  connectionName?: string | null
+  hopIndex?: number
+  hopCount?: number
+}
+
+interface HostKeyVerificationPayload extends ConnectionLoadingHostKeyPrompt {
+  requestId: string
 }
 
 interface XtermInternalCore {
@@ -124,6 +156,138 @@ function colorWrap(text: string, color: string): string {
   return `\x1b[38;2;${rgb[0]};${rgb[1]};${rgb[2]}m${text}\x1b[39m`
 }
 
+function getConnectionNodeLabel(data: ConnectionStagePayload): string {
+  return String(data.connectionName || data.host || translate('connectionLoading.unknownHost'))
+}
+
+function describeConnectionStage(data: ConnectionStagePayload): string {
+  const role = data.role === 'jump'
+    ? translate('connectionLoading.role.jump')
+    : translate('connectionLoading.role.target')
+  const nodeLabel = getConnectionNodeLabel(data)
+  const prefix = data.hopCount && data.hopCount > 1 && data.hopIndex
+    ? `[${data.hopIndex}/${data.hopCount}] `
+    : ''
+
+  switch (data.phase) {
+    case 'connecting':
+      return `${prefix}${translate('connectionLoading.phase.connecting')} ${role} ${nodeLabel}${data.port ? `:${data.port}` : ''}`
+    case 'awaiting-hostkey-decision':
+      return `${prefix}${translate('connectionLoading.phase.verifying')} ${role} ${nodeLabel}`
+    case 'authenticating':
+      return `${prefix}${translate('connectionLoading.phase.authenticating')} ${role} ${nodeLabel}`
+    case 'connected':
+      if (data.role === 'jump') {
+        return `${prefix}${nodeLabel} ${translate('connectionLoading.phase.jumpReady')}`
+      }
+      return `${prefix}${translate('connectionLoading.phase.connectedTo')} ${nodeLabel}`
+    default:
+      return `${prefix}${nodeLabel}`
+  }
+}
+
+function buildConnectionRouteLabel(connection: TerminalConnection | null): string {
+  if (!connection) return ''
+  if ('type' in connection && connection.type === 'local') {
+    return connection.workingDir ? `${connection.shell} - ${connection.workingDir}` : connection.shell
+  }
+
+  const sshConnection = connection as SshConnection
+  const targetLabel = `${sshConnection.username}@${sshConnection.host}:${sshConnection.port}`
+  if (!sshConnection.jump) {
+    return targetLabel
+  }
+
+  const jumpLabel = `${sshConnection.jump.username}@${sshConnection.jump.host}:${sshConnection.jump.port}`
+  return `${jumpLabel} -> ${targetLabel}`
+}
+
+function buildConnectionStepId(data: ConnectionStagePayload): string {
+  return [
+    data.role ?? 'node',
+    data.phase ?? 'unknown',
+    data.hopIndex ?? 0,
+    data.connectionId ?? data.connectionName ?? data.host ?? 'endpoint',
+  ].join(':')
+}
+
+function nextConnectionSteps(
+  steps: ConnectionLoadingStep[],
+  data: ConnectionStagePayload,
+  label: string,
+): ConnectionLoadingStep[] {
+  const next = steps.map((step) => (
+    step.status === 'active'
+      ? { ...step, status: 'done' as const }
+      : step
+  ))
+
+  const id = buildConnectionStepId(data)
+  const status = data.phase === 'connected' ? 'done' : 'active'
+  const index = next.findIndex((step) => step.id === id)
+
+  if (index >= 0) {
+    next[index] = { id, label, status }
+    return next
+  }
+
+  return [...next, { id, label, status }]
+}
+
+function clearPendingTabCompletion(session: TerminalSession): void {
+  session.pendingTabCompletion = false
+  session.pendingTabCompletionBuffer = ''
+}
+
+function getCurrentInputLineText(term: Terminal): string {
+  const buffer = term.buffer.active
+  const absoluteY = buffer.baseY + buffer.cursorY
+  if (absoluteY < 0) return ''
+
+  let startY = absoluteY
+  while (startY > 0) {
+    const line = buffer.getLine(startY)
+    if (!line?.isWrapped) break
+    startY -= 1
+  }
+
+  let text = ''
+  for (let y = startY; y <= absoluteY; y += 1) {
+    const line = buffer.getLine(y)
+    if (!line) continue
+    const raw = line.translateToString(false)
+    text += y === absoluteY ? raw.slice(0, buffer.cursorX) : raw
+  }
+  return text
+}
+
+function syncPendingTabCompletionFromTerminal(session: TerminalSession): void {
+  if (!session.pendingTabCompletion) return
+
+  const snapshot = session.pendingTabCompletionBuffer
+  if (!snapshot) {
+    clearPendingTabCompletion(session)
+    return
+  }
+
+  const visibleLine = getCurrentInputLineText(session.term)
+  if (!visibleLine) return
+
+  const start = visibleLine.lastIndexOf(snapshot)
+  if (start === -1) return
+
+  const nextBuffer = visibleLine.slice(start)
+  if (nextBuffer.length < snapshot.length) return
+
+  session.commandBuffer = nextBuffer
+  clearPendingTabCompletion(session)
+}
+
+function syncCommandBufferFromTerminalBeforeSubmit(session: TerminalSession): void {
+  if (!session.pendingTabCompletion) return
+  syncPendingTabCompletionFromTerminal(session)
+}
+
 function applyHighlightToPlainText(
   text: string,
   rules: { color: string; pattern: RegExp }[],
@@ -158,23 +322,47 @@ function applyAnsiSafeHighlight(
   return result
 }
 
-export default function SshTerminal({ paneId, tabId, wsUrl, connection, connectionId, profileId, onStatusChange, onContextMenu }: SshTerminalProps) {
+export default function SshTerminal({ paneId, tabId, wsUrl, connection, connectionId, connectionName, profileId, onStatusChange, onContextMenu }: SshTerminalProps) {
   const resolvedWsUrl = wsUrl || `${getWsBaseUrl()}/ws/ssh`
   const wrapperRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const connectWsRef = useRef<((session: TerminalSession, conn: NonNullable<SshTerminalProps['connection']>) => void) | null>(null)
+  const pendingHostKeyRequestIdRef = useRef<string | null>(null)
+  const hasConnectedRef = useRef(false)
   const [cellHeight, setCellHeight] = useState(0)
   const [isDarkMode, setIsDarkMode] = useState(() =>
     document.documentElement.classList.contains('dark'),
   )
   const [hintText, setHintText] = useState('')
+  const [terminalStatus, setTerminalStatus] = useState<'connecting' | 'connected' | 'closed' | 'error'>('connecting')
+  const [connectionStageText, setConnectionStageText] = useState('')
+  const [connectionSteps, setConnectionSteps] = useState<ConnectionLoadingStep[]>([])
+  const [pendingHostKeyPrompt, setPendingHostKeyPrompt] = useState<HostKeyVerificationPayload | null>(null)
+  const [connectionErrorText, setConnectionErrorText] = useState('')
   const hintRef = useRef('')
 
   // 用 ref 保持回调最新引用，避免闭包陈旧
   const onStatusChangeRef = useRef(onStatusChange)
   useEffect(() => { onStatusChangeRef.current = onStatusChange })
+
+  useEffect(() => {
+    hasConnectedRef.current = false
+    setTerminalStatus('connecting')
+    setConnectionStageText('')
+    setConnectionSteps([])
+    setPendingHostKeyPrompt(null)
+    setConnectionErrorText('')
+  }, [connection])
+
+  useEffect(() => {
+    const session = getSession(paneId)
+    if (!session) return
+    session.connectionStageText = connectionStageText
+    session.connectionSteps = connectionSteps
+    session.connectionErrorText = connectionErrorText
+  }, [paneId, connectionStageText, connectionSteps, connectionErrorText])
 
   /** 安全 fit：仅在容器有有效尺寸时才调用 fitAddon.fit() */
   const safeFit = useCallback((fitAddon: FitAddon) => {
@@ -277,11 +465,57 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     return compileHighlightRules(DEFAULT_TERMINAL_HIGHLIGHT_RULES)
   }, [])
 
+  const updateTerminalStatus = useCallback((status: 'connecting' | 'connected' | 'closed' | 'error') => {
+    const session = getSession(paneId)
+    if (session) {
+      session.connectionStatus = status
+    }
+    setTerminalStatus(status)
+    onStatusChangeRef.current?.(status)
+  }, [paneId])
+
+  const handleRetryConnection = useCallback(() => {
+    if (!connection) return
+    const session = getSession(paneId)
+    if (!session) return
+
+    if (session.reconnectTimer) {
+      clearTimeout(session.reconnectTimer)
+      session.reconnectTimer = null
+    }
+    session.reconnectInputDisposable?.dispose()
+    session.reconnectInputDisposable = null
+    session.reconnectCount = 0
+
+    if (session.ws) {
+      session.isManualDisconnect = true
+      try {
+        session.ws.close()
+      } catch {
+        // ignore close errors and recreate the socket below
+      }
+      session.ws = null
+      wsRef.current = null
+    }
+
+    session.isManualDisconnect = false
+    hasConnectedRef.current = false
+    pendingHostKeyRequestIdRef.current = null
+    setPendingHostKeyPrompt(null)
+    setConnectionStageText('')
+    setConnectionSteps([])
+    setConnectionErrorText('')
+    updateTerminalStatus('connecting')
+    connectWsRef.current?.(session, connection)
+    session.term.focus()
+  }, [connection, paneId, updateTerminalStatus])
+
   /** 建立 WebSocket 连接（支持重连） */
   const connectWs = useCallback((session: TerminalSession, conn: NonNullable<SshTerminalProps['connection']>) => {
     const settings = useSettingsStore.getState()
     const { term, fitAddon } = session
     const isLocal = 'type' in conn && conn.type === 'local'
+    const sshConn = isLocal ? null : conn as SshConnection
 
     if (session.reconnectTimer) {
       clearTimeout(session.reconnectTimer)
@@ -295,7 +529,21 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     wsRef.current = ws
 
     ws.onopen = () => {
+      if (session.ws !== ws) return
       session.reconnectCount = 0
+      session.shellIntegrationHistory = false
+      hasConnectedRef.current = false
+      updateTerminalStatus('connecting')
+      setConnectionErrorText('')
+      setPendingHostKeyPrompt(null)
+      setConnectionSteps([])
+      setConnectionStageText(
+        sshConn?.jump
+          ? `${translate('connectionLoading.phase.connecting')} ${translate('connectionLoading.role.jump')} ${sshConn.jump.connectionName || sshConn.jump.host}:${sshConn.jump.port}`
+          : sshConn
+            ? `${translate('connectionLoading.phase.connecting')} ${translate('connectionLoading.role.target')} ${sshConn.host}:${sshConn.port}`
+            : translate('connectionLoading.phase.startingLocal'),
+      )
       // 先发送高亮配置（后端可在连接前接收并准备好拦截器）
       sendHighlightConfig(ws)
       // 安全 fit 后再取尺寸
@@ -316,12 +564,13 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       } else {
         ws.send(JSON.stringify({
           type: 'connect',
-          data: { ...conn, connectionId, cols: dims?.cols, rows: dims?.rows },
+          data: { ...conn, connectionId, connectionName, cols: dims?.cols, rows: dims?.rows },
         }))
       }
     }
 
     ws.onmessage = (event) => {
+      if (session.ws !== ws) return
       const msg = JSON.parse(event.data)
       switch (msg.type) {
         case 'output': {
@@ -330,7 +579,10 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           const rendered = settingsNow.termHighlightEnhance
             ? applyAnsiSafeHighlight(outputText, getResolvedHighlightRules())
             : outputText
-          term.write(rendered)
+          term.write(rendered, () => {
+            if (session.ws !== ws) return
+            syncPendingTabCompletionFromTerminal(session)
+          })
         }
           // 非活跃标签页有输出时标记活动
           if (tabId && useSettingsStore.getState().tabFlashNotify) {
@@ -340,10 +592,31 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
             }
           }
           break
+        case 'shell-integration-status':
+          session.shellIntegrationHistory = msg.data?.status === 'ready'
+          break
+        case 'shell-command-finished': {
+          session.shellIntegrationHistory = true
+          const command = String(msg.data?.command ?? '').trim()
+          if (command && useSettingsStore.getState().sshHistoryEnabled && command !== session.lastRecordedCommand && connectionId) {
+            session.lastRecordedCommand = command
+            addHistory(connectionId, command).catch(() => {})
+            const idx = session.historyCache.indexOf(command)
+            if (idx !== -1) session.historyCache.splice(idx, 1)
+            session.historyCache.unshift(command)
+          }
+          break
+        }
         case 'status':
           if (msg.data === 'connected') {
+            hasConnectedRef.current = true
+            setConnectionStageText('')
+            /*
             term.writeln('\x1b[32m[Vortix]\x1b[0m 连接成功！')
-            onStatusChangeRef.current?.('connected')
+            */
+            setPendingHostKeyPrompt(null)
+            setConnectionErrorText('')
+            updateTerminalStatus('connected')
             // 非本地终端时启动监控采集
             if (!isLocal && ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ type: 'monitor-start' }))
@@ -359,18 +632,58 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
               }
             }, 50)
           } else if (msg.data === 'closed') {
-            term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接已断开')
-            onStatusChangeRef.current?.('closed')
+            setConnectionStageText('')
+            setPendingHostKeyPrompt(null)
+            if (!hasConnectedRef.current) {
+              setConnectionErrorText(translate('connectionLoading.error.closedBeforeEstablished'))
+            } else {
+              term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接已断开')
+            }
+            updateTerminalStatus('closed')
           } else if (msg.data === 'timeout') {
-            term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接超时断开')
-            onStatusChangeRef.current?.('closed')
+            setConnectionStageText('')
+            setPendingHostKeyPrompt(null)
+            if (!hasConnectedRef.current) {
+              setConnectionErrorText(translate('connectionLoading.error.timeoutBeforeEstablished'))
+            } else {
+              term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接超时断开')
+            }
+            updateTerminalStatus('closed')
           }
           break
+        case 'connection-stage': {
+          const data = (msg.data ?? {}) as ConnectionStagePayload
+          const stageText = describeConnectionStage(data)
+          setConnectionStageText(stageText)
+          setConnectionSteps((prev) => nextConnectionSteps(prev, data, stageText))
+          break
+        }
         case 'ping':
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'pong' }))
           }
           break
+        case 'hostkey-verification-required': {
+          const data = msg.data ?? {}
+          const requestId = String(data.requestId ?? '')
+          if (!requestId) break
+          pendingHostKeyRequestIdRef.current = requestId
+          setPendingHostKeyPrompt({
+            requestId,
+            reason: data.reason === 'mismatch' ? 'mismatch' : 'unknown',
+            host: String(data.host ?? ''),
+            port: Number(data.port ?? 22),
+            username: String(data.username ?? ''),
+            keyType: String(data.keyType ?? ''),
+            fingerprintSha256: String(data.fingerprintSha256 ?? ''),
+            connectionName: typeof data.connectionName === 'string' ? data.connectionName : null,
+            knownFingerprintSha256: typeof data.knownFingerprintSha256 === 'string' ? data.knownFingerprintSha256 : null,
+            hostRole: data.hostRole === 'jump' || data.hostRole === 'target' ? data.hostRole : null,
+            hopIndex: typeof data.hopIndex === 'number' ? data.hopIndex : null,
+            hopCount: typeof data.hopCount === 'number' ? data.hopCount : null,
+          })
+          break
+        }
         case 'highlight-config-ack':
           // 后端确认高亮配置已应用
           break
@@ -381,47 +694,77 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           if (tabId) useMonitorStore.getState().updateSysInfo(tabId, msg.data)
           break
         case 'error':
-          term.writeln('\r\n\x1b[31m[Vortix 错误]\x1b[0m ' + msg.data)
-          onStatusChangeRef.current?.('error')
+          setConnectionStageText('')
+          setPendingHostKeyPrompt(null)
+          setConnectionErrorText(String(msg.data ?? translate('connectionLoading.failedTitle')))
+          if (hasConnectedRef.current) {
+            term.writeln('\r\n\x1b[31m[Vortix 错误]\x1b[0m ' + msg.data)
+          }
+          updateTerminalStatus('error')
           break
       }
     }
 
     ws.onclose = () => {
+      if (session.ws !== ws) return
+      setConnectionStageText('')
+      setPendingHostKeyPrompt(null)
+      pendingHostKeyRequestIdRef.current = null
       if (session.isManualDisconnect) return
-      term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m WebSocket 已断开')
-      onStatusChangeRef.current?.('closed')
+      if (!hasConnectedRef.current) {
+        setConnectionErrorText(translate('connectionLoading.error.websocketClosedBeforeEstablished'))
+      } else {
+        term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m WebSocket disconnected')
+      }
+      updateTerminalStatus('closed')
 
       const maxRetries = settings.autoReconnect ? settings.reconnectCount : 0
       const interval = settings.reconnectInterval * 1000
       if (session.reconnectCount < maxRetries) {
         session.reconnectCount++
-        term.writeln(`\x1b[36m[Vortix]\x1b[0m 正在尝试重连 (${session.reconnectCount}/${maxRetries})...`)
-        onStatusChangeRef.current?.('connecting')
+        setConnectionStageText(translate('connectionLoading.phase.reconnectingWithCount', { current: session.reconnectCount, total: maxRetries }))
+        setConnectionErrorText('')
+        updateTerminalStatus('connecting')
         session.reconnectTimer = setTimeout(() => {
           session.reconnectTimer = null
           if (session.ws === ws) connectWsRef.current?.(session, conn)
         }, interval)
       } else {
         // 自动重连耗尽，提示按任意键手动重连
-        term.writeln('\r\n\x1b[36m[Vortix]\x1b[0m 按任意键重新连接...')
+        setConnectionErrorText(translate('connectionLoading.error.pressAnyKeyReconnect'))
         session.reconnectInputDisposable?.dispose()
         session.reconnectInputDisposable = term.onData(() => {
           session.reconnectInputDisposable?.dispose()
           session.reconnectInputDisposable = null
           session.reconnectCount = 0
-          onStatusChangeRef.current?.('connecting')
+          setConnectionStageText(translate('connectionLoading.phase.reconnecting'))
+          setConnectionErrorText('')
+          updateTerminalStatus('connecting')
           connectWsRef.current?.(session, conn)
         })
       }
     }
 
+    /*
     ws.onerror = () => {
       term.writeln('\r\n\x1b[31m[Vortix]\x1b[0m WebSocket 连接失败，请确认后端服务已启动')
       onStatusChangeRef.current?.('error')
     }
 
-  }, [connectionId, getProposedDimensions, getResolvedHighlightRules, resolvedWsUrl, safeFit, sendHighlightConfig, tabId])
+    */
+    ws.onerror = () => {
+      if (session.ws !== ws) return
+      setConnectionStageText('')
+      setPendingHostKeyPrompt(null)
+      pendingHostKeyRequestIdRef.current = null
+      setConnectionErrorText(translate('connectionLoading.error.websocketFailed'))
+      if (hasConnectedRef.current) {
+        term.writeln('\r\n\x1b[31m[Vortix]\x1b[0m WebSocket connection failed. Check whether the backend service is running.')
+      }
+      updateTerminalStatus('error')
+    }
+
+  }, [connectionId, connectionName, getProposedDimensions, getResolvedHighlightRules, resolvedWsUrl, safeFit, sendHighlightConfig, tabId, updateTerminalStatus])
   useEffect(() => { connectWsRef.current = connectWs }, [connectWs])
 
   // 主 effect：挂载恢复 / 首次创建
@@ -441,6 +784,12 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       termRef.current = existing.term
       fitAddonRef.current = existing.fitAddon
       wsRef.current = existing.ws
+      hasConnectedRef.current = existing.connectionStatus === 'connected'
+      updateTerminalStatus(existing.connectionStatus)
+      setConnectionStageText(existing.connectionStageText ?? '')
+      setConnectionSteps(existing.connectionSteps ?? [])
+      setPendingHostKeyPrompt(null)
+      setConnectionErrorText(existing.connectionErrorText ?? '')
       applyPerformanceMode(existing, useSettingsStore.getState().termHighPerformance)
 
       // 延迟确保 DOM 完全显示后再刷新尺寸
@@ -509,9 +858,12 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         containerEl, term, fitAddon, searchAddon,
         webglAddon: null,
         isOpened: false,
-        ws: null, reconnectTimer: null, reconnectCount: 0, isManualDisconnect: false,
+        ws: null, reconnectTimer: null, reconnectCount: 0, connectionStatus: 'connecting', isManualDisconnect: false,
         inputDisposable: null, reconnectInputDisposable: null,
-        commandBuffer: '', historyCache: [], lastRecordedCommand: '',
+        commandBuffer: '', historyCache: [], lastRecordedCommand: '', shellIntegrationHistory: false, pendingTabCompletion: false, pendingTabCompletionBuffer: '',
+        connectionStageText: '',
+        connectionSteps: [],
+        connectionErrorText: '',
       }
       setSession(paneId, session)
 
@@ -524,6 +876,11 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
         if (s?.ws?.readyState === WebSocket.OPEN) {
           s.ws.send(JSON.stringify({ type: 'resize', data: { cols, rows } }))
         }
+      })
+      term.onWriteParsed(() => {
+        const current = getSession(paneId)
+        if (!current?.pendingTabCompletion) return
+        syncPendingTabCompletionFromTerminal(current)
       })
       session.inputDisposable = term.onData((data) => {
         const current = getSession(paneId)
@@ -542,8 +899,12 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       const connectMsg = isLocalConn
         ? `正在启动 ${connection.shell} 终端...`
         : `正在连接 ${(connection as SshConnection).host}:${(connection as SshConnection).port} ...`
-      term.writeln('\x1b[36m[Vortix]\x1b[0m ' + connectMsg)
-      onStatusChangeRef.current?.('connecting')
+      setConnectionStageText(
+        isLocalConn
+          ? `${translate('connectionLoading.phase.startingLocal')} ${connection.shell}...`
+          : `${translate('connectionLoading.phase.connecting')} ${(connection as SshConnection).host}:${(connection as SshConnection).port} ...`,
+      )
+      updateTerminalStatus('connecting')
       const preferredFont = resolved.fontFamily.split(',')[0]?.trim().replace(/^['"]|['"]$/g, '')
 
       // ???????,???????????? term.open + fit + ??
@@ -881,7 +1242,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     return () => { unsub1(); unsub2() }
   }, [sendHighlightConfig])
 
-  // P6-2: 命令历史记录 — 通过 inputListener 追踪输入缓冲区，Enter 时记录到后端
+  // P6-2: 命令历史记录 — 增强模式走 shell integration 持久化；否则仅保留当前会话内的最佳努力缓存
   useEffect(() => {
     if (!connectionId) return
 
@@ -890,24 +1251,34 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       if (!session) return
 
       if (data === '\r') {
+        syncCommandBufferFromTerminalBeforeSubmit(session)
         const cmd = session.commandBuffer.trim()
-        if (cmd && useSettingsStore.getState().sshHistoryEnabled && cmd !== session.lastRecordedCommand) {
+        if (!session.shellIntegrationHistory && cmd && useSettingsStore.getState().sshHistoryEnabled && cmd !== session.lastRecordedCommand) {
           session.lastRecordedCommand = cmd
-          addHistory(connectionId, cmd).catch(() => {})
-          // 同步到缓存（去重，置顶）
           const idx = session.historyCache.indexOf(cmd)
           if (idx !== -1) session.historyCache.splice(idx, 1)
           session.historyCache.unshift(cmd)
         }
         session.commandBuffer = ''
+        clearPendingTabCompletion(session)
+      } else if (data === '\t') {
+        session.pendingTabCompletion = true
+        session.pendingTabCompletionBuffer = session.commandBuffer
       } else if (data === '\x7f' || data === '\b') {
+        syncPendingTabCompletionFromTerminal(session)
+        clearPendingTabCompletion(session)
         session.commandBuffer = session.commandBuffer.slice(0, -1)
       } else if (data === '\x03' || data === '\x04') {
         session.commandBuffer = ''
+        clearPendingTabCompletion(session)
       } else if (data.startsWith('\x1b')) {
+        syncPendingTabCompletionFromTerminal(session)
         // 方向键等转义序列 — 清空缓冲区（无法追踪 shell 内部状态）
         session.commandBuffer = ''
+        clearPendingTabCompletion(session)
       } else {
+        syncPendingTabCompletionFromTerminal(session)
+        clearPendingTabCompletion(session)
         session.commandBuffer += data
       }
     }
@@ -975,6 +1346,30 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${stripeHeight}px,
       ${isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${stripeHeight * 2}px)`
     : undefined
+  const connectionRouteLabel = buildConnectionRouteLabel(connection)
+  const connectionLoadingSteps = connectionSteps.length > 0
+    ? connectionSteps
+    : connectionStageText
+      ? [{ id: 'current-stage', label: connectionStageText, status: connectionErrorText ? 'error' as const : 'active' as const }]
+      : []
+  const showConnectionLoadingView = Boolean(connection) && (
+    terminalStatus !== 'connected' || Boolean(pendingHostKeyPrompt) || Boolean(connectionErrorText)
+  )
+  const handleHostKeyDecision = useCallback((decision: 'trust' | 'replace' | 'reject') => {
+    const requestId = pendingHostKeyRequestIdRef.current
+    pendingHostKeyRequestIdRef.current = null
+    setPendingHostKeyPrompt(null)
+    const ws = wsRef.current
+    if (!requestId || ws?.readyState !== WebSocket.OPEN) return
+    ws.send(JSON.stringify({
+      type: 'hostkey-verification-decision',
+      data: {
+        requestId,
+        trust: decision !== 'reject',
+        replaceExisting: decision === 'replace',
+      },
+    }))
+  }, [])
 
   return (
     <div className="w-full h-full relative">
@@ -1014,6 +1409,17 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
           }
         }}
       />
+      {showConnectionLoadingView && (
+        <ConnectionLoadingView
+          title={connectionStageText || translate('connectionLoading.preparing')}
+          subtitle={connectionRouteLabel}
+          steps={connectionLoadingSteps}
+          error={connectionErrorText || null}
+          hostKeyPrompt={pendingHostKeyPrompt}
+          onHostKeyDecision={handleHostKeyDecision}
+          onRetry={connectionErrorText ? handleRetryConnection : null}
+        />
+      )}
       {/* 条纹覆盖层：pointer-events: none 不影响终端交互/选择 */}
       {stripeBackgroundImage && (
         <div

@@ -33,7 +33,25 @@ export interface AppTab {
   assetRow?: AssetRow
   status: 'idle' | 'connecting' | 'connected' | 'closed' | 'error'
   /** 快速连接凭据（不保存到数据库） */
-  quickConnect?: { host: string; port: number; username: string; password?: string; privateKey?: string }
+  quickConnect?: {
+    host: string
+    port: number
+    username: string
+    password?: string
+    privateKey?: string
+    passphrase?: string
+    terminalEnhance?: boolean
+    jump?: {
+      connectionId?: string
+      connectionName?: string
+      host: string
+      port: number
+      username: string
+      password?: string
+      privateKey?: string
+      passphrase?: string
+    }
+  }
   /** 数据库连接 ID */
   connectionId?: string
   /** 连接建立时间 */

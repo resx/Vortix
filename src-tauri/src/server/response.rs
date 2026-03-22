@@ -17,16 +17,28 @@ pub struct ApiResponse<T> {
 pub type ApiError = (StatusCode, Json<ApiResponse<Value>>);
 
 pub fn ok<T: Serialize>(data: T) -> Json<ApiResponse<T>> {
-    Json(ApiResponse { success: true, data: Some(data), error: None })
+    Json(ApiResponse {
+        success: true,
+        data: Some(data),
+        error: None,
+    })
 }
 
 pub fn ok_empty() -> Json<ApiResponse<Value>> {
-    Json(ApiResponse { success: true, data: None, error: None })
+    Json(ApiResponse {
+        success: true,
+        data: None,
+        error: None,
+    })
 }
 
 pub fn err(status: StatusCode, message: impl Into<String>) -> ApiError {
     (
         status,
-        Json(ApiResponse { success: false, data: None, error: Some(message.into()) }),
+        Json(ApiResponse {
+            success: false,
+            data: None,
+            error: Some(message.into()),
+        }),
     )
 }
