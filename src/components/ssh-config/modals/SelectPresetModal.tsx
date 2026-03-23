@@ -8,6 +8,16 @@ import { useToastStore } from '../../../stores/useToastStore'
 import * as api from '../../../api/client'
 import type { PresetPublic } from '../../../api/types'
 
+const formatLocalDateTime = (value: string | null | undefined): string => {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value.replace('T', ' ').replace('Z', '').slice(0, 16)
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
+}
+
 interface SelectPresetModalProps {
   /** 独立模式回调：选中后返回 presetId */
   onSelect?: (presetId: string) => void
@@ -116,7 +126,7 @@ export default function SelectPresetModal({ onSelect, onClose, onManage }: Selec
             >
               <td className="px-3 py-2 text-text-1">{p.name}</td>
               <td className="px-3 py-2 text-text-2">{p.username}</td>
-              <td className="px-3 py-2 text-text-3">{p.updated_at.replace('T', ' ').slice(0, 16)}</td>
+              <td className="px-3 py-2 text-text-3">{formatLocalDateTime(p.updated_at)}</td>
               <td className="px-3 py-2">
                 <div className="flex items-center gap-1.5">
                   <button onClick={(e) => handleEdit(e, p)} className="text-text-3 hover:text-primary transition-colors" title="编辑">

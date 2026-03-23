@@ -3,6 +3,7 @@ import { motion, useDragControls } from 'framer-motion'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 import { useThemeStore } from '../../stores/useThemeStore'
+import { useUIStore } from '../../stores/useUIStore'
 import { getThemeById, type TermThemePreset } from '../terminal/themes/index'
 import { DEFAULT_PROFILE_ID } from '../../types/terminal-profile'
 import TermThemePreview from './TermThemePreview'
@@ -89,6 +90,7 @@ export default function TermThemePanel({ isOpen, onClose, windowMode = false }: 
   const allProfiles = profileStore.getAllProfiles()
   const [selectedProfileId, setSelectedProfileId] = useState(profileStore.activeProfileId)
   const [themeBusy, setThemeBusy] = useState(false)
+  const openConfirmDialog = useUIStore((s) => s.openConfirmDialog)
 
   const profile = profileStore.getProfileById(selectedProfileId) ?? profileStore.getDefaultProfile()
 
@@ -148,18 +150,25 @@ export default function TermThemePanel({ isOpen, onClose, windowMode = false }: 
       window.alert(`该主题仍被 ${refs.length} 个配置引用，请先切换到其他主题后再删除。`)
       return
     }
-    if (!window.confirm(`确定删除主题「${currentTheme.name}」吗？`)) return
-    setThemeBusy(true)
-    try {
-      const ok = await themeStore.deleteTheme(currentTheme.id)
-      if (!ok) {
-        window.alert('删除主题失败')
-        return
-      }
-      handleSelect(editingMode === 'dark' ? 'default-dark' : 'default-light')
-    } finally {
-      setThemeBusy(false)
-    }
+    openConfirmDialog({
+      title: '确认删除',
+      description: `确定删除主题「${currentTheme.name}」吗？`,
+      confirmText: '确认删除',
+      danger: true,
+      onConfirm: async () => {
+        setThemeBusy(true)
+        try {
+          const ok = await themeStore.deleteTheme(currentTheme.id)
+          if (!ok) {
+            window.alert('删除主题失败')
+            return
+          }
+          handleSelect(editingMode === 'dark' ? 'default-dark' : 'default-light')
+        } finally {
+          setThemeBusy(false)
+        }
+      },
+    })
   }
 
   const handleImportTheme = async () => {
@@ -432,3 +441,7 @@ export default function TermThemePanel({ isOpen, onClose, windowMode = false }: 
     </motion.div>
   )
 }
+
+
+
+

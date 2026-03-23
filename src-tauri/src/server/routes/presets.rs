@@ -1,13 +1,13 @@
 /* ── 连接预设 CRUD ── */
 
 use axum::{extract::State, http::StatusCode, response::Json};
-use chrono::Utc;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
 use super::super::response::{ApiResponse, err, ok, ok_empty};
 use super::super::types::*;
 use crate::db::Db;
+use crate::time_utils::now_rfc3339;
 
 pub async fn get_presets(
     State(db): State<Db>,
@@ -77,7 +77,7 @@ pub async fn create_preset(
         .encrypt(&body.password)
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let id = Uuid::new_v4().to_string();
-    let now = Utc::now().to_rfc3339();
+    let now = now_rfc3339();
     let remark = body.remark.unwrap_or_default();
 
     sqlx::query("INSERT INTO presets (id, name, username, encrypted_password, remark, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
@@ -134,7 +134,7 @@ pub async fn update_preset(
         _ => existing.encrypted_password.clone(),
     };
 
-    let updated_at = Utc::now().to_rfc3339();
+    let updated_at = now_rfc3339();
     sqlx::query("UPDATE presets SET name = ?, username = ?, encrypted_password = ?, remark = ?, updated_at = ? WHERE id = ?")
         .bind(&name).bind(&username).bind(&encrypted_password).bind(&remark).bind(&updated_at).bind(&id)
         .execute(&db.pool).await

@@ -29,6 +29,15 @@ export interface HostKeyDialogPayload {
   onDecision: (decision: HostKeyDialogDecision) => void
 }
 
+export interface ConfirmDialogPayload {
+  title?: string
+  description: string
+  confirmText?: string
+  cancelText?: string
+  danger?: boolean
+  onConfirm: () => void | Promise<void>
+}
+
 interface UIState {
   // 侧边栏
   isSidebarOpen: boolean
@@ -108,6 +117,11 @@ interface UIState {
   openHostKeyDialog: (payload: HostKeyDialogPayload) => void
   closeHostKeyDialog: () => void
   resolveHostKeyDialog: (decision: HostKeyDialogDecision) => void
+  confirmDialogOpen: boolean
+  confirmDialog: ConfirmDialogPayload | null
+  openConfirmDialog: (payload: ConfirmDialogPayload) => void
+  closeConfirmDialog: () => void
+  resolveConfirmDialog: (confirmed: boolean) => Promise<void>
 
   // 远端更新提示
   syncRemoteAvailable: boolean
@@ -203,6 +217,16 @@ export const useUIStore = create<UIState>((set) => ({
     state.hostKeyDialog?.onDecision(decision)
     return { hostKeyDialogOpen: false, hostKeyDialog: null }
   }),
+  confirmDialogOpen: false,
+  confirmDialog: null,
+  openConfirmDialog: (payload) => set({ confirmDialogOpen: true, confirmDialog: payload }),
+  closeConfirmDialog: () => set({ confirmDialogOpen: false, confirmDialog: null }),
+  resolveConfirmDialog: async (confirmed) => {
+    const { confirmDialog } = useUIStore.getState()
+    set({ confirmDialogOpen: false, confirmDialog: null })
+    if (!confirmed || !confirmDialog) return
+    await confirmDialog.onConfirm()
+  },
 
   // 远端更新提示
   syncRemoteAvailable: false,

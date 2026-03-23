@@ -1,5 +1,8 @@
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce, aead::AeadMut};
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::io::{Read, Write};
@@ -43,6 +46,16 @@ const SYNC_SALT_LENGTH: usize = 16;
 const SYNC_IV_LENGTH: usize = 12;
 const SYNC_TAG_LENGTH: usize = 16;
 
+#[derive(Debug, Serialize, Deserialize)]
+struct SyncEnvelopeJsonV5 {
+    #[serde(rename = "$schema")]
+    schema: String,
+    version: u16,
+    header: SyncEnvelopeHeaderV5,
+    #[serde(rename = "ciphertextB64")]
+    ciphertext_b64: String,
+}
+
 pub fn gzip_compress(data: &[u8]) -> Result<Vec<u8>, String> {
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     encoder
@@ -80,6 +93,31 @@ pub fn encode_v5_envelope(
 }
 
 pub fn parse_v5_envelope(buf: &[u8]) -> Result<(SyncEnvelopeHeaderV5, Vec<u8>), String> {
+    let trimmed = {
+        let mut i = 0usize;
+        while i < buf.len() && buf[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        &buf[i..]
+    };
+    if !trimmed.is_empty() && trimmed[0] == b'{' {
+        let envelope: SyncEnvelopeJsonV5 = serde_json::from_slice(trimmed)
+            .map_err(|e| format!("invalid v5 envelope json: {}", e))?;
+        if envelope.version != 5 {
+            return Err(format!("unsupported v5 envelope version: {}", envelope.version));
+        }
+        if envelope.schema != "vortix-sync-envelope" {
+            return Err("invalid v5 envelope schema".to_string());
+        }
+        let ciphertext = BASE64_STANDARD
+            .decode(envelope.ciphertext_b64.as_bytes())
+            .map_err(|e| format!("invalid v5 ciphertext base64: {}", e))?;
+        if ciphertext.is_empty() {
+            return Err("v5 ciphertext missing".to_string());
+        }
+        return Ok((envelope.header, ciphertext));
+    }
+
     if buf.len() < 10 {
         return Err("v5 payload too short".to_string());
     }

@@ -229,6 +229,7 @@ export interface Shortcut {
   name: string
   command: string
   remark: string
+  group_name: string
   sort_order: number
   created_at: string
   updated_at: string
@@ -238,6 +239,7 @@ export interface CreateShortcutDto {
   name: string
   command: string
   remark?: string
+  group_name?: string
   sort_order?: number
 }
 
@@ -245,6 +247,25 @@ export interface UpdateShortcutDto {
   name?: string
   command?: string
   remark?: string
+  group_name?: string
+  sort_order?: number
+}
+
+export interface ShortcutGroup {
+  id: string
+  name: string
+  sort_order: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateShortcutGroupDto {
+  name: string
+  sort_order?: number
+}
+
+export interface UpdateShortcutGroupDto {
+  name?: string
   sort_order?: number
 }
 

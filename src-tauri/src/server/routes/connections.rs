@@ -5,7 +5,6 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
-use chrono::Utc;
 use russh::client::{self, Handler};
 use russh::keys::{self, PrivateKeyWithHashAlg};
 use serde_json::{Map, Value, json};
@@ -28,6 +27,10 @@ use super::super::helpers::{
 use super::super::response::{ApiResponse, err, ok, ok_empty};
 use super::super::types::*;
 use crate::db::Db;
+use crate::server::ws::local_pty_worker::{
+    local_shell_executable, resolve_local_shell_working_dir,
+};
+use crate::time_utils::now_rfc3339;
 
 pub async fn get_connections(
     State(db): State<Db>,
@@ -427,7 +430,7 @@ pub async fn create_connection(
     };
 
     let id = Uuid::new_v4().to_string();
-    let now = Utc::now().to_rfc3339();
+    let now = now_rfc3339();
     let row = ConnectionRow {
         id: id.clone(),
         folder_id: body.folder_id,
@@ -622,7 +625,7 @@ pub async fn update_connection(
         }
     }
 
-    row.updated_at = Utc::now().to_rfc3339();
+    row.updated_at = now_rfc3339();
     update_connection_row(&db, &row).await?;
     mark_local_dirty(&db).await?;
     Ok(ok(to_connection_public(row)))
@@ -755,7 +758,7 @@ pub async fn batch_update_connections(
         if let Some(ref p) = enc_proxy {
             row.proxy_password = p.clone();
         }
-        row.updated_at = Utc::now().to_rfc3339();
+        row.updated_at = now_rfc3339();
         update_connection_row(&db, &row).await?;
         results.push(to_connection_public(row));
     }
@@ -820,6 +823,7 @@ pub async fn ping_connections(
     Ok(ok(results))
 }
 
+#[allow(dead_code)]
 pub async fn test_ssh_connection(
     State(db): State<Db>,
     Json(body): Json<Value>,
@@ -1117,6 +1121,39 @@ pub async fn test_ssh_connection_secure(
     }
 }
 
+pub async fn get_local_terminal_default_working_dir(
+    _db: State<Db>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let shell = body
+        .get("shell")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    if shell.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "success": false, "error": "Shell 参数不能为空" })),
+        ));
+    }
+
+    let shell_exe = match local_shell_executable(&shell) {
+        Some(cmd) => cmd,
+        None => {
+            return Ok(Json(
+                json!({ "success": false, "error": format!("不支持的 Shell 类型: {}", shell) }),
+            ));
+        }
+    };
+
+    let path = resolve_local_shell_working_dir(shell_exe, None).ok().flatten();
+    Ok(Json(json!({
+        "success": true,
+        "path": path,
+    })))
+}
+
 pub async fn test_local_terminal(
     _db: State<Db>,
     Json(body): Json<Value>,
@@ -1133,47 +1170,44 @@ pub async fn test_local_terminal(
             Json(json!({ "success": false, "error": "Shell 参数不能为空" })),
         ));
     }
-    let working_dir = body
-        .get("workingDir")
-        .and_then(|v| v.as_str())
-        .map(|s| s.to_string());
-    if let Some(dir) = &working_dir {
-        match std::fs::metadata(dir) {
-            Ok(meta) => {
-                if !meta.is_dir() {
-                    return Ok(Json(
-                        json!({ "success": false, "error": format!("工作目录不是文件夹: {}", dir) }),
-                    ));
-                }
-            }
-            Err(_) => {
-                return Ok(Json(
-                    json!({ "success": false, "error": format!("工作目录不存在: {}", dir) }),
-                ));
-            }
-        }
-    }
 
-    let (cmd, args): (&str, Vec<&str>) = match shell.as_str() {
-        "cmd" => ("cmd.exe", vec!["/C", "exit", "0"]),
-        "bash" => ("bash", vec!["-c", "exit 0"]),
-        "powershell" => ("powershell", vec!["-NoProfile", "-Command", "exit 0"]),
-        "powershell7" => ("pwsh", vec!["-NoProfile", "-Command", "exit 0"]),
-        "wsl" => ("wsl", vec!["--", "echo", "ok"]),
-        "zsh" => ("zsh", vec!["-c", "exit 0"]),
-        "fish" => ("fish", vec!["-c", "exit 0"]),
-        _ => {
+    let shell_exe = match local_shell_executable(&shell) {
+        Some(cmd) => cmd,
+        None => {
             return Ok(Json(
                 json!({ "success": false, "error": format!("不支持的 Shell 类型: {}", shell) }),
             ));
         }
     };
 
-    let mut command = Command::new(cmd);
+    let args: Vec<&str> = match shell.as_str() {
+        "cmd" => vec!["/C", "exit", "0"],
+        "bash" => vec!["-c", "exit 0"],
+        "powershell" => vec!["-NoProfile", "-Command", "exit 0"],
+        "powershell7" => vec!["-NoProfile", "-Command", "exit 0"],
+        "wsl" => vec!["--", "echo", "ok"],
+        "zsh" => vec!["-c", "exit 0"],
+        "fish" => vec!["-c", "exit 0"],
+        _ => vec!["-c", "exit 0"],
+    };
+
+    let requested_working_dir = body
+        .get("workingDir")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    let working_dir = match resolve_local_shell_working_dir(shell_exe, requested_working_dir) {
+        Ok(dir) => dir,
+        Err(e) => return Ok(Json(json!({ "success": false, "error": e }))),
+    };
+
+    let mut command = Command::new(shell_exe);
     command.args(args);
     if let Some(dir) = &working_dir {
         command.current_dir(dir);
     }
+
     let mut child = match command.spawn() {
         Ok(c) => c,
         Err(e) => {
@@ -1192,7 +1226,7 @@ pub async fn test_local_terminal(
                     return Ok(Json(json!({ "success": true, "message": "连接成功" })));
                 }
                 return Ok(Json(
-                    json!({ "success": false, "error": format!("Shell 退出码异常: {:?}", code) }),
+                    json!({ "success": false, "error": format!("Shell 退出状态异常: {:?}", code) }),
                 ));
             }
             Ok(None) => {
@@ -1402,6 +1436,7 @@ pub async fn upload_ssh_key_secure(
     }
 }
 
+#[allow(dead_code)]
 pub async fn upload_ssh_key(
     State(db): State<Db>,
     axum::extract::Path(id): axum::extract::Path<String>,

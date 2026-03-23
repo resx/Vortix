@@ -7,13 +7,13 @@ use axum::{
     response::Json,
     response::Response as AxumResponse,
 };
-use chrono::Utc;
 use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
 use super::super::response::{ApiResponse, err, ok, ok_empty};
 use super::super::types::*;
 use crate::db::Db;
+use crate::time_utils::now_rfc3339;
 
 /* ── 辅助函数 ── */
 
@@ -389,7 +389,7 @@ pub async fn create_theme(
         return Err(err(StatusCode::BAD_REQUEST, "缺少必填字段"));
     }
     let id = Uuid::new_v4().to_string();
-    let now = Utc::now().to_rfc3339();
+    let now = now_rfc3339();
     let version = 1i64;
     let author = body.author.unwrap_or_default();
     let terminal = serde_json::to_string(&body.terminal)
@@ -460,7 +460,7 @@ pub async fn update_theme(
     } else {
         ui
     };
-    let updated_at = Utc::now().to_rfc3339();
+    let updated_at = now_rfc3339();
 
     sqlx::query("UPDATE themes SET name = ?, mode = ?, terminal = ?, highlights = ?, ui = ?, updated_at = ? WHERE id = ?")
         .bind(&name).bind(&mode).bind(&terminal_json).bind(&highlights_json).bind(&ui_json).bind(&updated_at).bind(&id)
@@ -522,7 +522,7 @@ pub async fn import_theme(
     let mut created: Vec<Value> = Vec::new();
     for item in themes {
         let id = Uuid::new_v4().to_string();
-        let now = Utc::now().to_rfc3339();
+        let now = now_rfc3339();
         let terminal_json = serde_json::to_string(&item.terminal)
             .map_err(|e| err(StatusCode::BAD_REQUEST, e.to_string()))?;
         let highlights_json = serde_json::to_string(&item.highlights)

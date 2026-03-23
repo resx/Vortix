@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use bytes::Bytes;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use std::fs;
 use std::path::PathBuf;
 
@@ -61,7 +61,7 @@ impl SyncProvider for LocalProvider {
         let last_modified = meta
             .modified()
             .ok()
-            .map(|t| DateTime::<Utc>::from(t).to_rfc3339());
+            .map(|t| DateTime::<Local>::from(t).to_rfc3339());
         Ok(Some(SyncFileInfo {
             exists: true,
             last_modified,

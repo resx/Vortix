@@ -7,6 +7,16 @@ import { useSshConfigStore } from '../../../stores/useSshConfigStore'
 import * as api from '../../../api/client'
 import type { SshKey } from '../../../api/types'
 
+const formatLocalDateTime = (value: string | null | undefined): string => {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value.replace('T', ' ').replace('Z', '').slice(0, 16)
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
+}
+
 interface SelectKeyModalProps {
   /** 独立模式回调：选中后返回 keyId + keyName */
   onSelect?: (keyId: string, keyName: string) => void
@@ -96,7 +106,7 @@ export default function SelectKeyModal({ onSelect, onClose }: SelectKeyModalProp
                 <td className="px-3 py-2 text-text-1">{row.name}</td>
                 <td className="px-3 py-2 text-text-2">{row.key_type}</td>
                 <td className="px-3 py-2 text-text-3 max-w-[120px] truncate">{row.remark || '-'}</td>
-                <td className="px-3 py-2 text-text-3">{row.created_at.replace('T', ' ').slice(0, 16)}</td>
+                <td className="px-3 py-2 text-text-3">{formatLocalDateTime(row.created_at)}</td>
               </tr>
             ))}
           </tbody>

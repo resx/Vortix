@@ -4,6 +4,7 @@ import { useCallback, useMemo } from 'react'
 import { useSftpStore } from '../../../stores/useSftpStore'
 import { useSftpClipboardStore } from '../../../stores/useSftpClipboardStore'
 import { useSftpBookmarkStore } from '../../../stores/useSftpBookmarkStore'
+import { useUIStore } from '../../../stores/useUIStore'
 import { useToastStore } from '../../../stores/useToastStore'
 import { useWorkspaceStore } from '../../../stores/useWorkspaceStore'
 import { getSession } from '../../../stores/terminalSessionRegistry'
@@ -97,14 +98,21 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
 
   const handleDelete = useCallback(async (path: string, isDir: boolean) => {
     const name = path.split('/').pop() || path
-    if (!confirm(`确定删除 ${name}？${isDir ? '（将递归删除目录内所有内容）' : ''}`)) return
-    try {
-      await sftp.remove(path, isDir)
-      sftp.refresh()
-      addToast('success', `${name} 已删除`)
-    } catch (err) {
-      addToast('error', `删除失败: ${(err as Error).message}`)
-    }
+    useUIStore.getState().openConfirmDialog({
+      title: '确认删除',
+      description: `确定删除 ${name} 吗？`,
+      confirmText: '确认删除',
+      danger: true,
+      onConfirm: async () => {
+        try {
+          await sftp.remove(path, isDir)
+          sftp.refresh()
+          addToast('success', ` ${name} 已删除`)
+        } catch (err) {
+          addToast('error', `删除失败: ${(err as Error).message}`)
+        }
+      },
+    })
   }, [sftp, addToast])
 
   const handleRename = useCallback(async (entry: SftpFileEntry) => {
@@ -350,3 +358,4 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
     handleCompress, handleDecompress, handleScpDownload, handleScpUpload,
   ])
 }
+

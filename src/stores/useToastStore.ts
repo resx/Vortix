@@ -1,14 +1,16 @@
 import { create } from 'zustand'
 
+export type ToastType = 'success' | 'error' | 'info'
+
 export interface ToastItem {
   id: string
-  type: 'success' | 'error'
+  type: ToastType
   message: string
 }
 
 interface ToastState {
   toasts: ToastItem[]
-  addToast: (type: 'success' | 'error', message: string) => void
+  addToast: (type: ToastType, message: string) => void
   removeToast: (id: string) => void
 }
 

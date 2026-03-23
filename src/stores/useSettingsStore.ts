@@ -25,6 +25,17 @@ export const DEFAULT_TERMINAL_HIGHLIGHT_RULES: TerminalHighlightRule[] = [
   { id: "builtin-env", name: "Env", pattern: "\\$\\{?\\w+\\}?", flags: "g", color: "#61AFEF", builtin: true },
 ];
 
+export const SYNC_VERIFIED_SIGNATURE_HASH_KEY = 'vortix.sync.verifiedSignatureHash.v1'
+
+export function hashSyncSignature(value: string): string {
+  let hash = 2166136261
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i)
+    hash = Math.imul(hash, 16777619)
+  }
+  return (hash >>> 0).toString(16)
+}
+
 function normalizeRegexFlags(flags?: string): string {
   const valid = new Set(["g", "i", "m", "s", "u", "y"]);
   const uniq: string[] = [];
@@ -336,11 +347,52 @@ const DEFAULTS: SettingsState = {
   debugMode: false,
 };
 
+export function buildSyncVerificationSignature(s: SettingsState): string {
+  if (s.syncRepoSource === 'local') return `local|${s.syncLocalPath}`
+  if (s.syncRepoSource === 'git') {
+    const gitUrl = (s.syncGitUrl ?? '').trim().toLowerCase()
+    const isSsh = gitUrl.startsWith('git@') || gitUrl.startsWith('ssh://')
+    if (isSsh) {
+      return `git|ssh|${s.syncGitUrl}|${s.syncGitBranch}|${s.syncGitPath}|${s.syncGitSshKey}|${s.syncGitSshKeyLabel}|${s.syncGitSshKeyMode}`
+    }
+    return `git|https|${s.syncGitUrl}|${s.syncGitBranch}|${s.syncGitPath}|${s.syncGitUsername}|${s.syncGitPassword}`
+  }
+  if (s.syncRepoSource === 'webdav') {
+    return `webdav|${s.syncWebdavEndpoint}|${s.syncWebdavPath}|${s.syncWebdavUsername}|${s.syncWebdavPassword}`
+  }
+  return `s3|${s.syncS3Style}|${s.syncS3Endpoint}|${s.syncS3Path}|${s.syncS3Region}|${s.syncS3Bucket}|${s.syncS3AccessKey}|${s.syncS3SecretKey}`
+}
+
 /** 从 settings store 构建同步请求体（共享工具函数） */
+
+export function isSyncConfigured(s: SettingsState): boolean {
+  if (s.syncRepoSource === 'local') {
+    return !!(s.syncLocalPath ?? '').trim()
+  }
+  if (s.syncRepoSource === 'git') {
+    return !!(s.syncGitUrl ?? '').trim()
+  }
+  if (s.syncRepoSource === 'webdav') {
+    return !!(s.syncWebdavEndpoint ?? '').trim()
+  }
+  if (s.syncRepoSource === 's3') {
+    return !!(s.syncS3Endpoint ?? '').trim()
+      && !!(s.syncS3Bucket ?? '').trim()
+      && !!(s.syncS3AccessKey ?? '').trim()
+      && !!s.syncS3SecretKey
+  }
+  return false
+}
+
 export function buildSyncBody(): import('../api/types').SyncRequestBody {
   const s = useSettingsStore.getState()
   const body: import('../api/types').SyncRequestBody = {
     repoSource: s.syncRepoSource,
+    // v5 同步方案为默认且唯一主路径（旧格式仅用于服务端读兼容）
+    syncFormatVersion: 5,
+    syncUseChunkedManifest: false,
+    syncHashAlgorithm: 'sha256',
+    syncCompressChunks: true,
   }
 
   if (s.syncEncryptionKey.trim()) {

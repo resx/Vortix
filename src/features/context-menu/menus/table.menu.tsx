@@ -49,17 +49,24 @@ export function registerTableMenu(): () => void {
 
       const { fetchAssets, deleteFolderAction, deleteConnectionAction, renameFolderAction, renameConnectionAction, cloneConnectionAction, batchOpenSelected, selectedRowIds, tableData } = useAssetStore.getState()
       const { openAssetTab, openSplitTab } = useTabStore.getState()
-      const { setShowDirModal, openSshConfig, openLocalTermConfig, openBatchEdit } = useUIStore.getState()
+      const { setShowDirModal, openSshConfig, openLocalTermConfig, openBatchEdit, openConfirmDialog } = useUIStore.getState()
       const { addToast } = useToastStore.getState()
 
       const handleDelete = (id: string, type: 'folder' | 'connection' | 'asset') => {
         ctx.close()
-        if (!confirm('确定要删除吗？此操作不可撤销。')) return
-        if (type === 'folder') {
-          deleteFolderAction(id)
-        } else {
-          deleteConnectionAction(id)
-        }
+        openConfirmDialog({
+          title: '确认删除',
+          description: '确定要删除吗？此操作不可撤销。',
+          confirmText: '确认删除',
+          danger: true,
+          onConfirm: async () => {
+            if (type === 'folder') {
+              await deleteFolderAction(id)
+              return
+            }
+            await deleteConnectionAction(id)
+          },
+        })
       }
       const handleRename = (id: string, type: 'folder' | 'connection' | 'asset', currentName: string) => {
         ctx.close()

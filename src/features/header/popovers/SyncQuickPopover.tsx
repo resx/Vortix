@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { AppIcon, icons } from '../../../components/icons/AppIcon'
-import { useSettingsStore, buildSyncBody } from '../../../stores/useSettingsStore'
+import { useSettingsStore, buildSyncBody, isSyncConfigured } from '../../../stores/useSettingsStore'
 import { useAssetStore } from '../../../stores/useAssetStore'
 import { useShortcutStore } from '../../../stores/useShortcutStore'
 import { useToastStore } from '../../../stores/useToastStore'
@@ -14,26 +14,46 @@ const REPO_LABELS: Record<string, string> = {
   local: '本地文件', git: 'Git', webdav: 'WebDAV', s3: 'S3',
 }
 
+const formatSyncTime = (time: string | null | undefined): string => {
+  if (!time) return '--'
+  const parsed = new Date(time)
+  if (Number.isNaN(parsed.getTime())) {
+    const normalized = time.replace('T', ' ').replace('Z', '')
+    return normalized.slice(0, 16)
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
+}
+
 export default function SyncQuickPopover({ onClose }: { onClose: () => void }) {
   const repoSource = useSettingsStore((s) => s.syncRepoSource)
   const autoSync = useSettingsStore((s) => s.syncAutoSync)
   const addToast = useToastStore((s) => s.addToast)
   const syncRemoteAvailable = useUIStore((s) => s.syncRemoteAvailable)
+  const localConfigured = useSettingsStore((s) => isSyncConfigured(s))
   const [syncing, setSyncing] = useState<'push' | 'pull' | null>(null)
   const [fileInfo, setFileInfo] = useState<{ exists: boolean; lastModified: string | null } | null>(null)
-
-  const isConfigured = useSettingsStore((s) => {
-    if (s.syncRepoSource === 'local') return !!s.syncLocalPath.trim()
-    if (s.syncRepoSource === 'git') return !!s.syncGitUrl.trim()
-    if (s.syncRepoSource === 'webdav') return !!s.syncWebdavEndpoint.trim()
-    if (s.syncRepoSource === 's3') return !!s.syncS3Endpoint.trim()
-    return false
-  })
+  const [isConfigured, setIsConfigured] = useState(localConfigured)
 
   useEffect(() => {
-    if (!isConfigured) return
-    api.getSyncStatus(buildSyncBody()).then(setFileInfo).catch(() => setFileInfo(null))
-  }, [isConfigured])
+    let cancelled = false
+    const check = async () => {
+      try {
+        const info = await api.getSyncStatus(buildSyncBody())
+        if (cancelled) return
+        setFileInfo(info)
+        setIsConfigured(true)
+      } catch {
+        if (cancelled) return
+        setFileInfo(null)
+        setIsConfigured(isSyncConfigured(useSettingsStore.getState()))
+      }
+    }
+    void check()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handlePush = async () => {
     setSyncing('push')
@@ -104,7 +124,7 @@ export default function SyncQuickPopover({ onClose }: { onClose: () => void }) {
                 <AppIcon icon={icons.checkCircle} size={12} className="text-chart-green" />
                 <span>远端数据已同步</span>
                 {fileInfo.lastModified && (
-                  <span className="ml-auto text-text-disabled">{fileInfo.lastModified.replace('T', ' ').slice(0, 16)}</span>
+                  <span className="ml-auto text-text-disabled">{formatSyncTime(fileInfo.lastModified)}</span>
                 )}
               </div>
             ) : (

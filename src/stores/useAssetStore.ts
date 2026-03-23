@@ -4,6 +4,16 @@ import type { Folder, Connection, RecentConnection, CreateConnectionDto } from '
 import * as api from '../api/client'
 import { useTabStore } from './useTabStore'
 
+const formatLocalDateTime = (value: string | null | undefined): string => {
+  if (!value) return '-'
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value.replace('T', ' ').replace('Z', '').slice(0, 16)
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
+}
+
 // ── 辅助函数 ──
 
 const toggleInTree = (items: TreeItem[], id: string): TreeItem[] =>
@@ -47,14 +57,14 @@ function buildTableData(folders: Folder[], connections: Connection[]): AssetRow[
   const folderRows: AssetRow[] = folders.map(f => ({
     id: f.id, name: f.name, type: 'folder',
     latency: '-', host: '-', user: '-',
-    created: f.created_at.replace('T', ' ').slice(0, 16),
+    created: formatLocalDateTime(f.created_at),
     expire: '-', remark: '-',
   }))
   const connectionRows: AssetRow[] = connections.map(c => ({
     id: c.id, name: c.name, type: 'asset',
     protocol: c.protocol, colorTag: c.color_tag,
     latency: '-', host: c.host, user: c.username,
-    created: c.created_at.replace('T', ' ').slice(0, 16),
+    created: formatLocalDateTime(c.created_at),
     expire: '-', remark: c.remark || '-',
     folderId: c.folder_id,
     folderName: c.folder_id ? folderMap.get(c.folder_id) : undefined,

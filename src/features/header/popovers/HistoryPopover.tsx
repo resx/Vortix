@@ -5,6 +5,16 @@ import { AppIcon, icons } from '../../../components/icons/AppIcon'
 import { useShortcutStore } from '../../../stores/useShortcutStore'
 import * as api from '../../../api/client'
 
+const formatLocalDateTime = (value: string | null | undefined): string => {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value.replace('T', ' ').replace('Z', '').slice(0, 16)
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`
+}
+
 export default function HistoryPopover({ connectionId }: { connectionId?: string }) {
   const [cmds, setCmds] = useState<{ command: string; executed_at: string }[]>([])
   const [filter, setFilter] = useState('')
@@ -72,7 +82,7 @@ export default function HistoryPopover({ connectionId }: { connectionId?: string
                 </button>
               </div>
             </div>
-            <span className="text-[11px] text-text-3 mt-1.5 font-mono">{cmd.executed_at?.replace('T', ' ').slice(0, 16) ?? ''}</span>
+            <span className="text-[11px] text-text-3 mt-1.5 font-mono">{formatLocalDateTime(cmd.executed_at)}</span>
           </div>
         ))}
       </div>

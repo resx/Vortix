@@ -5,6 +5,7 @@ mod crypto;
 mod db;
 mod server;
 mod sync;
+mod time_utils;
 
 use tauri::Manager;
 
@@ -30,6 +31,55 @@ fn suppress_windows_error_dialogs() {
         let _ = SetErrorMode(mode | SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
         let _ = WerSetFlags(WER_FAULT_REPORTING_FLAG_QUEUE);
     }
+}
+
+#[cfg(target_os = "windows")]
+fn harden_windows_webview<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
+    use webview2_com::{
+        Microsoft::Web::WebView2::Win32::{
+            COREWEBVIEW2_PERMISSION_KIND, COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ,
+            COREWEBVIEW2_PERMISSION_KIND_LOCAL_FONTS,
+            COREWEBVIEW2_PERMISSION_STATE_ALLOW, COREWEBVIEW2_PERMISSION_STATE_DENY,
+            ICoreWebView2Settings3,
+        },
+        PermissionRequestedEventHandler,
+    };
+    use windows::core::Interface;
+
+    let _ = window.with_webview(|webview| unsafe {
+        let Ok(core) = webview.controller().CoreWebView2() else {
+            return;
+        };
+
+        if let Ok(settings) = core.Settings() {
+            let _ = settings.SetAreDevToolsEnabled(false);
+            let _ = settings.SetAreDefaultContextMenusEnabled(false);
+            if let Ok(settings3) = settings.cast::<ICoreWebView2Settings3>() {
+                let _ = settings3.SetAreBrowserAcceleratorKeysEnabled(false);
+            }
+        }
+
+        let mut token = 0i64;
+        let _ = core.add_PermissionRequested(
+            &PermissionRequestedEventHandler::create(Box::new(|_, args| {
+                let Some(args) = args else {
+                    return Ok(());
+                };
+
+                let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+                args.PermissionKind(&mut kind)?;
+                if kind == COREWEBVIEW2_PERMISSION_KIND_CLIPBOARD_READ
+                    || kind == COREWEBVIEW2_PERMISSION_KIND_LOCAL_FONTS
+                {
+                    args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+                } else {
+                    args.SetState(COREWEBVIEW2_PERMISSION_STATE_DENY)?;
+                }
+                Ok(())
+            })),
+            &mut token,
+        );
+    });
 }
 
 /// 内嵌 axum 服务器端口
@@ -88,6 +138,9 @@ pub fn run() {
         // 启动时：动态窗口尺寸 + 窗口效果 + 数据层 + axum 服务器
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
+
+            #[cfg(target_os = "windows")]
+            harden_windows_webview(&window);
 
             // ── 动态窗口尺寸 ──
             if let Ok(Some(monitor)) = window.current_monitor() {

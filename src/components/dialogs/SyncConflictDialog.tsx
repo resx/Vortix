@@ -7,6 +7,16 @@ import { useAssetStore } from '../../stores/useAssetStore'
 import { useShortcutStore } from '../../stores/useShortcutStore'
 import * as api from '../../api/client'
 
+const formatLocalDateTime = (value: string | null | undefined): string => {
+  if (!value) return ''
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) {
+    return value.replace('T', ' ').replace('Z', '').slice(0, 19)
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}:${pad(parsed.getSeconds())}`
+}
+
 export default function SyncConflictDialog() {
   const open = useUIStore((s) => s.syncConflictOpen)
   const payload = useUIStore((s) => s.syncConflict)
@@ -24,7 +34,7 @@ export default function SyncConflictDialog() {
     `本地版本: ${payload.info.localRevision}`,
     `远端版本: ${payload.info.remoteRevision}`,
     payload.info.remoteExportedAt
-      ? `远端时间: ${payload.info.remoteExportedAt.replace('T', ' ').slice(0, 19)}`
+      ? `远端时间: ${formatLocalDateTime(payload.info.remoteExportedAt)}`
       : null,
   ].filter(Boolean).join(' · ')
 
@@ -101,3 +111,4 @@ export default function SyncConflictDialog() {
     </div>
   )
 }
+

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppIcon, icons } from '../icons/AppIcon'
 import IslandModal from '../ui/island-modal'
 import { useUIStore } from '../../stores/useUIStore'
@@ -30,18 +30,33 @@ export default function LocalTerminalConfigDialog() {
   const [shellOpen, setShellOpen] = useState(false)
   const [pickingDir, setPickingDir] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const shellFillReqRef = useRef(0)
 
   // 稳定引用：避免 useEffect 依赖整个 store 导致无限循环
   const loadFromConnection = useLocalTerminalConfigStore((s) => s.loadFromConnection)
   const reset = useLocalTerminalConfigStore((s) => s.reset)
 
+  const autoFillWorkingDir = useCallback(async (shell: ShellType) => {
+    const requestId = ++shellFillReqRef.current
+    try {
+      const defaultDir = await api.getLocalTerminalDefaultDir(shell)
+      if (shellFillReqRef.current !== requestId) return
+      if (useLocalTerminalConfigStore.getState().shell !== shell) return
+      useLocalTerminalConfigStore.getState().setField('workingDir', defaultDir || '')
+    } catch {
+      // ignore auto-fill failures
+    }
+  }, [])
+
   // mount 时加载编辑数据 / unmount 时重置
   useEffect(() => {
     if (mode === 'edit' && initialId) {
       loadFromConnection(initialId)
+    } else {
+      void autoFillWorkingDir(useLocalTerminalConfigStore.getState().shell)
     }
     return () => { reset() }
-  }, [initialId, mode, loadFromConnection, reset])
+  }, [autoFillWorkingDir, initialId, mode, loadFromConnection, reset])
 
   // 点击外部关闭下拉
   useEffect(() => {
@@ -144,7 +159,11 @@ export default function LocalTerminalConfigDialog() {
               {shellOptions.map((opt) => (
                 <div
                   key={opt}
-                  onClick={() => { store.setField('shell', opt); setShellOpen(false) }}
+                  onClick={() => {
+                    store.setField('shell', opt)
+                    setShellOpen(false)
+                    void autoFillWorkingDir(opt)
+                  }}
                   className={`px-2.5 py-1.5 text-xs font-mono cursor-pointer transition-colors
                     ${store.shell === opt ? 'text-primary bg-primary/5' : 'text-text-1 hover:bg-bg-hover'}`}
                 >
@@ -163,7 +182,7 @@ export default function LocalTerminalConfigDialog() {
               type="text"
               value={store.workingDir}
               onChange={(e) => store.setField('workingDir', e.target.value)}
-              placeholder="例如: D:\Projects"
+              placeholder="例如: D:\\Projects"
               className="flex-1 h-full bg-transparent px-2.5 text-xs outline-none placeholder-text-3 text-text-1 font-mono"
             />
             <button
@@ -177,7 +196,6 @@ export default function LocalTerminalConfigDialog() {
             </button>
           </div>
         </div>
-
         {/* 初始执行命令 */}
         <div className="col-span-2">
           <label className={labelClass}>初始执行命令</label>

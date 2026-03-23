@@ -3,12 +3,13 @@
 /* ── SQLite -> JSON 备份导出 ── */
 
 use anyhow::{Context, Result};
-use chrono::Utc;
 use serde::Serialize;
 use serde_json::{Map, Value};
 use sqlx::{FromRow, SqlitePool};
 use std::fs;
 use std::path::Path;
+
+use crate::time_utils::now_rfc3339;
 
 #[derive(Serialize)]
 struct BackupPayload {
@@ -25,6 +26,7 @@ struct BackupData {
     history: Vec<HistoryRow>,
     logs: Vec<LogRow>,
     shortcuts: Vec<ShortcutRow>,
+    shortcut_groups: Vec<ShortcutGroupRow>,
     ssh_keys: Vec<SshKeyRow>,
     presets: Vec<PresetRow>,
     themes: Vec<ThemeRow>,
@@ -81,6 +83,16 @@ struct ShortcutRow {
     name: String,
     command: String,
     remark: String,
+    group_name: String,
+    sort_order: i64,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Serialize, FromRow)]
+struct ShortcutGroupRow {
+    id: String,
+    name: String,
     sort_order: i64,
     created_at: String,
     updated_at: String,
@@ -178,7 +190,13 @@ pub async fn export_to_json(pool: &SqlitePool, path: &Path) -> Result<()> {
     .await?;
 
     let shortcuts: Vec<ShortcutRow> = sqlx::query_as(
-        "SELECT id, name, command, remark, sort_order, created_at, updated_at FROM shortcuts",
+        "SELECT id, name, command, remark, group_name, sort_order, created_at, updated_at FROM shortcuts",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let shortcut_groups: Vec<ShortcutGroupRow> = sqlx::query_as(
+        "SELECT id, name, sort_order, created_at, updated_at FROM shortcut_groups",
     )
     .fetch_all(pool)
     .await?;
@@ -219,7 +237,7 @@ pub async fn export_to_json(pool: &SqlitePool, path: &Path) -> Result<()> {
 
     let payload = BackupPayload {
         schema_version: 1,
-        exported_at: Utc::now().to_rfc3339(),
+        exported_at: now_rfc3339(),
         data: BackupData {
             folders,
             connections,
@@ -227,6 +245,7 @@ pub async fn export_to_json(pool: &SqlitePool, path: &Path) -> Result<()> {
             history,
             logs,
             shortcuts,
+            shortcut_groups,
             ssh_keys,
             presets,
             themes,

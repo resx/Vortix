@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use chrono::Utc;
 use sqlx::{
     Row, SqlitePool,
     sqlite::{SqliteConnectOptions, SqlitePoolOptions},
@@ -9,6 +8,7 @@ use std::path::{Path, PathBuf};
 use tauri::Manager;
 
 use crate::crypto::Crypto;
+use crate::time_utils::{now_compact, now_rfc3339};
 
 mod backup;
 mod legacy;
@@ -20,6 +20,7 @@ const DIR_REMOTE: &str = "remote";
 const DIR_HISTORY: &str = "history";
 const DIR_LOGS: &str = "logs";
 const DIR_REPOSITORY: &str = "repository";
+const DIR_INTERNAL: &str = ".internal";
 const DIR_KEYS: &str = "keys";
 const DIR_BACKUPS: &str = "backups";
 const DIR_SYNC: &str = "sync";
@@ -49,6 +50,7 @@ pub struct DbPaths {
     pub remote_history_dir: PathBuf,
     pub known_hosts_path: PathBuf,
     pub repository_dir: PathBuf,
+    pub internal_dir: PathBuf,
     pub backup_dir: PathBuf,
     pub key_dir: PathBuf,
     pub key_path: PathBuf,
@@ -72,12 +74,13 @@ fn resolve_vortix_home() -> Result<PathBuf> {
 fn build_paths(root_dir: PathBuf) -> DbPaths {
     let cache_dir = root_dir.join(DIR_CACHE);
     let data_dir = root_dir.join(DIR_DATA);
-    let db_path = data_dir.join(FILE_DB);
+    let repository_dir = root_dir.join(DIR_REPOSITORY);
+    let internal_dir = repository_dir.join(DIR_INTERNAL);
+    let db_path = internal_dir.join(FILE_DB);
     let log_dir = data_dir.join(DIR_LOGS);
     let remote_dir = data_dir.join(DIR_REMOTE);
     let remote_history_dir = remote_dir.join(DIR_HISTORY);
     let known_hosts_path = remote_dir.join(FILE_KNOWN_HOSTS);
-    let repository_dir = root_dir.join(DIR_REPOSITORY);
     let backup_dir = repository_dir.join(DIR_BACKUPS);
     let key_dir = repository_dir.join(DIR_KEYS);
     let key_path = key_dir.join(FILE_KEY);
@@ -93,6 +96,7 @@ fn build_paths(root_dir: PathBuf) -> DbPaths {
         remote_history_dir,
         known_hosts_path,
         repository_dir,
+        internal_dir,
         backup_dir,
         key_dir,
         key_path,
@@ -110,6 +114,7 @@ fn ensure_dirs(paths: &DbPaths) -> Result<()> {
         &paths.remote_dir,
         &paths.remote_history_dir,
         &paths.repository_dir,
+        &paths.internal_dir,
         &paths.backup_dir,
         &paths.key_dir,
         &paths.sync_dir,
@@ -142,6 +147,7 @@ pub async fn init(app: &tauri::AppHandle) -> Result<Db> {
         .context("failed to initialize encryption key")?;
 
     migrate_old_db(&legacy_dir, &paths.db_path)?;
+    cleanup_obsolete_db_artifacts(&paths)?;
     paths.legacy_dir = legacy_dir.clone();
 
     let options = SqliteConnectOptions::new()
@@ -190,11 +196,29 @@ pub async fn init(app: &tauri::AppHandle) -> Result<Db> {
     })
 }
 
+fn cleanup_obsolete_db_artifacts(paths: &DbPaths) -> Result<()> {
+    if let Some(parent) = paths.db_path.parent() {
+        if parent != paths.data_dir {
+            let old_db = paths.data_dir.join(FILE_DB);
+            if old_db.exists() {
+                let _ = fs::remove_file(&old_db);
+            }
+            for suffix in ["-wal", "-shm"] {
+                let old_sidecar = PathBuf::from(format!("{}{}", old_db.display(), suffix));
+                if old_sidecar.exists() {
+                    let _ = fs::remove_file(old_sidecar);
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 #[allow(dead_code)]
 pub async fn export_backup(db: &Db) -> Result<()> {
     let backup_path = db.paths.backup_dir.join(format!(
         "vortix-backup-{}.json",
-        Utc::now().format("%Y%m%d_%H%M%S")
+        now_compact()
     ));
     backup::export_to_json(&db.pool, &backup_path).await
 }
@@ -219,7 +243,7 @@ async fn apply_migrations(pool: &SqlitePool) -> Result<()> {
     sqlx::migrate!("./migrations").run(pool).await?;
 
     let version: i64 = 1;
-    let applied_at = Utc::now().to_rfc3339();
+    let applied_at = now_rfc3339();
     sqlx::query("INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)")
         .bind(version)
         .bind(applied_at)
@@ -267,6 +291,13 @@ async fn repair_legacy_schema(pool: &SqlitePool) -> Result<()> {
     )
     .await?;
 
+    ensure_columns(
+        pool,
+        "shortcuts",
+        &[("group_name", "TEXT NOT NULL DEFAULT ''")],
+    )
+    .await?;
+
     ensure_columns(pool, "themes", &[("ui", "TEXT NULL")]).await?;
 
     ensure_columns(
@@ -278,6 +309,9 @@ async fn repair_legacy_schema(pool: &SqlitePool) -> Result<()> {
         ],
     )
     .await?;
+
+    ensure_shortcut_groups_table(pool).await?;
+    backfill_shortcut_groups(pool).await?;
 
     Ok(())
 }
@@ -304,6 +338,40 @@ async fn ensure_columns(pool: &SqlitePool, table: &str, columns: &[(&str, &str)]
         sqlx::query(&sql).execute(pool).await?;
     }
 
+    Ok(())
+}
+
+async fn ensure_shortcut_groups_table(pool: &SqlitePool) -> Result<()> {
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS shortcut_groups (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+    sqlx::query(
+        "CREATE INDEX IF NOT EXISTS idx_shortcut_groups_sort ON shortcut_groups(sort_order, name)",
+    )
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+async fn backfill_shortcut_groups(pool: &SqlitePool) -> Result<()> {
+    sqlx::query(
+        "INSERT OR IGNORE INTO shortcut_groups (id, name, sort_order, created_at, updated_at)
+         SELECT lower(hex(randomblob(16))), trim(group_name), 0, ?, ?
+         FROM shortcuts
+         WHERE trim(group_name) <> ''",
+    )
+    .bind(now_rfc3339())
+    .bind(now_rfc3339())
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -417,14 +485,22 @@ fn migrate_old_db(legacy_dir: &Option<PathBuf>, new_db_path: &Path) -> Result<()
             candidate.display(),
             new_db_path.display()
         );
-        fs::copy(&candidate, new_db_path)
-            .with_context(|| format!("failed to migrate sqlite db: {}", candidate.display()))?;
+        match fs::rename(&candidate, new_db_path) {
+            Ok(_) => {}
+            Err(_) => {
+                fs::copy(&candidate, new_db_path).with_context(|| {
+                    format!("failed to migrate sqlite db: {}", candidate.display())
+                })?;
+                let _ = fs::remove_file(&candidate);
+            }
+        }
 
         for suffix in ["-wal", "-shm"] {
             let from = PathBuf::from(format!("{}{}", candidate.display(), suffix));
             if from.exists() {
                 let to = PathBuf::from(format!("{}{}", new_db_path.display(), suffix));
-                let _ = fs::copy(from, to);
+                let _ = fs::rename(&from, &to).or_else(|_| fs::copy(&from, &to).map(|_| ()));
+                let _ = fs::remove_file(&from);
             }
         }
 

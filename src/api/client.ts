@@ -19,6 +19,9 @@ import type {
   Shortcut,
   CreateShortcutDto,
   UpdateShortcutDto,
+  ShortcutGroup,
+  CreateShortcutGroupDto,
+  UpdateShortcutGroupDto,
   SshKey,
   CreateSshKeyDto,
   UpdateSshKeyDto,
@@ -456,6 +459,22 @@ export async function testLocalTerminal(data: { shell: string; workingDir?: stri
   return res.json() as Promise<TestResult>
 }
 
+export async function getLocalTerminalDefaultDir(shell: string): Promise<string | undefined> {
+  const res = await fetch(`${BASE_URL}/connections/local-default-dir`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest',
+    },
+    body: JSON.stringify({ shell }),
+  })
+  const payload = await res.json() as { success?: boolean; path?: string | null; error?: string }
+  if (!res.ok || payload.success === false) {
+    throw new Error(payload.error || `HTTP ${res.status}`)
+  }
+  return payload.path ?? undefined
+}
+
 /* ── 最近连接 API ── */
 
 export async function getRecentConnections(limit = 15): Promise<RecentConnection[]> {
@@ -490,6 +509,28 @@ export async function updateShortcut(id: string, dto: UpdateShortcutDto): Promis
 
 export async function deleteShortcut(id: string): Promise<void> {
   return request<void>(`/shortcuts/${id}`, { method: 'DELETE' })
+}
+
+export async function getShortcutGroups(): Promise<ShortcutGroup[]> {
+  return request<ShortcutGroup[]>('/shortcut-groups')
+}
+
+export async function createShortcutGroup(dto: CreateShortcutGroupDto): Promise<ShortcutGroup> {
+  return request<ShortcutGroup>('/shortcut-groups', {
+    method: 'POST',
+    body: JSON.stringify(dto),
+  })
+}
+
+export async function updateShortcutGroup(id: string, dto: UpdateShortcutGroupDto): Promise<ShortcutGroup> {
+  return request<ShortcutGroup>(`/shortcut-groups/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(dto),
+  })
+}
+
+export async function deleteShortcutGroup(id: string): Promise<void> {
+  return request<void>(`/shortcut-groups/${id}`, { method: 'DELETE' })
 }
 
 /* ── 云同步 API ── */

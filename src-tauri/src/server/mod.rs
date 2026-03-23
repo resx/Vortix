@@ -58,6 +58,16 @@ pub async fn start(port: u16, db: Db) {
             "/api/shortcuts/{id}",
             put(routes::shortcuts::update_shortcut).delete(routes::shortcuts::delete_shortcut),
         )
+        .route(
+            "/api/shortcut-groups",
+            get(routes::shortcut_groups::get_shortcut_groups)
+                .post(routes::shortcut_groups::create_shortcut_group),
+        )
+        .route(
+            "/api/shortcut-groups/{id}",
+            put(routes::shortcut_groups::update_shortcut_group)
+                .delete(routes::shortcut_groups::delete_shortcut_group),
+        )
         // 连接预设
         .route(
             "/api/presets",
@@ -124,6 +134,10 @@ pub async fn start(port: u16, db: Db) {
         .route(
             "/api/connections/test-local",
             post(routes::connections::test_local_terminal),
+        )
+        .route(
+            "/api/connections/local-default-dir",
+            post(routes::connections::get_local_terminal_default_working_dir),
         )
         .route(
             "/api/connections/{id}",
@@ -211,3 +225,4 @@ pub async fn start(port: u16, db: Db) {
     tracing::info!("[Vortix] axum 服务器启动: http://{addr}");
     axum::serve(listener, app).await.unwrap();
 }
+

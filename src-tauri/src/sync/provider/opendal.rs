@@ -1,14 +1,12 @@
 use async_trait::async_trait;
 use bytes::Bytes;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local};
 use futures::TryStreamExt;
 use moka::future::Cache;
-use opendal::Operator;
-use opendal::layers::HttpClientLayer;
-use opendal::raw::HttpClient;
 use opendal::services::{S3, Webdav};
+use opendal::Operator;
 use std::time::SystemTime;
-use tracing::warn;
+use url::Url;
 
 use super::SyncProvider;
 use crate::server::types::{SyncFileInfo, SyncRequestBody};
@@ -20,6 +18,34 @@ pub struct OpenDalProvider {
 }
 
 impl OpenDalProvider {
+    fn ensure_tls_verify_enabled(tls_verify: bool, provider: &str) -> Result<(), String> {
+        if tls_verify {
+            Ok(())
+        } else {
+            Err(format!(
+                "syncTlsVerify=false 已禁用：{} 同步必须开启证书校验",
+                provider
+            ))
+        }
+    }
+
+    fn ensure_https_endpoint(endpoint: &str, label: &str, required: bool) -> Result<(), String> {
+        let trimmed = endpoint.trim();
+        if trimmed.is_empty() {
+            if required {
+                return Err(format!("{} 不能为空", label));
+            }
+            return Ok(());
+        }
+
+        let parsed = Url::parse(trimmed)
+            .map_err(|_| format!("{} 非法，请使用 https:// 开头的完整地址", label))?;
+        if parsed.scheme() != "https" {
+            return Err(format!("{} 必须使用 https://，禁止明文传输", label));
+        }
+        Ok(())
+    }
+
     pub fn from_webdav(body: &SyncRequestBody) -> Result<Self, String> {
         let endpoint = body
             .sync_webdav_endpoint
@@ -33,29 +59,16 @@ impl OpenDalProvider {
             .unwrap_or_else(|| "vortix".to_string());
         let tls_verify = body.sync_tls_verify.unwrap_or(true);
 
-        // opendal 0.55: builder 方法均为 take-self 模式，必须链式调用
+        Self::ensure_tls_verify_enabled(tls_verify, "WebDAV")?;
+        Self::ensure_https_endpoint(endpoint, "syncWebdavEndpoint", true)?;
+
         let builder = Webdav::default()
             .endpoint(endpoint)
             .username(&username)
             .password(&password)
             .root(&root);
-        let op_builder = Operator::new(builder).map_err(|e| e.to_string())?;
-        // OperatorBuilder<impl Access> 与 OperatorBuilder<HttpClientAccessor<impl Access>> 类型不同，
-        // 不能用 mut 赋值切换，必须在两个分支各自 .finish() 统一为 Operator
-        let op = if !tls_verify {
-            warn!(
-                "syncTlsVerify=false: WebDAV TLS 证书校验已关闭，这会降低安全性。仅建议在自签名证书或测试环境使用。"
-            );
-            let client = reqwest::Client::builder()
-                .danger_accept_invalid_certs(true)
-                .build()
-                .map_err(|e| e.to_string())?;
-            op_builder
-                .layer(HttpClientLayer::new(HttpClient::with(client)))
-                .finish()
-        } else {
-            op_builder.finish()
-        };
+        let op = Operator::new(builder).map_err(|e| e.to_string())?.finish();
+
         Ok(Self {
             op,
             name: "webdav",
@@ -65,10 +78,7 @@ impl OpenDalProvider {
 
     pub fn from_s3(body: &SyncRequestBody) -> Result<Self, String> {
         let endpoint = body.sync_s3_endpoint.clone().unwrap_or_default();
-        let bucket = body
-            .sync_s3_bucket
-            .as_ref()
-            .ok_or("syncS3Bucket required")?;
+        let bucket = body.sync_s3_bucket.as_ref().ok_or("syncS3Bucket required")?;
         let access_key = body
             .sync_s3_access_key
             .as_ref()
@@ -87,39 +97,30 @@ impl OpenDalProvider {
             .unwrap_or_else(|| "vortix".to_string());
         let tls_verify = body.sync_tls_verify.unwrap_or(true);
 
-        // opendal 0.55: builder 方法均为 take-self 模式，必须链式调用
+        Self::ensure_tls_verify_enabled(tls_verify, "S3")?;
+        Self::ensure_https_endpoint(&endpoint, "syncS3Endpoint", false)?;
+
         let builder = S3::default()
             .bucket(bucket)
             .region(&region)
             .access_key_id(access_key)
             .secret_access_key(secret_key)
             .root(&root);
-        // 条件配置也需要链式处理
+
         let builder = if !endpoint.trim().is_empty() {
             builder.endpoint(&endpoint)
         } else {
             builder
         };
+
         let builder = if body.sync_s3_style.as_deref() == Some("virtual-hosted") {
             builder.enable_virtual_host_style()
         } else {
             builder
         };
-        let op_builder = Operator::new(builder).map_err(|e| e.to_string())?;
-        let op = if !tls_verify {
-            warn!(
-                "syncTlsVerify=false: S3 TLS 证书校验已关闭，这会降低安全性。仅建议在自签名证书或测试环境使用。"
-            );
-            let client = reqwest::Client::builder()
-                .danger_accept_invalid_certs(true)
-                .build()
-                .map_err(|e| e.to_string())?;
-            op_builder
-                .layer(HttpClientLayer::new(HttpClient::with(client)))
-                .finish()
-        } else {
-            op_builder.finish()
-        };
+
+        let op = Operator::new(builder).map_err(|e| e.to_string())?.finish();
+
         Ok(Self {
             op,
             name: "s3",
@@ -128,8 +129,7 @@ impl OpenDalProvider {
     }
 
     fn key(&self, key: &str) -> String {
-        let clean = key.trim_start_matches('/');
-        clean.to_string()
+        key.trim_start_matches('/').to_string()
     }
 }
 
@@ -138,7 +138,6 @@ impl SyncProvider for OpenDalProvider {
     async fn read(&self, key: &str) -> Result<Bytes, String> {
         let key = self.key(key);
         let data = self.op.read(&key).await.map_err(|e| e.to_string())?;
-        // opendal 0.55: read() 返回 Buffer，需 .to_bytes() 转换为 bytes::Bytes
         Ok(data.to_bytes())
     }
 
@@ -156,24 +155,25 @@ impl SyncProvider for OpenDalProvider {
 
     async fn stat(&self, key: &str) -> Result<Option<SyncFileInfo>, String> {
         let key = self.key(key);
-        // moka::future::Cache::get() 返回 impl Future，需要 .await
         if let Some(info) = self.stat_cache.get(&key).await {
             return Ok(Some(info));
         }
+
         let meta = match self.op.stat(&key).await {
             Ok(m) => m,
             Err(_) => return Ok(None),
         };
-        // opendal 0.55: Timestamp 实现 From<Timestamp> for SystemTime，再转 chrono
+
         let last_modified = meta
             .last_modified()
-            .map(|t| DateTime::<Utc>::from(SystemTime::from(t)).to_rfc3339());
+            .map(|t| DateTime::<Local>::from(SystemTime::from(t)).to_rfc3339());
+
         let info = SyncFileInfo {
             exists: true,
             last_modified,
-            // opendal 0.55: content_length() 返回 u64（非 Option）
             size: Some(meta.content_length() as i64),
         };
+
         self.stat_cache.insert(key, info.clone()).await;
         Ok(Some(info))
     }
@@ -201,6 +201,7 @@ impl SyncProvider for OpenDalProvider {
     fn is_remote(&self) -> bool {
         true
     }
+
     fn name(&self) -> &'static str {
         self.name
     }

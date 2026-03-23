@@ -219,6 +219,7 @@ export default function ContextMenu() {
   const setShowDirModal = useUIStore((s) => s.setShowDirModal)
   const openSshConfig = useUIStore((s) => s.openSshConfig)
   const openLocalTermConfig = useUIStore((s) => s.openLocalTermConfig)
+  const openConfirmDialog = useUIStore((s) => s.openConfirmDialog)
   const openAssetTab = useTabStore((s) => s.openAssetTab)
   const fetchAssets = useAssetStore((s) => s.fetchAssets)
   const deleteFolderAction = useAssetStore((s) => s.deleteFolderAction)
@@ -283,12 +284,19 @@ export default function ContextMenu() {
   // 辅助操作
   const handleDelete = (id: string, type: 'folder' | 'connection' | 'asset') => {
     hideContextMenu()
-    if (!confirm(`确定要删除吗？此操作不可撤销。`)) return
-    if (type === 'folder') {
-      deleteFolderAction(id)
-    } else {
-      deleteConnectionAction(id)
-    }
+    openConfirmDialog({
+      title: '确认删除',
+      description: '确定要删除吗？此操作不可撤销。',
+      confirmText: '确认删除',
+      danger: true,
+      onConfirm: async () => {
+        if (type === 'folder') {
+          await deleteFolderAction(id)
+          return
+        }
+        await deleteConnectionAction(id)
+      },
+    })
   }
 
   const handleRename = (id: string, type: 'folder' | 'connection' | 'asset', currentName: string) => {
@@ -320,7 +328,21 @@ export default function ContextMenu() {
         <MenuItem icon={icons.clipboard} label="粘贴到终端" disabled={!hasCommand} onClick={hasCommand ? () => { hideContextMenu(); executeShortcut(item!.command!, 'paste') } : undefined} />
         <MenuDivider />
         <MenuItem icon={icons.edit} label="编辑" disabled={!isItem} onClick={isItem ? () => { hideContextMenu(); openShortcutDialog('edit', item!.id) } : undefined} />
-        <MenuItem icon={icons.fileX} label="删除" disabled={!isItem} onClick={isItem ? () => { hideContextMenu(); if (confirm('确定要删除此快捷命令？')) deleteShortcutAction(item!.id) } : undefined} />
+        <MenuItem
+          icon={icons.fileX}
+          label="删除"
+          disabled={!isItem}
+          onClick={isItem ? () => {
+            hideContextMenu()
+            openConfirmDialog({
+              title: '确认删除',
+              description: '确定要删除此快捷命令？',
+              confirmText: '确认删除',
+              danger: true,
+              onConfirm: async () => { await deleteShortcutAction(item!.id) },
+            })
+          } : undefined}
+        />
         <MenuDivider />
         <MenuItem icon={icons.fileDown} label="导入" onClick={() => { hideContextMenu(); pickJsonFile().then(async (data) => { const items = (Array.isArray(data) ? data : [data]) as { name?: string; command?: string; remark?: string }[]; let count = 0; for (const it of items) { if (it.name && it.command) { await api.createShortcut({ name: it.name, command: it.command, remark: it.remark }); count++ } } fetchShortcuts(); addToast('success', `成功导入 ${count} 条快捷命令`) }).catch(() => {}) }} />
         <MenuItem icon={icons.fileUp} label="导出" disabled={!isItem} onClick={isItem ? () => { hideContextMenu(); downloadJson([{ name: item!.name, command: item!.command, remark: item!.remark }], `shortcut-${item!.name}.json`) } : undefined} />

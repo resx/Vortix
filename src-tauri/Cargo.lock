@@ -7574,7 +7574,9 @@ dependencies = [
  "url",
  "uuid",
  "wait-timeout",
+ "webview2-com",
  "window-vibrancy 0.5.3",
+ "windows 0.61.3",
  "xxhash-rust",
 ]
 

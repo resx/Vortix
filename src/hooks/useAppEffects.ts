@@ -3,7 +3,13 @@
 import { useEffect, useRef } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useSettingsStore, buildSyncBody } from '../stores/useSettingsStore'
+import {
+  useSettingsStore,
+  buildSyncBody,
+  buildSyncVerificationSignature,
+  hashSyncSignature,
+  SYNC_VERIFIED_SIGNATURE_HASH_KEY,
+} from '../stores/useSettingsStore'
 import { useAssetStore } from '../stores/useAssetStore'
 import { useShortcutStore } from '../stores/useShortcutStore'
 import { useTerminalProfileStore } from '../stores/useTerminalProfileStore'
@@ -15,6 +21,17 @@ import { resolveFontChain } from '../lib/fonts'
 import { loadLocale } from '../i18n'
 import * as api from '../api/client'
 import type { AssetRow } from '../types'
+
+function isSyncSignatureVerified(): boolean {
+  try {
+    const state = useSettingsStore.getState()
+    const signature = buildSyncVerificationSignature(state)
+    const hash = hashSyncSignature(signature)
+    return window.localStorage.getItem(SYNC_VERIFIED_SIGNATURE_HASH_KEY) === hash
+  } catch {
+    return false
+  }
+}
 
 /** 初始化：加载设置、资产、快捷命令、恢复标签页 */
 export function useAppInit() {
@@ -200,12 +217,13 @@ export function useAutoSyncEffect() {
 
   // ── 层 1: dirty push（本地有变更时推送，30s 间隔）──
   useEffect(() => {
-    if (!loaded || !autoSync || repoSource === 'local' || !isConfigured) return
+    if (!loaded || !autoSync || repoSource === 'local' || !isConfigured || !isSyncSignatureVerified()) return
 
     let disposed = false
     let timer: ReturnType<typeof setTimeout> | null = null
     let running = false
     let lastErrorAt = 0
+    let statusCheckedForDirtyCycle = false
 
     const schedule = (delayMs: number) => {
       if (disposed) return
@@ -227,11 +245,16 @@ export function useAutoSyncEffect() {
 
         const localState = await api.getSyncLocalState()
         if (!localState.localDirty) {
+          statusCheckedForDirtyCycle = false
           schedule(30000)
           return
         }
 
         const body = buildSyncBody()
+        if (!statusCheckedForDirtyCycle) {
+          await api.getSyncStatus(body)
+          statusCheckedForDirtyCycle = true
+        }
         const conflict = await api.checkPushConflict(body)
         if (conflict.hasConflict) {
           useUIStore.getState().openSyncConflict({ info: conflict, action: 'push', body })
@@ -262,7 +285,7 @@ export function useAutoSyncEffect() {
 
   // ── 层 2: remote check（轻量级远端变更检测，可配置间隔，默认 15min）──
   useEffect(() => {
-    if (!loaded || !autoSync || repoSource === 'local' || !isConfigured) return
+    if (!loaded || !autoSync || repoSource === 'local' || !isConfigured || !isSyncSignatureVerified()) return
 
     let disposed = false
     let timer: ReturnType<typeof setTimeout> | null = null
@@ -299,16 +322,16 @@ export function useWindowFocusSyncCheck() {
     if (!('__TAURI_INTERNALS__' in window)) return
 
     const unlisten = listen('tauri://focus', async () => {
-      const { syncAutoSync, syncRepoSource, syncGitUrl, syncWebdavEndpoint, syncS3Endpoint, syncLocalPath } = useSettingsStore.getState()
+      const { syncAutoSync, syncRepoSource, syncGitUrl, syncWebdavEndpoint, syncS3Endpoint } = useSettingsStore.getState()
       if (!syncAutoSync || syncRepoSource === 'local') return
 
       const isConfigured = (
         (syncRepoSource === 'git' && !!syncGitUrl.trim()) ||
         (syncRepoSource === 'webdav' && !!syncWebdavEndpoint.trim()) ||
-        (syncRepoSource === 's3' && !!syncS3Endpoint.trim()) ||
-        (syncRepoSource === 'local' && !!syncLocalPath.trim())
+        (syncRepoSource === 's3' && !!syncS3Endpoint.trim())
       )
       if (!isConfigured) return
+      if (!isSyncSignatureVerified()) return
 
       const now = Date.now()
       if (now - lastCheckRef.current < 5 * 60 * 1000) return
@@ -410,6 +433,28 @@ export function useAnimationEffect() {
 export function useGlobalShortcuts() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase()
+      const shouldBlockReload =
+        e.key === 'F5' || ((e.ctrlKey || e.metaKey) && key === 'r')
+      if (shouldBlockReload) {
+        e.preventDefault()
+        e.stopPropagation()
+        e.stopImmediatePropagation()
+        return
+      }
+
+      const isDevtoolsHotkey =
+        e.key === 'F12'
+        || ((e.ctrlKey && e.shiftKey) && (key === 'i' || key === 'j' || e.code === 'KeyI' || e.code === 'KeyJ'))
+        || ((e.metaKey && e.altKey) && (key === 'i' || e.code === 'KeyI'))
+
+      if (isDevtoolsHotkey && !useSettingsStore.getState().debugMode) {
+        e.preventDefault()
+        e.stopPropagation()
+        e.stopImmediatePropagation()
+        return
+      }
+
       if (e.ctrlKey && e.shiftKey && e.key === 'F') {
         e.preventDefault()
         useUIStore.getState().toggleQuickSearch()
@@ -420,12 +465,6 @@ export function useGlobalShortcuts() {
         e.preventDefault()
         const { activeTabId, closeTab } = useTabStore.getState()
         if (activeTabId !== 'list') closeTab(activeTabId)
-      }
-      if (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j')) {
-        e.preventDefault()
-      }
-      if (e.key === 'F12' && !useSettingsStore.getState().debugMode) {
-        e.preventDefault()
       }
       if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
         e.preventDefault()
@@ -446,8 +485,8 @@ export function useGlobalShortcuts() {
         }
       }
     }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
+    window.addEventListener('keydown', handler, true)
+    return () => window.removeEventListener('keydown', handler, true)
   }, [])
 
   useEffect(() => {

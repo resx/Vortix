@@ -199,7 +199,7 @@ export function handleDownloadChunk(data: {
 export function handleDownloadComplete(data: { transferId: string }): void {
   const session = dlSessions.get(data.transferId)
   if (!session) return
-  const blob = new Blob(session.chunks)
+  const blob = new Blob(session.chunks as BlobPart[])
   const task = useTransferStore.getState().tasks.find(t => t.id === data.transferId)
   if (task) completedBlobs.set(data.transferId, { blob, fileName: task.fileName })
   useTransferStore.getState().updateProgress(data.transferId, session.totalBytes, 0)

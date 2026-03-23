@@ -123,6 +123,10 @@ export const icons = {
   user: 'ph:user',
   circle: 'ph:circle',
   gripVertical: 'ph:dots-six-vertical',
+  shield: 'ph:shield',
+  pause: 'ph:pause',
+  fileCode: 'ph:file-code',
+  image: 'ph:image',
 } as const
 
 export type IconName = keyof typeof icons
