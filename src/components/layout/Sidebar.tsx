@@ -1,4 +1,4 @@
-import type { ComponentType } from 'react'
+import { useRef, useState, type ComponentType } from 'react'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { ProtocolIcon, DB_LABEL_PROTOCOL } from '../icons/ProtocolIcons'
 import { useAssetStore } from '../../stores/useAssetStore'
@@ -168,9 +168,12 @@ export default function Sidebar() {
   const isSidebarOpen = useUIStore((s) => s.isSidebarOpen)
   const assets = useAssetStore((s) => s.assets)
   const shortcuts = useShortcutStore((s) => s.shortcuts)
-  const toggleFolder = useAssetStore((s) => s.toggleFolder)
-  const expandAllFolders = useAssetStore((s) => s.expandAllFolders)
-  const collapseAllFolders = useAssetStore((s) => s.collapseAllFolders)
+  const toggleAssetFolder = useAssetStore((s) => s.toggleFolder)
+  const expandAssetFolders = useAssetStore((s) => s.expandAllFolders)
+  const collapseAssetFolders = useAssetStore((s) => s.collapseAllFolders)
+  const toggleShortcutGroup = useShortcutStore((s) => s.toggleShortcutGroup)
+  const expandShortcutGroups = useShortcutStore((s) => s.expandShortcutGroups)
+  const collapseShortcutGroups = useShortcutStore((s) => s.collapseShortcutGroups)
   const showContextMenu = useUIStore((s) => s.showContextMenu)
   const openAssetTab = useTabStore((s) => s.openAssetTab)
   const currentFolder = useAssetStore((s) => s.currentFolder)
@@ -180,8 +183,17 @@ export default function Sidebar() {
   const setSelectedItemId = useAssetStore((s) => s.setSelectedSidebarItemId)
   const openShortcutDialog = useShortcutStore((s) => s.openShortcutDialog)
   const executeShortcut = useShortcutStore((s) => s.executeShortcut)
+  const moveShortcutsToGroup = useShortcutStore((s) => s.moveShortcutsToGroup)
+  const selectedShortcutIds = useShortcutStore((s) => s.selectedShortcutIds)
+  const lastSelectedShortcutId = useShortcutStore((s) => s.lastSelectedShortcutId)
+  const setShortcutSelection = useShortcutStore((s) => s.setShortcutSelection)
+  const clearShortcutSelection = useShortcutStore((s) => s.clearShortcutSelection)
   const hideEmptyFolders = useSettingsStore((s) => s.hideEmptyFolders)
   const updateSetting = useSettingsStore((s) => s.updateSetting)
+  const draggingShortcutIdsRef = useRef<string[]>([])
+  const [isShortcutDragging, setIsShortcutDragging] = useState(false)
+  const [draggingShortcutIds, setDraggingShortcutIds] = useState<string[]>([])
+  const [shortcutDropTarget, setShortcutDropTarget] = useState<string | null>(null)
 
   const isShortcuts = activeFilter === 'shortcuts'
   const isAll = activeFilter === 'all'
@@ -225,6 +237,107 @@ export default function Sidebar() {
       return true
     })
 
+  const selectedShortcutIdSet = new Set(selectedShortcutIds)
+  const draggingShortcutIdSet = new Set(draggingShortcutIds)
+  const visibleShortcutOrder = isShortcuts
+    ? filteredData.flatMap((item) => {
+      if (item.type === 'folder') {
+        if (!item.isOpen) return []
+        return (item.children ?? []).filter(matchesFilter).map((child) => child.id)
+      }
+      return [item.id]
+    })
+    : []
+
+  const parseDraggedShortcutIds = (e: React.DragEvent, fallbackId?: string) => {
+    if (draggingShortcutIdsRef.current.length > 0) {
+      return [...draggingShortcutIdsRef.current]
+    }
+    const encoded = e.dataTransfer.getData('application/x-vortix-shortcut-ids')
+    if (encoded?.trim()) {
+      try {
+        const parsed = JSON.parse(encoded)
+        if (Array.isArray(parsed)) {
+          const ids = parsed.map((v) => String(v)).filter(Boolean)
+          if (ids.length > 0) return ids
+        }
+      } catch {
+        // ignore malformed payload
+      }
+    }
+    const single = e.dataTransfer.getData('text/connection-id')
+    if (single?.trim()) {
+      return [single.trim()]
+    }
+    const plain = e.dataTransfer.getData('text/plain')
+    if (plain?.trim()) {
+      return [plain.trim()]
+    }
+    return fallbackId ? [fallbackId] : []
+  }
+
+  const parseDraggedConnectionId = (e: React.DragEvent): string => {
+    const typed = e.dataTransfer.getData('text/connection-id')
+    if (typed?.trim()) return typed.trim()
+    const plain = e.dataTransfer.getData('text/plain')
+    return plain?.trim() ?? ''
+  }
+
+  const resetShortcutDragState = () => {
+    draggingShortcutIdsRef.current = []
+    setIsShortcutDragging(false)
+    setDraggingShortcutIds([])
+    setShortcutDropTarget(null)
+  }
+
+  const commitShortcutDrop = (e: React.DragEvent, targetGroupName: string) => {
+    e.preventDefault()
+    const ids = parseDraggedShortcutIds(e)
+    if (ids.length > 0) {
+      void moveShortcutsToGroup(ids, targetGroupName)
+    }
+    resetShortcutDragState()
+  }
+
+  const hydrateShortcutDragState = () => {
+    if (isShortcutDragging) return
+    const ids = [...draggingShortcutIdsRef.current]
+    if (ids.length === 0) return
+    setIsShortcutDragging(true)
+    setDraggingShortcutIds(ids)
+  }
+
+  const handleShortcutClick = (e: React.MouseEvent, id: string) => {
+    const order = visibleShortcutOrder
+    const isCtrlOrMeta = e.ctrlKey || e.metaKey
+    const current = new Set(selectedShortcutIds)
+
+    if (e.shiftKey && lastSelectedShortcutId && order.length > 0) {
+      const a = order.indexOf(lastSelectedShortcutId)
+      const b = order.indexOf(id)
+      if (a >= 0 && b >= 0) {
+        const [start, end] = a < b ? [a, b] : [b, a]
+        const range = order.slice(start, end + 1)
+        setShortcutSelection(range, id)
+      } else {
+        setShortcutSelection([id], id)
+      }
+      setSelectedItemId(id)
+      return
+    }
+
+    if (isCtrlOrMeta) {
+      if (current.has(id)) current.delete(id)
+      else current.add(id)
+      setShortcutSelection([...current], id)
+      setSelectedItemId(id)
+      return
+    }
+
+    setShortcutSelection([id], id)
+    setSelectedItemId(id)
+  }
+
   const handleContextMenu = (e: React.MouseEvent, type: 'sidebar-blank-shortcut' | 'sidebar-shortcut' | 'sidebar-blank-asset' | 'sidebar-asset', item?: typeof data[number]) => {
     e.preventDefault()
     e.stopPropagation()
@@ -244,7 +357,19 @@ export default function Sidebar() {
           <div className="flex items-center gap-0.5 text-text-1">
             <SidebarHeaderButton icon={icons.search} tooltipText="搜索" />
             <SidebarHeaderButton icon={icons.crosshair} tooltipText="定位到选中项" />
-            <SidebarHeaderButton icon={allExpanded ? icons.folder : icons.folderOpen} tooltipText={allExpanded ? '折叠所有' : '展开所有'} onClick={() => allExpanded ? collapseAllFolders(target) : expandAllFolders(target)} />
+            <SidebarHeaderButton
+              icon={allExpanded ? icons.folder : icons.folderOpen}
+              tooltipText={allExpanded ? '折叠所有' : '展开所有'}
+              onClick={() => {
+                if (allExpanded) {
+                  if (isShortcuts) collapseShortcutGroups()
+                  else collapseAssetFolders(target)
+                  return
+                }
+                if (isShortcuts) expandShortcutGroups()
+                else expandAssetFolders(target)
+              }}
+            />
             <SidebarHeaderButton
               icon={hideEmptyFolders ? FolderEyeOffIcon : FolderEyeIcon}
               tooltipText={hideEmptyFolders ? '显示空文件夹' : '隐藏空文件夹'}
@@ -263,13 +388,41 @@ export default function Sidebar() {
         {/* 树形视图 */}
         <div
           id="sidebar-tree"
-          className="flex-1 overflow-y-auto py-1.5 px-1 custom-scrollbar relative"
+          className={`flex-1 overflow-y-auto py-1.5 px-1 custom-scrollbar relative ${
+            isShortcuts && isShortcutDragging && shortcutDropTarget === 'root'
+              ? 'ring-2 ring-primary/40 ring-inset bg-primary/5'
+              : ''
+          }`}
           onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-blank-shortcut' : 'sidebar-blank-asset')}
+          onDragEnter={(e) => {
+            if (isShortcuts) {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+              hydrateShortcutDragState()
+              if (shortcutDropTarget !== 'root') setShortcutDropTarget('root')
+              return
+            }
+            e.preventDefault()
+            e.currentTarget.classList.add('ring-2', 'ring-primary/30', 'ring-inset')
+          }}
           onDragOver={(e) => {
+            if (isShortcuts) {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+              hydrateShortcutDragState()
+              if (shortcutDropTarget !== 'root') setShortcutDropTarget('root')
+              return
+            }
             e.preventDefault()
             e.currentTarget.classList.add('ring-2', 'ring-primary/30', 'ring-inset')
           }}
           onDragLeave={(e) => {
+            if (isShortcuts) {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                setShortcutDropTarget(null)
+              }
+              return
+            }
             if (!e.currentTarget.contains(e.relatedTarget as Node)) {
               e.currentTarget.classList.remove('ring-2', 'ring-primary/30', 'ring-inset')
             }
@@ -277,10 +430,25 @@ export default function Sidebar() {
           onDrop={(e) => {
             e.preventDefault()
             e.currentTarget.classList.remove('ring-2', 'ring-primary/30', 'ring-inset')
-            const connectionId = e.dataTransfer.getData('text/connection-id')
+            if (isShortcuts) {
+              commitShortcutDrop(e, '')
+              return
+            }
+            const connectionId = parseDraggedConnectionId(e)
             if (connectionId) moveConnectionToFolder(connectionId, null)
           }}
         >
+          {isShortcuts && isShortcutDragging && (
+            <div
+              className={`mx-1 mb-1 rounded-md border border-dashed px-2 py-1.5 text-[11px] transition-colors ${
+                shortcutDropTarget === 'root'
+                  ? 'border-primary/50 bg-primary/10 text-primary'
+                  : 'border-border text-text-3'
+              } pointer-events-none`}
+            >
+              拖到此处可移到根目录
+            </div>
+          )}
           {filteredData.map(item => (
             <div key={item.id} className="flex flex-col">
               {item.type === 'folder' ? (
@@ -288,30 +456,63 @@ export default function Sidebar() {
                   {/* 文件夹项 */}
                   <div
                     className={`flex items-center px-1 py-1.5 rounded-md hover:bg-bg-hover cursor-pointer transition-colors
-                      ${selectedItemId === item.id ? 'bg-primary/10 text-primary' : ''}`}
+                      ${selectedItemId === item.id ? 'bg-primary/10 text-primary' : ''}
+                      ${isShortcuts && isShortcutDragging && shortcutDropTarget === `group:${item.id}` ? 'ring-2 ring-primary/50 bg-primary/10' : ''}`}
                     onClick={() => {
                       setSelectedItemId(item.id)
+                      if (isShortcuts) clearShortcutSelection()
                       if (currentFolder !== item.id) {
                         setCurrentFolder(item.id)
                       }
                     }}
                     onDoubleClick={() => {
-                      toggleFolder(target, item.id)
+                      if (isShortcuts) toggleShortcutGroup(item.id)
+                      else toggleAssetFolder(target, item.id)
                     }}
                     onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', item)}
+                    onDragEnter={(e) => {
+                      if (!isShortcuts) return
+                      e.preventDefault()
+                      e.stopPropagation()
+                      e.dataTransfer.dropEffect = 'move'
+                      hydrateShortcutDragState()
+                      const target = `group:${item.id}`
+                      if (shortcutDropTarget !== target) setShortcutDropTarget(target)
+                    }}
                     onDragOver={(e) => {
+                      if (isShortcuts) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        e.dataTransfer.dropEffect = 'move'
+                        hydrateShortcutDragState()
+                        const target = `group:${item.id}`
+                        if (shortcutDropTarget !== target) setShortcutDropTarget(target)
+                        return
+                      }
                       e.preventDefault()
                       e.stopPropagation()
                       e.currentTarget.classList.add('ring-2', 'ring-primary/50')
                     }}
                     onDragLeave={(e) => {
+                      if (isShortcuts) {
+                        if (!e.currentTarget.contains(e.relatedTarget as Node) && shortcutDropTarget === `group:${item.id}`) {
+                          setShortcutDropTarget(null)
+                        }
+                        return
+                      }
                       e.currentTarget.classList.remove('ring-2', 'ring-primary/50')
                     }}
                     onDrop={(e) => {
+                      if (isShortcuts) {
+                        e.stopPropagation()
+                        const groupName = item.groupName ?? item.name
+                        commitShortcutDrop(e, groupName)
+                        return
+                      }
                       e.preventDefault()
                       e.stopPropagation()
                       e.currentTarget.classList.remove('ring-2', 'ring-primary/50')
-                      const connectionId = e.dataTransfer.getData('text/connection-id')
+                      const connectionId = parseDraggedConnectionId(e)
                       if (connectionId) {
                         moveConnectionToFolder(connectionId, item.id)
                       }
@@ -319,7 +520,11 @@ export default function Sidebar() {
                   >
                     <span
                       className="w-4 flex justify-center text-text-3 cursor-pointer hover:text-text-1"
-                      onClick={(e) => { e.stopPropagation(); toggleFolder(target, item.id) }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (isShortcuts) toggleShortcutGroup(item.id)
+                        else toggleAssetFolder(target, item.id)
+                      }}
                     >
                       {item.isOpen
                         ? <AppIcon icon={icons.chevronDown} size={14} />
@@ -335,10 +540,49 @@ export default function Sidebar() {
                     <div
                       key={child.id}
                       className={`flex items-center px-1 py-1.5 pl-[36px] rounded-md hover:bg-bg-hover cursor-pointer transition-colors
-                        ${selectedItemId === child.id ? 'bg-primary/10 text-primary' : ''}`}
+                        ${(isShortcuts ? selectedShortcutIdSet.has(child.id) : selectedItemId === child.id) ? 'bg-primary/10 text-primary' : ''}
+                        ${isShortcuts && draggingShortcutIdSet.has(child.id) ? 'opacity-60' : ''}`}
                       draggable
-                      onDragStart={(e) => { e.dataTransfer.setData('text/connection-id', child.id); e.dataTransfer.effectAllowed = 'move' }}
-                      onClick={() => setSelectedItemId(child.id)}
+                      onDragStart={(e) => {
+                        if (isShortcuts) {
+                          const ids = selectedShortcutIdSet.has(child.id) && selectedShortcutIds.length > 1
+                            ? selectedShortcutIds
+                            : [child.id]
+                          draggingShortcutIdsRef.current = ids
+                          e.dataTransfer.setData('application/x-vortix-shortcut-ids', JSON.stringify(ids))
+                          e.dataTransfer.setData('text/connection-id', ids[0] ?? child.id)
+                          e.dataTransfer.setData('text/plain', ids[0] ?? child.id)
+                          e.dataTransfer.effectAllowed = 'move'
+                          return
+                        }
+                        e.dataTransfer.setData('text/connection-id', child.id)
+                        e.dataTransfer.setData('text/plain', child.id)
+                        e.dataTransfer.effectAllowed = 'move'
+                      }}
+                      onDragEnter={(e) => {
+                        if (!isShortcuts) return
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        hydrateShortcutDragState()
+                        if (shortcutDropTarget !== 'root') setShortcutDropTarget('root')
+                      }}
+                      onDragOver={(e) => {
+                        if (!isShortcuts) return
+                        e.preventDefault()
+                        e.dataTransfer.dropEffect = 'move'
+                        hydrateShortcutDragState()
+                        if (shortcutDropTarget !== 'root') setShortcutDropTarget('root')
+                      }}
+                      onClick={(e) => {
+                        if (isShortcuts) {
+                          handleShortcutClick(e, child.id)
+                          return
+                        }
+                        setSelectedItemId(child.id)
+                      }}
+                      onDragEnd={() => {
+                        if (isShortcuts) resetShortcutDragState()
+                      }}
                       onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', child)}
                       onDoubleClick={() => {
                         if (isShortcuts && child.command) {
@@ -370,10 +614,49 @@ export default function Sidebar() {
                 /* 顶层连接项（无文件夹的 SSH 资产） */
                 <div
                   className={`flex items-center px-1 py-1.5 rounded-md hover:bg-bg-hover cursor-pointer transition-colors
-                    ${selectedItemId === item.id ? 'bg-primary/10 text-primary' : ''}`}
+                    ${(isShortcuts ? selectedShortcutIdSet.has(item.id) : selectedItemId === item.id) ? 'bg-primary/10 text-primary' : ''}
+                    ${isShortcuts && draggingShortcutIdSet.has(item.id) ? 'opacity-60' : ''}`}
                   draggable
-                  onDragStart={(e) => { e.dataTransfer.setData('text/connection-id', item.id); e.dataTransfer.effectAllowed = 'move' }}
-                  onClick={() => setSelectedItemId(item.id)}
+                  onDragStart={(e) => {
+                    if (isShortcuts) {
+                      const ids = selectedShortcutIdSet.has(item.id) && selectedShortcutIds.length > 1
+                        ? selectedShortcutIds
+                        : [item.id]
+                      draggingShortcutIdsRef.current = ids
+                      e.dataTransfer.setData('application/x-vortix-shortcut-ids', JSON.stringify(ids))
+                      e.dataTransfer.setData('text/connection-id', ids[0] ?? item.id)
+                      e.dataTransfer.setData('text/plain', ids[0] ?? item.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                      return
+                    }
+                    e.dataTransfer.setData('text/connection-id', item.id)
+                    e.dataTransfer.setData('text/plain', item.id)
+                    e.dataTransfer.effectAllowed = 'move'
+                  }}
+                  onDragEnter={(e) => {
+                    if (!isShortcuts) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    hydrateShortcutDragState()
+                    if (shortcutDropTarget !== 'root') setShortcutDropTarget('root')
+                  }}
+                  onDragOver={(e) => {
+                    if (!isShortcuts) return
+                    e.preventDefault()
+                    e.dataTransfer.dropEffect = 'move'
+                    hydrateShortcutDragState()
+                    if (shortcutDropTarget !== 'root') setShortcutDropTarget('root')
+                  }}
+                  onClick={(e) => {
+                    if (isShortcuts) {
+                      handleShortcutClick(e, item.id)
+                      return
+                    }
+                    setSelectedItemId(item.id)
+                  }}
+                  onDragEnd={() => {
+                    if (isShortcuts) resetShortcutDragState()
+                  }}
                   onContextMenu={(e) => handleContextMenu(e, isShortcuts ? 'sidebar-shortcut' : 'sidebar-asset', item)}
                   onDoubleClick={() => {
                     if (isShortcuts && item.command) {
