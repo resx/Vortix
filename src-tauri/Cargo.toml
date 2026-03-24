@@ -47,7 +47,7 @@ sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 flate2 = "1"
 open = "5"
-dirs = "5"
+dirs = "6"
 russh = "0.58"
 russh-sftp = "2.1.1"
 portable-pty = "0.8"
