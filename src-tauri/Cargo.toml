@@ -41,7 +41,7 @@ chrono = { version = "0.4", features = ["serde"] }
 aes-gcm = "0.10"
 base64 = "0.22"
 hex = "0.4"
-rand_core = "0.6"
+rand_core = "0.10"
 pbkdf2 = "0.12"
 sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
