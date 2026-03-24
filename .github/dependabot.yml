@@ -9,9 +9,6 @@ updates:
       time: "03:00"
       timezone: "America/Los_Angeles"
     open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "github-actions"
     commit-message:
       prefix: "ci"
       include: "scope"
@@ -24,9 +21,6 @@ updates:
       time: "03:10"
       timezone: "America/Los_Angeles"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "frontend"
     commit-message:
       prefix: "deps"
       include: "scope"
@@ -54,9 +48,6 @@ updates:
       time: "03:20"
       timezone: "America/Los_Angeles"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "rust"
     commit-message:
       prefix: "deps"
       include: "scope"
