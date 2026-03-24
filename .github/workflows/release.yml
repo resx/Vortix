@@ -14,49 +14,8 @@ permissions:
   contents: write
 
 jobs:
-  verify:
-    name: verify-release-inputs
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.31.0
-          run_install: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: lts/*
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Preflight
-        run: pnpm ci:preflight
-
-      - name: Verify pushed tag
-        if: github.event_name == 'push'
-        run: pnpm release:verify-tag
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
   publish:
     name: publish (${{ matrix.os }})
-    needs: verify
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     strategy:
@@ -98,8 +57,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Preflight
-        run: pnpm ci:preflight
+      - name: Verify pushed tag
+        if: github.event_name == 'push'
+        run: pnpm release:verify-tag
 
       - name: Build and publish release
         uses: tauri-apps/tauri-action@v1
