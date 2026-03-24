@@ -1,6 +1,13 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { SettingRow, SettingGroup } from './SettingGroup'
-import { useSettingsStore, buildSyncBody, type SettingsState } from '../../stores/useSettingsStore'
+import {
+  useSettingsStore,
+  buildSyncBody,
+  buildSyncVerificationSignature,
+  hashSyncSignature,
+  SYNC_VERIFIED_SIGNATURE_HASH_KEY,
+  type SettingsState,
+} from '../../stores/useSettingsStore'
 import { useAssetStore } from '../../stores/useAssetStore'
 import { useToastStore } from '../../stores/useToastStore'
 import { useShortcutStore } from '../../stores/useShortcutStore'
@@ -20,21 +27,16 @@ const formatSyncSize = (size: number | null): string => {
   return `${(size / 1048576).toFixed(2)} MB`
 }
 
-const formatSyncTime = (time: string | null): string => {
+const formatSyncTime = (time: string | null, includeSeconds = false): string => {
   if (!time) return '--'
-  const normalized = time.replace('T', ' ').replace('Z', '')
-  return normalized.slice(0, 16)
-}
-
-const SYNC_VERIFIED_SIGNATURE_HASH_KEY = 'vortix.sync.verifiedSignatureHash.v1'
-
-const hashSyncSignature = (value: string): string => {
-  let hash = 2166136261
-  for (let i = 0; i < value.length; i += 1) {
-    hash ^= value.charCodeAt(i)
-    hash = Math.imul(hash, 16777619)
+  const parsed = new Date(time)
+  if (Number.isNaN(parsed.getTime())) {
+    const normalized = time.replace('T', ' ').replace('Z', '')
+    return includeSeconds ? normalized.slice(0, 19) : normalized.slice(0, 16)
   }
-  return (hash >>> 0).toString(16)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const seconds = includeSeconds ? `:${pad(parsed.getSeconds())}` : ''
+  return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())} ${pad(parsed.getHours())}:${pad(parsed.getMinutes())}${seconds}`
 }
 
 /* ── 仓库源显示名 ── */
@@ -153,21 +155,7 @@ export default function SyncSettings() {
     return gitSshKey.replace(/[^\r\n]/g, '•')
   }, [gitSshKey])
 
-  const configSignature = useMemo(() => {
-    if (repoSource === 'local') return `local|${syncLocalPath}`
-    if (repoSource === 'git') {
-      if (gitAuthType === 'ssh') {
-        return `git|ssh|${gitUrl}|${gitBranch}|${gitPath}|${gitSshKey}|${syncGitSshKeyLabel}|${syncGitSshKeyMode}`
-      }
-      return `git|https|${gitUrl}|${gitBranch}|${gitPath}|${gitUsername}|${gitPassword}`
-    }
-    if (repoSource === 'webdav') return `webdav|${webdavEndpoint}|${webdavPath}|${webdavUsername}|${webdavPassword}`
-    return `s3|${s3Style}|${s3Endpoint}|${s3Path}|${s3Region}|${s3Bucket}|${s3AccessKey}|${s3SecretKey}`
-  }, [
-    repoSource, syncLocalPath, gitAuthType, gitUrl, gitBranch, gitPath, gitSshKey, syncGitSshKeyLabel, syncGitSshKeyMode,
-    gitUsername, gitPassword, webdavEndpoint, webdavPath, webdavUsername, webdavPassword,
-    s3Style, s3Endpoint, s3Path, s3Region, s3Bucket, s3AccessKey, s3SecretKey,
-  ])
+  const configSignature = buildSyncVerificationSignature(useSettingsStore.getState())
 
   const configSignatureHash = useMemo(() => hashSyncSignature(configSignature), [configSignature])
 
@@ -209,16 +197,19 @@ export default function SyncSettings() {
       const info = await api.getSyncStatus(syncBody)
       setFileInfo(info)
       return true
-    } catch {
+    } catch (e) {
       setFileInfo(null)
+      setConnectionHint((e as Error).message || '状态检查失败')
       return false
     }
   }, [gitUrl, repoSource, s3AccessKey, s3Bucket, s3Endpoint, s3SecretKey, syncBody, syncLocalPath, webdavEndpoint])
 
+  const checkedOnPageEnterRef = useRef(false)
   useEffect(() => {
-    if (connectionState !== 'ok') return
+    if (checkedOnPageEnterRef.current) return
+    checkedOnPageEnterRef.current = true
     void refreshFileInfo()
-  }, [connectionState, refreshFileInfo])
+  }, [refreshFileInfo])
 
   const handleTest = async () => {
     if (repoSource === 'local' && !syncLocalPath.trim()) {
@@ -240,8 +231,6 @@ export default function SyncSettings() {
       setConnectionState('ok')
       persistVerifiedSignature(true)
       addToast('success', repoSource === 'local' ? '路径检查成功' : '连接测试成功')
-      const statusOk = await refreshFileInfo()
-      if (!statusOk) setConnectionHint('连接成功，但远端状态获取失败，可继续拉取或推送')
     } catch (e) {
       setConnectionState('error')
       setFileInfo(null)
@@ -277,7 +266,6 @@ export default function SyncSettings() {
       await api.syncExport(syncBody)
       setConnectionState('ok')
       addToast('success', '推送成功')
-      await refreshFileInfo()
     } catch (e) {
       setConnectionState('error')
       setConnectionHint((e as Error).message)
@@ -314,7 +302,6 @@ export default function SyncSettings() {
         useAssetStore.getState().fetchAssets(),
         useShortcutStore.getState().fetchShortcuts(),
       ])
-      await refreshFileInfo()
     } catch (e) {
       setConnectionState('error')
       setConnectionHint((e as Error).message)
@@ -341,8 +328,8 @@ export default function SyncSettings() {
     try {
       await api.deleteSyncRemote(syncBody)
       setConnectionState('ok')
+      setFileInfo(null)
       addToast('success', repoSource === 'local' ? '本地同步文件已清理' : '远端同步数据已删除')
-      await refreshFileInfo()
     } catch (e) {
       setConnectionState('error')
       setConnectionHint((e as Error).message)
@@ -441,7 +428,7 @@ export default function SyncSettings() {
             <div className={`max-w-[420px] text-[12px] leading-[1.4] text-right ${connectionState === 'error' ? 'text-status-error' : 'text-text-3'}`}>
               {syncHintText}
             </div>
-            <div className="text-[11px] text-text-3/80">ⓘ 同步内容会加密后写入远端。</div>
+            <div className="text-[11px] text-text-3/80">ⓘ 当前协议：v5 envelope（导入兼容 v3/v4/legacy）。</div>
           </div>
         </SettingRow>
 
@@ -901,7 +888,7 @@ export default function SyncSettings() {
                 </div>
                 <div className="text-[11px] text-text-3">
                   本地版本: {conflictInfo.info.localRevision} · 远端版本: {conflictInfo.info.remoteRevision}
-                  {conflictInfo.info.remoteExportedAt && ` · 远端更新于: ${conflictInfo.info.remoteExportedAt.replace('T', ' ').slice(0, 19)}`}
+                  {conflictInfo.info.remoteExportedAt && ` · 远端更新于: ${formatSyncTime(conflictInfo.info.remoteExportedAt, true)}`}
                 </div>
               </div>
             </div>

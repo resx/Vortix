@@ -2,7 +2,7 @@
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STD;
-use chrono::Utc;
+use chrono::Local;
 use russh::keys::PrivateKeyWithHashAlg;
 use russh_sftp::client::SftpSession;
 use russh_sftp::client::fs::{File, Metadata};
@@ -127,8 +127,9 @@ fn sftp_type_from_meta(meta: &Metadata) -> &'static str {
 fn sftp_entry_from_meta(path: &str, meta: &Metadata) -> Value {
     let name = path.rsplit('/').next().unwrap_or(path).to_string();
     let mtime = meta.mtime.unwrap_or(0) as i64;
-    let modified_at = chrono::DateTime::<Utc>::from_timestamp(mtime, 0)
-        .unwrap_or_else(|| chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap())
+    let modified_at = chrono::DateTime::<chrono::Utc>::from_timestamp(mtime, 0)
+        .unwrap_or_else(|| chrono::DateTime::<chrono::Utc>::from_timestamp(0, 0).unwrap())
+        .with_timezone(&Local)
         .to_rfc3339();
     let perm = meta.permissions.unwrap_or(0);
     json!({
@@ -634,7 +635,7 @@ async fn sftp_main_loop(
                         let mut sftp_entry = sftp_entry_from_meta(&full_path, &metadata);
                         if metadata.is_dir() {
                             if let Some((size, at)) = dir_size_cache.get(&full_path) {
-                                if Utc::now().timestamp() - *at < 300 {
+                                if Local::now().timestamp() - *at < 300 {
                                     sftp_entry["size"] = Value::Number((*size).into());
                                 } else {
                                     sftp_entry["size"] = Value::Number((-1).into());
@@ -655,7 +656,7 @@ async fn sftp_main_loop(
 
                     for dir in pending {
                         if let Ok(size) = compute_dir_size(&sftp, &dir, &mut HashMap::new()).await {
-                            dir_size_cache.insert(dir.clone(), (size, Utc::now().timestamp()));
+                            dir_size_cache.insert(dir.clone(), (size, Local::now().timestamp()));
                             let _ = event_tx.send(json!({ "type": "sftp-dir-size", "data": { "path": dir, "size": size } }));
                         }
                     }

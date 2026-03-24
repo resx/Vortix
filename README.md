@@ -28,7 +28,7 @@ Vortix is a cross-platform desktop app built with Tauri and React. It provides S
 - **Asset Management** - Folders, tags, and search for connections
 - **Multi-Tab Workspace** - Tabbed sessions and split layouts
 - **Settings & Profiles** - Theme, font, terminal behavior, SSH defaults
-- **Encrypted Sync** - Local/Git/WebDAV/S3 sync with chunked manifest v4
+- **Encrypted Sync** - Local/Git/WebDAV/S3 sync with v5 envelope (import-compatible with v3/v4/legacy)
 - **SSH Key Store** - Generate/import/manage keys with encryption
 - **Shortcut Commands** - Reusable command snippets
 - **Theme System** - Light/dark UI and terminal themes
@@ -71,7 +71,7 @@ Vortix/
 |- src/                      # React frontend
 |- src-tauri/                # Rust backend + Tauri
 |  |- src/server/            # Axum routes & handlers
-|  |- src/sync/              # Sync engine (manifest + chunks)
+|  |- src/sync/              # Sync engine (v5 envelope + legacy import compatibility)
 |  |- src/db/                # SQLx + SQLite
 |  `- src/crypto/            # Encryption utilities
 |- docs/                     # Documentation
@@ -110,3 +110,4 @@ pnpm build
 ```bash
 pnpm lint
 ```
+

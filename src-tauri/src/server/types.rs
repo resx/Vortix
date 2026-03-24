@@ -31,6 +31,7 @@ pub struct ShortcutRow {
     pub name: String,
     pub command: String,
     pub remark: String,
+    pub group_name: String,
     pub sort_order: i64,
     pub created_at: String,
     pub updated_at: String,
@@ -41,6 +42,22 @@ pub struct CreateShortcutDto {
     pub name: String,
     pub command: String,
     pub remark: Option<String>,
+    pub group_name: Option<String>,
+    pub sort_order: Option<i64>,
+}
+
+#[derive(FromRow, Serialize)]
+pub struct ShortcutGroupRow {
+    pub id: String,
+    pub name: String,
+    pub sort_order: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Deserialize)]
+pub struct CreateShortcutGroupDto {
+    pub name: String,
     pub sort_order: Option<i64>,
 }
 
@@ -439,6 +456,18 @@ pub struct SyncShortcut {
     #[serde(default)]
     pub remark: String,
     #[serde(default)]
+    pub group_name: String,
+    #[serde(default)]
+    pub sort_order: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+pub struct SyncShortcutGroup {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
     pub sort_order: i64,
     pub created_at: String,
     pub updated_at: String,
@@ -556,6 +585,8 @@ pub struct SyncData {
     pub folders: Vec<SyncFolder>,
     pub connections: Vec<SyncConnection>,
     pub shortcuts: Vec<SyncShortcut>,
+    #[serde(default)]
+    pub shortcut_groups: Vec<SyncShortcutGroup>,
     #[serde(default, rename = "sshKeys")]
     pub ssh_keys: Vec<SyncSshKey>,
     #[serde(default)]

@@ -72,3 +72,7 @@ font-kit = "0.14"
 
 [package.metadata.bundle.windows]
 dpi-aware = true
+
+[target.'cfg(windows)'.dependencies]
+webview2-com = "0.38"
+windows = { version = "0.61", features = ["Win32_System_Com"] }

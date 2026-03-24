@@ -1,13 +1,14 @@
 /* ── 旧 JSON 数据导入（仅首次启动） ── */
 
 use anyhow::{Context, Result};
-use chrono::Utc;
 use rand_core::RngCore;
 use serde::Deserialize;
 use serde_json::Value;
 use sqlx::SqlitePool;
 use std::fs;
 use std::path::Path;
+
+use crate::time_utils::now_compact;
 
 #[derive(Default)]
 pub struct ImportSummary {
@@ -73,6 +74,16 @@ struct ShortcutRow {
     name: String,
     command: String,
     remark: Option<String>,
+    group_name: Option<String>,
+    sort_order: Option<i64>,
+    created_at: String,
+    updated_at: String,
+}
+
+#[derive(Deserialize)]
+struct ShortcutGroupRow {
+    id: String,
+    name: String,
     sort_order: Option<i64>,
     created_at: String,
     updated_at: String,
@@ -264,18 +275,34 @@ pub async fn import_all(legacy_dir: &Path, pool: &SqlitePool) -> Result<ImportSu
     if let Some(rows) = read_json_array::<ShortcutRow>(&config_dir.join("shortcuts.json"))? {
         for row in rows {
             sqlx::query(
-                "INSERT OR REPLACE INTO shortcuts (id, name, command, remark, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO shortcuts (id, name, command, remark, group_name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(row.id)
             .bind(row.name)
             .bind(row.command)
             .bind(row.remark.unwrap_or_default())
+            .bind(row.group_name.unwrap_or_default())
             .bind(row.sort_order.unwrap_or(0))
             .bind(row.created_at)
             .bind(row.updated_at)
             .execute(&mut *tx)
             .await?;
             summary.shortcuts += 1;
+        }
+    }
+
+    if let Some(rows) = read_json_array::<ShortcutGroupRow>(&config_dir.join("shortcut-groups.json"))? {
+        for row in rows {
+            sqlx::query(
+                "INSERT OR REPLACE INTO shortcut_groups (id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            )
+            .bind(row.id)
+            .bind(row.name)
+            .bind(row.sort_order.unwrap_or(0))
+            .bind(row.created_at)
+            .bind(row.updated_at)
+            .execute(&mut *tx)
+            .await?;
         }
     }
 
@@ -364,7 +391,7 @@ pub async fn import_all(legacy_dir: &Path, pool: &SqlitePool) -> Result<ImportSu
 }
 
 pub fn archive_legacy_data(legacy_dir: &Path) -> Result<()> {
-    let timestamp = Utc::now().format("%Y%m%d_%H%M%S").to_string();
+    let timestamp = now_compact();
     let archive_root = legacy_dir.join("legacy").join(timestamp);
     fs::create_dir_all(&archive_root)?;
 

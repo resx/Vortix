@@ -1,9 +1,9 @@
 use axum::http::StatusCode;
 use axum::response::Json;
 use bytes::Bytes;
-use chrono::Utc;
 use rand_core::RngCore;
 use serde_json::{Value, json};
+use std::fs;
 
 use crate::db::{Db, repair_runtime_schema};
 use crate::server::helpers::{parse_json_value, string_or_default, value_to_json_string};
@@ -25,8 +25,11 @@ use crate::sync::transfer::{download_chunks, upload_chunks};
 use crate::sync::types::{
     SyncEnvelopeHeaderV5, SyncHashAlg, SyncKdfParamsV5, SyncManifestV4, SyncMetaV4, SyncPayloadV5,
 };
+use crate::time_utils::now_rfc3339;
 
-const SYNC_V5_FILENAME: &str = "vortix-sync.vxsync";
+const SYNC_V5_FILENAME: &str = "vortix.json";
+const SYNC_V5_RAW_FILENAME: &str = "vortix"; // 仅用于向后兼容读取/清理，不再写入
+const SYNC_V5_LEGACY_FILENAME: &str = "vortix-sync.vxsync";
 const SYNC_FILENAME: &str = "vortix-sync.json";
 const SYNC_LEGACY_FILENAME: &str = "vortix-sync.dat";
 const SYNC_MANIFEST_FILENAME: &str = "vortix-sync.manifest.json";
@@ -112,7 +115,7 @@ async fn get_sync_state(db: &Db) -> Result<SyncStateRow, ApiError> {
 }
 
 async fn set_sync_state(db: &Db, revision: i64) -> Result<(), ApiError> {
-    let now = Utc::now().to_rfc3339();
+    let now = now_rfc3339();
     sqlx::query("UPDATE sync_state SET last_sync_revision = ?, last_sync_at = ?, local_dirty = 0 WHERE id = 1")
         .bind(revision)
         .bind(now)
@@ -131,7 +134,14 @@ async fn collect_sync_data(db: &Db) -> Result<SyncData, ApiError> {
     .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let shortcuts: Vec<SyncShortcut> = sqlx::query_as(
-        "SELECT id, name, command, remark, sort_order, created_at, updated_at FROM shortcuts",
+        "SELECT id, name, command, remark, group_name, sort_order, created_at, updated_at FROM shortcuts",
+    )
+    .fetch_all(&db.pool)
+    .await
+    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let shortcut_groups: Vec<SyncShortcutGroup> = sqlx::query_as(
+        "SELECT id, name, sort_order, created_at, updated_at FROM shortcut_groups",
     )
     .fetch_all(&db.pool)
     .await
@@ -305,6 +315,7 @@ async fn collect_sync_data(db: &Db) -> Result<SyncData, ApiError> {
         folders,
         connections,
         shortcuts,
+        shortcut_groups,
         ssh_keys,
         settings,
         presets,
@@ -325,6 +336,7 @@ async fn apply_sync_payload(db: &Db, data: SyncData) -> Result<SyncImportResult,
         "folders",
         "connections",
         "shortcuts",
+        "shortcut_groups",
         "ssh_keys",
         "settings",
         "presets",
@@ -359,11 +371,12 @@ async fn apply_sync_payload(db: &Db, data: SyncData) -> Result<SyncImportResult,
         result.folders += 1;
     }
     for shortcut in data.shortcuts {
-        sqlx::query("INSERT OR REPLACE INTO shortcuts (id, name, command, remark, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        sqlx::query("INSERT OR REPLACE INTO shortcuts (id, name, command, remark, group_name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
             .bind(shortcut.id)
             .bind(shortcut.name)
             .bind(shortcut.command)
             .bind(shortcut.remark)
+            .bind(shortcut.group_name)
             .bind(shortcut.sort_order)
             .bind(shortcut.created_at)
             .bind(shortcut.updated_at)
@@ -372,6 +385,30 @@ async fn apply_sync_payload(db: &Db, data: SyncData) -> Result<SyncImportResult,
             .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
         result.shortcuts += 1;
     }
+    for group in data.shortcut_groups {
+        sqlx::query(
+            "INSERT OR REPLACE INTO shortcut_groups (id, name, sort_order, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(group.id)
+        .bind(group.name)
+        .bind(group.sort_order)
+        .bind(group.created_at)
+        .bind(group.updated_at)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    }
+    sqlx::query(
+        "INSERT OR IGNORE INTO shortcut_groups (id, name, sort_order, created_at, updated_at)
+         SELECT lower(hex(randomblob(16))), trim(group_name), 0, ?, ?
+         FROM shortcuts
+         WHERE trim(group_name) <> ''",
+    )
+    .bind(now_rfc3339())
+    .bind(now_rfc3339())
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     for conn in data.connections {
         let encrypted_password = match conn.password.as_deref() {
             Some(p) if !p.is_empty() => Some(
@@ -581,7 +618,7 @@ fn build_manifest(
         schema: "vortix-sync".to_string(),
         version: 4,
         device_id: state.device_id.clone(),
-        exported_at: Utc::now().to_rfc3339(),
+        exported_at: now_rfc3339(),
         checksum,
         sync_meta: SyncMetaV4 {
             revision: state.last_sync_revision + 1,
@@ -608,7 +645,7 @@ fn build_v5_envelope(
     body: &SyncRequestBody,
 ) -> Result<(SyncEnvelopeHeaderV5, Vec<u8>), String> {
     let revision = state.last_sync_revision + 1;
-    let exported_at = Utc::now().to_rfc3339();
+    let exported_at = now_rfc3339();
     let payload = SyncPayloadV5 {
         backup_version: SYNC_BACKUP_VERSION,
         device_id: state.device_id.clone(),
@@ -661,12 +698,25 @@ async fn read_manifest(provider: &DynProvider) -> Result<Option<SyncManifestV4>,
 async fn read_v5(
     provider: &DynProvider,
 ) -> Result<Option<(SyncEnvelopeHeaderV5, Vec<u8>)>, String> {
-    if provider.stat(SYNC_V5_FILENAME).await?.is_none() {
-        return Ok(None);
+    if provider.stat(SYNC_V5_FILENAME).await?.is_some() {
+        let bytes = provider.read(SYNC_V5_FILENAME).await?;
+        let parsed = match gzip_decompress(&bytes) {
+            Ok(raw) => parse_v5_envelope(&raw)?,
+            Err(_) => parse_v5_envelope(&bytes)?,
+        };
+        return Ok(Some(parsed));
     }
-    let bytes = provider.read(SYNC_V5_FILENAME).await?;
-    let parsed = parse_v5_envelope(&bytes)?;
-    Ok(Some(parsed))
+    if provider.stat(SYNC_V5_RAW_FILENAME).await?.is_some() {
+        let bytes = provider.read(SYNC_V5_RAW_FILENAME).await?;
+        let parsed = parse_v5_envelope(&bytes)?;
+        return Ok(Some(parsed));
+    }
+    if provider.stat(SYNC_V5_LEGACY_FILENAME).await?.is_some() {
+        let bytes = provider.read(SYNC_V5_LEGACY_FILENAME).await?;
+        let parsed = parse_v5_envelope(&bytes)?;
+        return Ok(Some(parsed));
+    }
+    Ok(None)
 }
 
 async fn read_legacy(
@@ -786,10 +836,13 @@ async fn write_v5_remote(
     header: &SyncEnvelopeHeaderV5,
     envelope: Vec<u8>,
 ) -> Result<(), String> {
+    let packaged = gzip_compress(&envelope)?;
     provider
-        .write(SYNC_V5_FILENAME, Bytes::from(envelope))
+        .write(SYNC_V5_FILENAME, Bytes::from(packaged))
         .await?;
+    let _ = provider.delete(SYNC_V5_RAW_FILENAME).await;
     let _ = provider.delete(SYNC_FILENAME).await;
+    let _ = provider.delete(SYNC_V5_LEGACY_FILENAME).await;
     let _ = provider.delete(SYNC_LEGACY_FILENAME).await;
     let _ = provider.delete(SYNC_MANIFEST_FILENAME).await;
     let _ = provider.delete_prefix(SYNC_CHUNK_PREFIX).await;
@@ -802,9 +855,31 @@ async fn write_v5_remote(
     Ok(())
 }
 
+fn persist_local_v5_snapshot(db: &Db, envelope: &[u8]) {
+    let json_path = db.paths.data_dir.join("vortix.json");
+    if let Some(parent) = json_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    match gzip_compress(envelope) {
+        Ok(packaged) => {
+            if let Err(e) = fs::write(&json_path, packaged) {
+                tracing::warn!("[Vortix] failed to write local sync packaged snapshot: {}", e);
+            }
+        }
+        Err(e) => {
+            tracing::warn!("[Vortix] failed to package local sync snapshot: {}", e);
+        }
+    }
+    let raw_path = db.paths.data_dir.join(SYNC_V5_RAW_FILENAME);
+    if raw_path.exists() {
+        let _ = fs::remove_file(raw_path);
+    }
+}
+
 async fn detect_remote_key(provider: &DynProvider, body: &SyncRequestBody) -> &'static str {
     for key in [
         SYNC_V5_FILENAME,
+        SYNC_V5_LEGACY_FILENAME,
         SYNC_MANIFEST_FILENAME,
         SYNC_FILENAME,
         SYNC_LEGACY_FILENAME,
@@ -865,10 +940,17 @@ pub async fn sync_status(
 
     match read_v5(&provider).await {
         Ok(Some(_)) => {
-            let stat = provider
-                .stat(SYNC_V5_FILENAME)
-                .await
-                .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
+            let stat = match provider.stat(SYNC_V5_FILENAME).await {
+                Ok(Some(s)) => Some(s),
+                Ok(None) => provider
+                    .stat(SYNC_V5_LEGACY_FILENAME)
+                    .await
+                    .map_err(|e| err(StatusCode::BAD_REQUEST, e))?,
+                Err(_) => provider
+                    .stat(SYNC_V5_LEGACY_FILENAME)
+                    .await
+                    .map_err(|e| err(StatusCode::BAD_REQUEST, e))?,
+            };
             return Ok(ok(stat.unwrap_or(SyncFileInfo {
                 exists: true,
                 last_modified: None,
@@ -949,6 +1031,7 @@ pub async fn sync_export(
         SyncFormatSelection::V5 => {
             let (header, envelope) = build_v5_envelope(&state, &data, &body)
                 .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+            persist_local_v5_snapshot(&db, &envelope);
             write_v5_remote(&provider, &header, envelope)
                 .await
                 .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
@@ -977,6 +1060,8 @@ pub async fn sync_export(
                 .await
                 .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
             let _ = provider.delete(SYNC_V5_FILENAME).await;
+            let _ = provider.delete(SYNC_V5_RAW_FILENAME).await;
+            let _ = provider.delete(SYNC_V5_LEGACY_FILENAME).await;
             let _ = provider.delete(SYNC_FILENAME).await;
             let _ = provider.delete(SYNC_LEGACY_FILENAME).await;
             provider
@@ -1001,7 +1086,7 @@ pub async fn sync_export(
             let checksum = compute_checksum_value(&data_value)
                 .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e))?;
             let revision = state.last_sync_revision + 1;
-            let now = Utc::now().to_rfc3339();
+            let now = now_rfc3339();
 
             let payload = json!({
                 "$schema": "vortix-sync",
@@ -1025,6 +1110,8 @@ pub async fn sync_export(
                 .await
                 .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
             let _ = provider.delete(SYNC_V5_FILENAME).await;
+            let _ = provider.delete(SYNC_V5_RAW_FILENAME).await;
+            let _ = provider.delete(SYNC_V5_LEGACY_FILENAME).await;
             let _ = provider.delete(SYNC_MANIFEST_FILENAME).await;
             let _ = provider.delete(SYNC_LEGACY_FILENAME).await;
             let _ = provider.delete_prefix(SYNC_CHUNK_PREFIX).await;
@@ -1049,6 +1136,9 @@ pub async fn sync_import(
         .await
         .map_err(|e| err(StatusCode::BAD_REQUEST, e))?
     {
+        if let Ok(snapshot) = encode_v5_envelope(&header, &ciphertext) {
+            persist_local_v5_snapshot(&db, &snapshot);
+        }
         let (data, revision) = decode_v5_payload(&body, &header, &ciphertext)
             .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
         let result = apply_sync_payload(&db, data).await?;
@@ -1143,6 +1233,8 @@ pub async fn sync_delete_remote(
     let _ = db;
     let provider = create_provider(&body).map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
     let _ = provider.delete(SYNC_V5_FILENAME).await;
+    let _ = provider.delete(SYNC_V5_RAW_FILENAME).await;
+    let _ = provider.delete(SYNC_V5_LEGACY_FILENAME).await;
     let _ = provider.delete(SYNC_FILENAME).await;
     let _ = provider.delete(SYNC_LEGACY_FILENAME).await;
     let _ = provider.delete(SYNC_MANIFEST_FILENAME).await;

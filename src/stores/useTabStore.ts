@@ -3,6 +3,17 @@ import type { AppTab, ListViewMode, AssetRow } from '../types'
 import { useWorkspaceStore, nextPaneId } from './useWorkspaceStore'
 import { destroySession } from './terminalSessionRegistry'
 
+const nowLocalRfc3339 = (): string => {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const offsetMinutes = -d.getTimezoneOffset()
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const abs = Math.abs(offsetMinutes)
+  const oh = pad(Math.floor(abs / 60))
+  const om = pad(abs % 60)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${oh}:${om}`
+}
+
 interface TabState {
   tabs: AppTab[]
   activeTabId: string
@@ -91,7 +102,7 @@ export const useTabStore = create<TabState>((set, get) => ({
   }),
 
   updateTabStatus: (id, status) => set((s) => ({
-    tabs: s.tabs.map(t => t.id === id ? { ...t, status, connectedAt: status === 'connected' ? new Date().toISOString() : t.connectedAt } : t),
+    tabs: s.tabs.map(t => t.id === id ? { ...t, status, connectedAt: status === 'connected' ? nowLocalRfc3339() : t.connectedAt } : t),
   })),
 
   closeOtherTabs: (tabId) => set((s) => {

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use base64::engine::general_purpose::{STANDARD, URL_SAFE_NO_PAD};
 use bytes::Bytes;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -11,6 +11,7 @@ use tokio::time;
 
 use super::SyncProvider;
 use crate::server::types::{RemoteCheckResult, SyncFileInfo, SyncRequestBody};
+use crate::time_utils::now_rfc3339;
 
 fn resolve_cache_root() -> PathBuf {
     if let Ok(value) = std::env::var("VORTIX_HOME") {
@@ -49,7 +50,6 @@ pub struct GitProvider {
     username: Option<String>,
     password: Option<String>,
     ssh_key: Option<String>,
-    tls_verify: bool,
     work_dir: PathBuf,
 }
 
@@ -59,6 +59,12 @@ impl GitProvider {
     const WRITE_TIMEOUT_SECS: u64 = 60;
     pub fn new(body: &SyncRequestBody) -> Result<Self, String> {
         let url = body.sync_git_url.clone().ok_or("syncGitUrl required")?;
+        Self::ensure_secure_remote_url(&url)?;
+        let tls_verify = body.sync_tls_verify.unwrap_or(true);
+        if !tls_verify && !Self::is_ssh_url(&url) {
+            return Err("syncTlsVerify=false is disabled: Git HTTPS requires certificate verification".to_string());
+        }
+
         let branch = body
             .sync_git_branch
             .clone()
@@ -71,9 +77,9 @@ impl GitProvider {
 
         let clean = subdir.trim().trim_matches('/').replace('\\', "/");
         let sync_rel_path = if clean.is_empty() {
-            "vortix-sync.json".to_string()
+            "vortix.json".to_string()
         } else {
-            format!("{}/vortix-sync.json", clean)
+            format!("{}/vortix.json", clean)
         };
 
         let ssh_key = body
@@ -90,9 +96,27 @@ impl GitProvider {
             username: body.sync_git_username.clone(),
             password: body.sync_git_password.clone(),
             ssh_key,
-            tls_verify: body.sync_tls_verify.unwrap_or(true),
             work_dir,
         })
+    }
+
+    fn is_ssh_url(url: &str) -> bool {
+        let lowered = url.trim().to_lowercase();
+        lowered.starts_with("git@") || lowered.starts_with("ssh://")
+    }
+
+    fn ensure_secure_remote_url(url: &str) -> Result<(), String> {
+        if Self::is_ssh_url(url) {
+            return Ok(());
+        }
+        let parsed = url::Url::parse(url).map_err(|_| {
+            "syncGitUrl invalid: only ssh://, git@, or https:// are supported".to_string()
+        })?;
+        match parsed.scheme() {
+            "https" => Ok(()),
+            "http" => Err("Git over HTTP is not allowed; use HTTPS or SSH".to_string()),
+            _ => Err("syncGitUrl invalid: only ssh://, git@, or https:// are supported".to_string()),
+        }
     }
 
     // ── 路径工具 ──
@@ -110,8 +134,7 @@ impl GitProvider {
     }
 
     fn is_ssh(&self) -> bool {
-        let url = self.url.trim().to_lowercase();
-        url.starts_with("git@") || url.starts_with("ssh://")
+        Self::is_ssh_url(&self.url)
     }
 
     fn has_repo(&self) -> bool {
@@ -129,22 +152,21 @@ impl GitProvider {
         Ok(Some(path))
     }
 
-    /// 构建 git 命令的认证 URL（HTTPS 场景嵌入用户名密码）
-    fn auth_url(&self) -> String {
+    /// 构建 git 命令的 HTTP Basic Header 配置（避免将凭据放入 URL）
+    fn http_extra_header_config(&self) -> Option<String> {
         if self.is_ssh() {
-            return self.url.clone();
+            return None;
         }
-        // HTTPS: 尝试将 username:password 嵌入 URL
-        let user = self.username.as_deref().filter(|v| !v.trim().is_empty());
-        let pass = self.password.as_deref().filter(|v| !v.is_empty());
-        if let (Some(u), Some(p)) = (user, pass) {
-            if let Ok(mut parsed) = url::Url::parse(&self.url) {
-                let _ = parsed.set_username(u);
-                let _ = parsed.set_password(Some(p));
-                return parsed.to_string();
-            }
+        let user = self.username.as_deref().filter(|v| !v.trim().is_empty())?;
+        let pass = self.password.as_deref().filter(|v| !v.is_empty())?;
+        let token = STANDARD.encode(format!("{}:{}", user, pass));
+        Some(format!("http.extraHeader=Authorization: Basic {}", token))
+    }
+
+    fn apply_http_auth_config(&self, cmd: &mut Command) {
+        if let Some(config) = self.http_extra_header_config() {
+            cmd.arg("-c").arg(config);
         }
-        self.url.clone()
     }
 
     // ── git 命令执行 ──
@@ -156,6 +178,7 @@ impl GitProvider {
         cmd.stdin(Stdio::null());
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
+        self.apply_http_auth_config(&mut cmd);
 
         // SSH 密钥
         if let Some(kp) = key_path {
@@ -164,11 +187,6 @@ impl GitProvider {
                 kp.to_string_lossy().replace('\\', "/")
             );
             cmd.env("GIT_SSH_COMMAND", ssh_cmd);
-        }
-
-        // TLS 验证
-        if !self.tls_verify {
-            cmd.env("GIT_SSL_NO_VERIFY", "true");
         }
 
         // 禁止交互式提示
@@ -183,6 +201,7 @@ impl GitProvider {
         cmd.stdin(Stdio::null());
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
+        self.apply_http_auth_config(&mut cmd);
 
         if let Some(kp) = key_path {
             let ssh_cmd = format!(
@@ -190,10 +209,6 @@ impl GitProvider {
                 kp.to_string_lossy().replace('\\', "/")
             );
             cmd.env("GIT_SSH_COMMAND", ssh_cmd);
-        }
-
-        if !self.tls_verify {
-            cmd.env("GIT_SSL_NO_VERIFY", "true");
         }
 
         cmd.env("GIT_TERMINAL_PROMPT", "0");
@@ -223,7 +238,7 @@ impl GitProvider {
                 .git_cmd_no_workdir(key_path.as_deref())
                 .arg("ls-remote")
                 .arg("--heads")
-                .arg(&self.auth_url())
+                .arg(&self.url)
                 .output()
                 .map_err(|e| format!("启动 git 失败（请确认已安装 git）: {}", e))?;
             Self::run_output(output, "ls-remote")
@@ -241,7 +256,7 @@ impl GitProvider {
                 .git_cmd_no_workdir(key_path.as_deref())
                 .arg("ls-remote")
                 .arg("--heads")
-                .arg(&self.auth_url())
+                .arg(&self.url)
                 .arg(&self.branch)
                 .output()
                 .map_err(|e| format!("启动 git 失败: {}", e))?;
@@ -271,7 +286,7 @@ impl GitProvider {
                     "--depth",
                     "1",
                 ])
-                .arg(&self.auth_url())
+                .arg(&self.url)
                 .arg(&self.work_dir.to_string_lossy().as_ref())
                 .output()
                 .map_err(|e| format!("启动 git clone 失败: {}", e))?;
@@ -442,6 +457,8 @@ impl GitProvider {
                     || fname == "vortix-sync.manifest.json"
                     || fname == "vortix-sync.vxsync"
                     || (fname == "vortix-sync.json" && rel != target)
+                    || (fname == "vortix.json" && rel != target)
+                    || fname == "vortix"
                 {
                     let _ = fs::remove_file(&path);
                 }
@@ -467,7 +484,7 @@ impl GitProvider {
             return Ok(());
         }
 
-        let message = format!("chore: vortix sync {}", chrono::Utc::now().to_rfc3339());
+        let message = format!("chore: vortix sync {}", now_rfc3339());
         let output = self
             .git_cmd(None)
             .args(["commit", "--allow-empty", "-m", &message])
@@ -514,7 +531,7 @@ impl GitProvider {
             let output = self
                 .git_cmd_no_workdir(key_path.as_deref())
                 .args(["ls-remote", "--heads"])
-                .arg(&self.auth_url())
+                .arg(&self.url)
                 .arg(&self.branch)
                 .output()
                 .map_err(|e| format!("git ls-remote 失败: {}", e))?;
@@ -612,7 +629,7 @@ impl SyncProvider for GitProvider {
             let last_modified = meta
                 .modified()
                 .ok()
-                .map(|t| chrono::DateTime::<chrono::Utc>::from(t).to_rfc3339());
+                .map(|t| chrono::DateTime::<chrono::Local>::from(t).to_rfc3339());
             Ok(Some(SyncFileInfo {
                 exists: true,
                 last_modified,

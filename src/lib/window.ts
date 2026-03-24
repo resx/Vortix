@@ -10,7 +10,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { WindowOptions } from '@tauri-apps/api/window'
-import type { WebviewOptions } from '@tauri-apps/api/webviewWindow'
+import type { WebviewOptions } from '@tauri-apps/api/webview'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 
 let pinned = false
@@ -64,7 +64,8 @@ function createWindow(label: string, options: CreateWindowOptions): WebviewWindo
 
   try {
     const win = new WebviewWindow(label, {
-      visible: false,  // 先隐藏，等前端就绪后再 show()
+      visible: false,  // ???,??????? show()
+      dragDropEnabled: false, // Windows: disable native file-drop handler to keep HTML5 DnD
       ...options,
     })
 
@@ -292,3 +293,4 @@ export function detachTerminal(tabId: string, connectionId: string): void {
     center: true,
   })
 }
+

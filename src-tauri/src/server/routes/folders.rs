@@ -1,7 +1,6 @@
 /* ── 文件夹 CRUD ── */
 
 use axum::{extract::State, http::StatusCode, response::Json};
-use chrono::Utc;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -9,6 +8,7 @@ use super::super::helpers::mark_local_dirty;
 use super::super::response::{ApiResponse, err, ok, ok_empty};
 use super::super::types::*;
 use crate::db::Db;
+use crate::time_utils::now_rfc3339;
 
 pub async fn get_folders(
     State(db): State<Db>,
@@ -32,7 +32,7 @@ pub async fn create_folder(
     if body.name.len() > 255 {
         return Err(err(StatusCode::BAD_REQUEST, "文件夹名称长度不能超过 255"));
     }
-    let now = Utc::now().to_rfc3339();
+    let now = now_rfc3339();
     let id = Uuid::new_v4().to_string();
     let sort_order = body.sort_order.unwrap_or(0);
 
@@ -93,7 +93,7 @@ pub async fn update_folder(
         _ => existing.sort_order,
     };
 
-    let updated_at = Utc::now().to_rfc3339();
+    let updated_at = now_rfc3339();
     sqlx::query(
         "UPDATE folders SET name = ?, parent_id = ?, sort_order = ?, updated_at = ? WHERE id = ?",
     )

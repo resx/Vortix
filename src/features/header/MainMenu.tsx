@@ -196,7 +196,6 @@ export default function MainMenu() {
             <AppIcon icon={icons.settings} size={14} className="text-text-2" />
             {t('menu.settings')}
           </div>
-          <DropdownMenuShortcut>Ctrl+,</DropdownMenuShortcut>
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={() => toggleQuickSearch()}>
           <div className="flex items-center gap-2.5">

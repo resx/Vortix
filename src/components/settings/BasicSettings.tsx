@@ -149,7 +149,7 @@ export default function BasicSettings() {
           />
           <LockPasswordRow />
           <SToggle k="restoreSession" label="会话标签记忆" desc="(启用后，启动会自动还原上次打开的标签)" />
-          <SToggle k="debugMode" label="调试模式" desc="开启后允许 F12 打开开发者工具" />
+          {/* <SToggle k="debugMode" label="调试模式" desc="开启后允许 F12 打开开发者工具" /> */}
         </SettingGroup>
       </div>
     </>

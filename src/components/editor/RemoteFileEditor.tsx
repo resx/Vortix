@@ -9,6 +9,7 @@ import { AppIcon, icons } from '../icons/AppIcon'
 import { getLanguageExtension, getLanguageName } from './useEditorLanguage'
 import { useToastStore } from '../../stores/useToastStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
+import { useUIStore } from '../../stores/useUIStore'
 import { resolveFontChain } from '../../lib/fonts'
 
 /** 根据 editorLineEnding 设置转换换行符 */
@@ -47,6 +48,7 @@ export default function RemoteFileEditor({ filePath, content, onSave, onClose }:
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const addToast = useToastStore(s => s.addToast)
+  const openConfirmDialog = useUIStore((s) => s.openConfirmDialog)
   const isDark = useSettingsStore(s => s.theme === 'dark' || (s.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches))
 
   const fileName = filePath.split('/').pop() || filePath
@@ -128,9 +130,18 @@ export default function RemoteFileEditor({ filePath, content, onSave, onClose }:
   }, [onSave, addToast])
 
   const handleClose = useCallback(() => {
-    if (dirty && !confirm('文件已修改，确定关闭？未保存的更改将丢失。')) return
+    if (dirty) {
+      openConfirmDialog({
+        title: '确认关闭',
+        description: '文件已修改，确定关闭？未保存的更改将丢失。',
+        confirmText: '确认关闭',
+        danger: true,
+        onConfirm: () => onClose(),
+      })
+      return
+    }
     onClose()
-  }, [dirty, onClose])
+  }, [dirty, onClose, openConfirmDialog])
 
   // Ctrl+S 快捷键
   useEffect(() => {
@@ -191,3 +202,4 @@ export default function RemoteFileEditor({ filePath, content, onSave, onClose }:
     </div>
   )
 }
+

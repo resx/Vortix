@@ -8,6 +8,7 @@ export interface TreeItem {
   children?: TreeItem[]
   command?: string
   remark?: string
+  groupName?: string
 }
 
 export interface AssetRow {

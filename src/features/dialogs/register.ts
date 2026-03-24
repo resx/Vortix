@@ -24,7 +24,14 @@ export function registerDialogs(): () => void {
     registerDialog({ id: 'update', component: UpdateDialog, isOpen: () => useUIStore.getState().updateDialogOpen }),
     registerDialog({ id: 'clear-data', component: ClearDataDialog, isOpen: () => useUIStore.getState().clearDataDialogOpen }),
     registerDialog({ id: 'reload', component: ReloadConfirmDialog, isOpen: () => useUIStore.getState().reloadDialogOpen }),
-    registerDialog({ id: 'shortcut', component: ShortcutDialog, isOpen: () => useShortcutStore.getState().shortcutDialogOpen }),
+    registerDialog({
+      id: 'shortcut',
+      component: ShortcutDialog,
+      isOpen: () => {
+        const state = useShortcutStore.getState()
+        return state.shortcutDialogOpen || state.shortcutGroupDialogOpen
+      },
+    }),
     registerDialog({ id: 'batch-edit', component: BatchEditModal, isOpen: () => useUIStore.getState().batchEditOpen }),
     registerDialog({ id: 'sync-conflict', component: SyncConflictDialog, isOpen: () => useUIStore.getState().syncConflictOpen }),
     registerDialog({ id: 'host-key-trust', component: HostKeyTrustDialog, isOpen: () => useUIStore.getState().hostKeyDialogOpen }),

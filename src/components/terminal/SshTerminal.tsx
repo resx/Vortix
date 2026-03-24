@@ -347,6 +347,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
   const onStatusChangeRef = useRef(onStatusChange)
   useEffect(() => { onStatusChangeRef.current = onStatusChange })
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     hasConnectedRef.current = false
     setTerminalStatus('connecting')
@@ -355,6 +356,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
     setPendingHostKeyPrompt(null)
     setConnectionErrorText('')
   }, [connection])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     const session = getSession(paneId)
@@ -768,6 +770,7 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
   useEffect(() => { connectWsRef.current = connectWs }, [connectWs])
 
   // 主 effect：挂载恢复 / 首次创建
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!wrapperRef.current || !connection) return
     const wrapper = wrapperRef.current
@@ -896,9 +899,6 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       })
 
       const isLocalConn = 'type' in connection && connection.type === 'local'
-      const connectMsg = isLocalConn
-        ? `正在启动 ${connection.shell} 终端...`
-        : `正在连接 ${(connection as SshConnection).host}:${(connection as SshConnection).port} ...`
       setConnectionStageText(
         isLocalConn
           ? `${translate('connectionLoading.phase.startingLocal')} ${connection.shell}...`
@@ -984,7 +984,8 @@ export default function SshTerminal({ paneId, tabId, wsUrl, connection, connecti
       wsRef.current = null
       // 不销毁会话！会话保留在注册表中
     }
-  }, [applyPerformanceMode, connection, connectWs, getProposedDimensions, paneId, profileId, safeFit, stabilizeTerminalLayout, updateCellHeight])
+  }, [applyPerformanceMode, connection, connectWs, getProposedDimensions, paneId, profileId, safeFit, stabilizeTerminalLayout, updateCellHeight, updateTerminalStatus])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // 统一监听 Profile / Settings / dark mode 变化
   useEffect(() => {

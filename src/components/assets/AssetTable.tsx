@@ -88,6 +88,13 @@ export default function AssetTable() {
     [filteredData, sortKey, sortDir],
   )
 
+  const parseDraggedConnectionId = (e: React.DragEvent): string => {
+    const typed = e.dataTransfer.getData('text/connection-id')
+    if (typed?.trim()) return typed.trim()
+    const plain = e.dataTransfer.getData('text/plain')
+    return plain?.trim() ?? ''
+  }
+
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir(sortDir === 'asc' ? 'desc' : sortDir === 'desc' ? null : 'asc')
@@ -227,7 +234,7 @@ export default function AssetTable() {
               onDrop={(e) => {
                 e.preventDefault()
                 e.currentTarget.classList.remove('ring-2', 'ring-primary/50', 'ring-inset')
-                const connectionId = e.dataTransfer.getData('text/connection-id')
+                const connectionId = parseDraggedConnectionId(e)
                 if (connectionId) moveConnectionToFolder(connectionId, null)
               }}
             >
@@ -252,6 +259,7 @@ export default function AssetTable() {
               onDragStart={(e) => {
                 if (row.type === 'asset') {
                   e.dataTransfer.setData('text/connection-id', row.id)
+                  e.dataTransfer.setData('text/plain', row.id)
                   e.dataTransfer.effectAllowed = 'move'
                 }
               }}
@@ -268,7 +276,7 @@ export default function AssetTable() {
                 e.preventDefault()
                 e.currentTarget.classList.remove('ring-2', 'ring-primary/50', 'ring-inset')
                 if (row.type === 'folder') {
-                  const connectionId = e.dataTransfer.getData('text/connection-id')
+                  const connectionId = parseDraggedConnectionId(e)
                   if (connectionId) moveConnectionToFolder(connectionId, row.id)
                 }
               }}

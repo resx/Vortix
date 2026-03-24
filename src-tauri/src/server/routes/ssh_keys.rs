@@ -7,7 +7,6 @@ use axum::{
     response::Json,
     response::Response as AxumResponse,
 };
-use chrono::Utc;
 use flate2::{Compression, write::GzEncoder};
 use serde_json::{Value, json};
 use std::collections::HashMap;
@@ -20,6 +19,7 @@ use super::super::helpers::mark_local_dirty;
 use super::super::response::{ApiResponse, err, ok, ok_empty};
 use super::super::types::*;
 use crate::db::Db;
+use crate::time_utils::{now_rfc3339, now_timestamp};
 
 pub async fn get_ssh_keys(
     State(db): State<Db>,
@@ -120,7 +120,7 @@ pub async fn create_ssh_key(
     let key_type = body.key_type.unwrap_or_else(|| "unknown".to_string());
     let description = body.description.unwrap_or_default();
     let id = Uuid::new_v4().to_string();
-    let now = Utc::now().to_rfc3339();
+    let now = now_rfc3339();
     let remark = body.remark.unwrap_or_default();
 
     sqlx::query(
@@ -356,7 +356,7 @@ pub async fn generate_ssh_key(
     };
 
     let id = Uuid::new_v4().to_string();
-    let now = Utc::now().to_rfc3339();
+    let now = now_rfc3339();
 
     sqlx::query(
         "INSERT INTO ssh_keys (id, name, key_type, public_key, has_passphrase, encrypted_private_key, encrypted_passphrase, certificate, remark, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -406,7 +406,7 @@ fn build_tar(files: &[(String, String)]) -> Vec<u8> {
         write_octal(&mut header[108..116], 0, 8);
         write_octal(&mut header[116..124], 0, 8);
         write_octal(&mut header[124..136], content_bytes.len() as u64, 12);
-        write_octal(&mut header[136..148], (Utc::now().timestamp()) as u64, 12);
+        write_octal(&mut header[136..148], now_timestamp() as u64, 12);
         header[156] = b'0';
         header[257..263].copy_from_slice(b"ustar\0");
         header[263..265].copy_from_slice(b"00");

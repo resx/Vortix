@@ -9,6 +9,7 @@ pub mod history;
 pub mod maintenance;
 pub mod presets;
 pub mod settings;
+pub mod shortcut_groups;
 pub mod shortcuts;
 pub mod ssh_keys;
 pub mod sync;

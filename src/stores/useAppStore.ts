@@ -16,7 +16,7 @@ interface AppState {
   /** @deprecated 使用 useToastStore */
   toasts: ToastItem[]
   /** @deprecated 使用 useToastStore */
-  addToast: (type: 'success' | 'error', message: string) => void
+  addToast: (type: 'success' | 'error' | 'info', message: string) => void
   /** @deprecated 使用 useToastStore */
   removeToast: (id: string) => void
 
@@ -59,7 +59,7 @@ interface AppState {
   fetchShortcuts: () => Promise<void>
 
   /** @deprecated 使用 useShortcutStore */
-  createShortcutAction: (name: string, command: string, remark?: string) => Promise<void>
+  createShortcutAction: (name: string, command: string, remark?: string, groupName?: string) => Promise<void>
   /** @deprecated 使用 useShortcutStore */
   deleteShortcutAction: (id: string) => Promise<void>
   /** @deprecated 使用 useShortcutStore */
@@ -74,7 +74,7 @@ interface AppState {
   /** @deprecated 使用 useShortcutStore */
   shortcutDialogInitialId: string | null
   /** @deprecated 使用 useShortcutStore */
-  openShortcutDialog: (mode: 'create' | 'edit', id?: string) => void
+  openShortcutDialog: (mode: 'create' | 'edit', id?: string, groupName?: string) => void
   /** @deprecated 使用 useShortcutStore */
   closeShortcutDialog: () => void
 
@@ -311,7 +311,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // 快捷命令（代理 → useShortcutStore）
   fetchShortcuts: async () => useShortcutStore.getState().fetchShortcuts(),
-  createShortcutAction: async (name, command, remark) => useShortcutStore.getState().createShortcutAction(name, command, remark),
+  createShortcutAction: async (name, command, remark, groupName) => useShortcutStore.getState().createShortcutAction(name, command, remark, groupName),
   deleteShortcutAction: async (id) => useShortcutStore.getState().deleteShortcutAction(id),
   updateShortcutAction: async (id, data) => useShortcutStore.getState().updateShortcutAction(id, data),
   executeShortcut: (command, mode) => useShortcutStore.getState().executeShortcut(command, mode),
@@ -320,7 +320,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   shortcutDialogOpen: false,
   shortcutDialogMode: 'create',
   shortcutDialogInitialId: null,
-  openShortcutDialog: (mode, id) => useShortcutStore.getState().openShortcutDialog(mode, id),
+  openShortcutDialog: (mode, id, groupName) => useShortcutStore.getState().openShortcutDialog(mode, id, groupName),
   closeShortcutDialog: () => useShortcutStore.getState().closeShortcutDialog(),
 
   // 右键菜单（代理 → useUIStore）

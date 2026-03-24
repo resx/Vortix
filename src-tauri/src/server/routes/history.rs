@@ -3,7 +3,6 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
-use chrono::Utc;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 
@@ -13,6 +12,7 @@ use super::super::remote_history::{
 };
 use super::super::response::{ApiResponse, err, ok};
 use crate::db::Db;
+use crate::time_utils::now_rfc3339;
 
 pub async fn get_history(
     State(db): State<Db>,
@@ -57,7 +57,7 @@ pub async fn add_history(
         ));
     }
 
-    let executed_at = Utc::now().to_rfc3339();
+    let executed_at = now_rfc3339();
     let mut tx = db
         .pool
         .begin()

@@ -4,6 +4,17 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { BookmarkEntry } from '../types/sftp'
 
+const nowLocalRfc3339 = (): string => {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const offsetMinutes = -d.getTimezoneOffset()
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  const abs = Math.abs(offsetMinutes)
+  const oh = pad(Math.floor(abs / 60))
+  const om = pad(abs % 60)
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${oh}:${om}`
+}
+
 interface SftpBookmarkState {
   bookmarks: BookmarkEntry[]
   add: (path: string, label?: string) => void
@@ -24,7 +35,7 @@ export const useSftpBookmarkStore = create<SftpBookmarkState>()(
           bookmarks: [...get().bookmarks, {
             path,
             label: name,
-            createdAt: new Date().toISOString(),
+            createdAt: nowLocalRfc3339(),
           }],
         })
       },
