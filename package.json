@@ -16,9 +16,6 @@
     "build": "pnpm typecheck && pnpm build:web",
     "lint": "eslint .",
     "preview": "vite preview",
-    "ci:preflight": "node ./.github/scripts/ci-preflight.mjs",
-    "ci:check": "pnpm ci:preflight && pnpm lint && pnpm typecheck && pnpm build:web",
-    "ci:tauri": "pnpm ci:preflight && pnpm tauri:build:debug",
     "release:verify-tag": "node ./.github/scripts/verify-release-tag.mjs"
   },
   "dependencies": {
