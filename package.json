@@ -16,7 +16,9 @@
     "build": "pnpm typecheck && pnpm build:web",
     "lint": "eslint .",
     "preview": "vite preview",
-    "release:verify-tag": "node ./.github/scripts/verify-release-tag.mjs"
+    "release:sync-version": "node ./.github/scripts/verify-release-tag.mjs sync-version",
+    "release:verify-tag": "node ./.github/scripts/verify-release-tag.mjs verify-tag",
+    "version": "pnpm release:sync-version"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.1",
