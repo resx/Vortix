@@ -167,7 +167,10 @@ export default function Sidebar() {
   const activeFilter = useAssetStore((s) => s.activeFilter)
   const isSidebarOpen = useUIStore((s) => s.isSidebarOpen)
   const assets = useAssetStore((s) => s.assets)
+  const fetchAssets = useAssetStore((s) => s.fetchAssets)
+  const isAssetLoading = useAssetStore((s) => s.isDataLoading)
   const shortcuts = useShortcutStore((s) => s.shortcuts)
+  const fetchShortcuts = useShortcutStore((s) => s.fetchShortcuts)
   const toggleAssetFolder = useAssetStore((s) => s.toggleFolder)
   const expandAssetFolders = useAssetStore((s) => s.expandAllFolders)
   const collapseAssetFolders = useAssetStore((s) => s.collapseAllFolders)
@@ -194,9 +197,11 @@ export default function Sidebar() {
   const [isShortcutDragging, setIsShortcutDragging] = useState(false)
   const [draggingShortcutIds, setDraggingShortcutIds] = useState<string[]>([])
   const [shortcutDropTarget, setShortcutDropTarget] = useState<string | null>(null)
+  const [isRefreshingList, setIsRefreshingList] = useState(false)
 
   const isShortcuts = activeFilter === 'shortcuts'
   const isAll = activeFilter === 'all'
+  const isRefreshing = isRefreshingList || (!isShortcuts && isAssetLoading)
   const title = isShortcuts ? '快捷命令' : '资产列表'
   const data = isShortcuts ? shortcuts : assets
   const target = isShortcuts ? 'shortcuts' as const : 'assets' as const
@@ -344,6 +349,20 @@ export default function Sidebar() {
     showContextMenu(e.clientX, e.clientY, type, item ?? null)
   }
 
+  const handleRefreshList = async () => {
+    if (isRefreshing) return
+    setIsRefreshingList(true)
+    try {
+      if (isShortcuts) {
+        await fetchShortcuts()
+      } else {
+        await fetchAssets()
+      }
+    } finally {
+      setIsRefreshingList(false)
+    }
+  }
+
   return (
     <div
       id="sidebar"
@@ -355,6 +374,12 @@ export default function Sidebar() {
         <div id="sidebar-header" className="h-[40px] flex items-center justify-between px-3 border-b border-border shrink-0">
           <span className="text-[13px] font-bold text-text-1 tracking-wide">{title}</span>
           <div className="flex items-center gap-0.5 text-text-1">
+            <SidebarHeaderButton
+              icon={isRefreshing ? icons.loader : icons.refresh}
+              tooltipText={isShortcuts ? '刷新快捷命令' : '刷新资产列表'}
+              disabled={isRefreshing}
+              onClick={() => { void handleRefreshList() }}
+            />
             <SidebarHeaderButton icon={icons.search} tooltipText="搜索" />
             <SidebarHeaderButton icon={icons.crosshair} tooltipText="定位到选中项" />
             <SidebarHeaderButton

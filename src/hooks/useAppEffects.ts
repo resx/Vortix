@@ -33,6 +33,22 @@ function isSyncSignatureVerified(): boolean {
   }
 }
 
+function isListTabActive(): boolean {
+  const { activeTabId, tabs } = useTabStore.getState()
+  const activeTab = tabs.find((tab) => tab.id === activeTabId)
+  return activeTab?.type === 'list'
+}
+
+async function refreshActiveSidebarList(): Promise<void> {
+  if (!isListTabActive()) return
+  const { activeFilter } = useAssetStore.getState()
+  if (activeFilter === 'shortcuts') {
+    await useShortcutStore.getState().fetchShortcuts()
+    return
+  }
+  await useAssetStore.getState().fetchAssets()
+}
+
 /** 初始化：加载设置、资产、快捷命令、恢复标签页 */
 export function useAppInit() {
   useEffect(() => {
@@ -190,6 +206,20 @@ export function useConfigChangedListener() {
         const lang = useSettingsStore.getState().language
         loadLocale(lang)
       })
+    })
+    return () => { unlisten.then(fn => fn()) }
+  }, [])
+}
+
+/** ??????? */
+export function useSyncDataImportedListener() {
+  useEffect(() => {
+    const unlisten = listen('sync-data-imported', async () => {
+      await Promise.all([
+        useAssetStore.getState().fetchAssets(),
+        useShortcutStore.getState().fetchShortcuts(),
+      ])
+      useUIStore.getState().setSyncRemoteAvailable(false)
     })
     return () => { unlisten.then(fn => fn()) }
   }, [])
@@ -440,6 +470,7 @@ export function useGlobalShortcuts() {
         e.preventDefault()
         e.stopPropagation()
         e.stopImmediatePropagation()
+        void refreshActiveSidebarList()
         return
       }
 

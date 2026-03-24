@@ -23,13 +23,20 @@ const langLoaders: Record<string, () => Promise<Extension>> = {
   markdown: () => import('@codemirror/lang-markdown').then(m => m.markdown()),
 }
 
+const langExtensionCache = new Map<string, Promise<Extension | null>>()
+
 /** 根据文件名获取语言扩展（懒加载） */
 export async function getLanguageExtension(fileName: string): Promise<Extension | null> {
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (!ext) return null
   const loader = langLoaders[ext]
   if (!loader) return null
-  return loader()
+  let cached = langExtensionCache.get(ext)
+  if (!cached) {
+    cached = loader().catch(() => null)
+    langExtensionCache.set(ext, cached)
+  }
+  return cached
 }
 
 /** 获取文件扩展名对应的语言名称（用于显示） */

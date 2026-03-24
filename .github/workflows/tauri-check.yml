@@ -1,0 +1,88 @@
+name: tauri-check
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/**
+      - package.json
+      - pnpm-lock.yaml
+      - .github/scripts/**
+      - src/**
+      - src-tauri/**
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/**
+      - package.json
+      - pnpm-lock.yaml
+      - .github/scripts/**
+      - src/**
+      - src-tauri/**
+
+concurrency:
+  group: tauri-check-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  tauri-build:
+    name: tauri-build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.31.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install Ubuntu system dependencies
+        if: runner.os == 'Linux'
+        run: bash ./.github/scripts/install-ubuntu-tauri-deps.sh
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Preflight
+        run: pnpm ci:preflight
+
+      - name: Build Tauri app
+        run: pnpm ci:tauri
+
+      - name: Upload bundles
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tauri-bundle-${{ matrix.os }}
+          path: |
+            src-tauri/target/debug/bundle/**
+            src-tauri/target/release/bundle/**
+          if-no-files-found: ignore

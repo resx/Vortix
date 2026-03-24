@@ -19,7 +19,7 @@ import { useTabStore } from './stores/useTabStore'
 import { useUIStore } from './stores/useUIStore'
 import { TooltipProvider } from './components/ui/tooltip'
 import { bootstrap } from './bootstrap'
-import { useAppInit, useThemeEffect, useUIFontEffect, useZoomEffect, useAnimationEffect, useGlobalShortcuts, useConfigChangedListener, useWindowReady, useTabStatePersistence, useIdleLock, useWindowSizeEffect, useAutoSyncEffect, useWindowFocusSyncCheck } from './hooks/useAppEffects'
+import { useAppInit, useThemeEffect, useUIFontEffect, useZoomEffect, useAnimationEffect, useGlobalShortcuts, useConfigChangedListener, useWindowReady, useTabStatePersistence, useIdleLock, useWindowSizeEffect, useAutoSyncEffect, useWindowFocusSyncCheck, useSyncDataImportedListener } from './hooks/useAppEffects'
 import DetachedTerminalView from './components/windows/DetachedTerminalView'
 import LockScreen from './components/lock/LockScreen'
 
@@ -58,6 +58,7 @@ function MainApp() {
   useAnimationEffect()
   useGlobalShortcuts()
   useConfigChangedListener()
+  useSyncDataImportedListener()
   useTabStatePersistence()
   useIdleLock()
   useWindowReady()

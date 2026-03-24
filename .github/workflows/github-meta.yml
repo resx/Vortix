@@ -1,0 +1,56 @@
+name: github-meta
+
+on:
+  pull_request:
+    paths:
+      - .github/**
+      - .github/.yamllint.yml
+      - .github/scripts/**
+  push:
+    branches:
+      - main
+    paths:
+      - .github/**
+      - .github/.yamllint.yml
+      - .github/scripts/**
+
+concurrency:
+  group: github-meta-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lint-github-files:
+    name: lint-github-files
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+
+      - name: Install yamllint
+        run: python -m pip install --disable-pip-version-check yamllint
+
+      - name: Lint YAML files
+        run: yamllint -c .github/.yamllint.yml .github .github/.yamllint.yml
+
+      - name: Lint GitHub workflows
+        uses: devops-actions/actionlint@v0.1.11
+
+      - name: Write summary
+        if: always()
+        run: |
+          {
+            echo "## GitHub meta checks"
+            echo "- yamllint: enabled"
+            echo "- actionlint: enabled"
+          } >> "$GITHUB_STEP_SUMMARY"

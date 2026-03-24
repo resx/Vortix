@@ -8,7 +8,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-GPLv3-blue.svg)](../LICENSE)
 
 [English](../README.md) | [中文](./README.zh-CN.md)
 
@@ -111,3 +111,7 @@ pnpm build
 pnpm lint
 ```
 
+## 开源协议
+
+本项目采用 GNU General Public License v3.0 only（`GPL-3.0-only`）开源。
+完整协议见 [LICENSE](../LICENSE)。

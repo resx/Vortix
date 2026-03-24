@@ -1,16 +1,18 @@
 /* ── 远程文件编辑器（CodeMirror 6 弹窗） ── */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, type ViewUpdate } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { oneDark } from '@codemirror/theme-one-dark'
 import { AppIcon, icons } from '../icons/AppIcon'
 import { getLanguageExtension, getLanguageName } from './useEditorLanguage'
 import { useToastStore } from '../../stores/useToastStore'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useUIStore } from '../../stores/useUIStore'
 import { resolveFontChain } from '../../lib/fonts'
+
+type ViewUpdate = { docChanged: boolean }
+type EditorViewInstance = {
+  state: { doc: { toString(): string } }
+  destroy: () => void
+}
 
 /** 根据 editorLineEnding 设置转换换行符 */
 function normalizeLineEnding(text: string, lineEnding: string): string {
@@ -44,7 +46,7 @@ interface Props {
 
 export default function RemoteFileEditor({ filePath, content, onSave, onClose }: Props) {
   const editorRef = useRef<HTMLDivElement>(null)
-  const viewRef = useRef<EditorView | null>(null)
+  const viewRef = useRef<EditorViewInstance | null>(null)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
   const addToast = useToastStore(s => s.addToast)
@@ -58,7 +60,8 @@ export default function RemoteFileEditor({ filePath, content, onSave, onClose }:
   useEffect(() => {
     if (!editorRef.current) return
 
-    let view: EditorView
+    let view: EditorViewInstance | undefined
+    let disposed = false
 
     const setup = async () => {
       const settings = useSettingsStore.getState()
@@ -67,6 +70,27 @@ export default function RemoteFileEditor({ filePath, content, onSave, onClose }:
       const wordWrap = settings.editorWordWrap
       const tabMode = settings.editorTabMode
       const ligatures = settings.fontLigatures
+
+      const langExtPromise = getLanguageExtension(fileName)
+      const [
+        viewMod,
+        stateMod,
+        commandMod,
+        themeMod,
+        langExt,
+      ] = await Promise.all([
+        import('@codemirror/view'),
+        import('@codemirror/state'),
+        import('@codemirror/commands'),
+        import('@codemirror/theme-one-dark'),
+        langExtPromise,
+      ])
+      if (disposed || !editorRef.current) return
+
+      const { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter } = viewMod
+      const { EditorState } = stateMod
+      const { defaultKeymap, history, historyKeymap } = commandMod
+      const { oneDark } = themeMod
 
       const extensions = [
         lineNumbers(),
@@ -95,17 +119,21 @@ export default function RemoteFileEditor({ filePath, content, onSave, onClose }:
 
       if (isDark) extensions.push(oneDark)
 
-      const langExt = await getLanguageExtension(fileName)
       if (langExt) extensions.push(langExt)
 
       const state = EditorState.create({ doc: content, extensions })
-      view = new EditorView({ state, parent: editorRef.current! })
+      view = new EditorView({ state, parent: editorRef.current })
+      if (disposed) {
+        view.destroy()
+        return
+      }
       viewRef.current = view
     }
 
-    setup()
+    void setup()
 
     return () => {
+      disposed = true
       view?.destroy()
       viewRef.current = null
     }
