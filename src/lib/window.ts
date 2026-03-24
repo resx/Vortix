@@ -8,6 +8,7 @@
  */
 
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { invoke } from '@tauri-apps/api/core'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { WindowOptions } from '@tauri-apps/api/window'
 import type { WebviewOptions } from '@tauri-apps/api/webview'
@@ -120,13 +121,13 @@ export function handleTitleBarDoubleClick(e: ReactMouseEvent): void {
   const target = e.target as HTMLElement
   if (target.closest(INTERACTIVE_SELECTOR)) return
   if (!isTauri()) return
-  getCurrentWindow().toggleMaximize()
+  void getCurrentWindow().toggleMaximize()
 }
 /* ── 基础窗口控制 ── */
 
 export function minimizeWindow(): void {
   if (!isTauri()) return
-  getCurrentWindow().minimize()
+  void getCurrentWindow().minimize()
 }
 
 export function maximizeWindow(): void {
@@ -134,9 +135,14 @@ export function maximizeWindow(): void {
   getCurrentWindow().toggleMaximize()
 }
 
-export function closeWindow(): void {
+export async function closeWindow(): Promise<void> {
   if (!isTauri()) return
-  getCurrentWindow().close()
+  const currentWindow = getCurrentWindow()
+  if (currentWindow.label === 'main') {
+    await invoke('exit_app')
+    return
+  }
+  await currentWindow.close()
 }
 
 export async function togglePinWindow(): Promise<boolean> {

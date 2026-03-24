@@ -25,7 +25,7 @@ export default function WindowControls({ onClose }: { onClose?: () => void | Pro
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button onClick={minimizeWindow} className="hover:text-text-1 transition-colors">
+          <button onClick={() => minimizeWindow()} className="hover:text-text-1 transition-colors">
             <AppIcon icon={icons.minimize} size={15} />
           </button>
         </TooltipTrigger>
@@ -33,7 +33,7 @@ export default function WindowControls({ onClose }: { onClose?: () => void | Pro
       </Tooltip>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button onClick={maximizeWindow} className="hover:text-text-1 transition-colors">
+          <button onClick={() => maximizeWindow()} className="hover:text-text-1 transition-colors">
             <AppIcon icon={icons.maximize} size={12} />
           </button>
         </TooltipTrigger>
@@ -47,7 +47,7 @@ export default function WindowControls({ onClose }: { onClose?: () => void | Pro
                 void onClose()
                 return
               }
-              closeWindow()
+              void closeWindow()
             }}
             className="hover:text-text-1 transition-colors hover:text-status-error"
           >

@@ -134,6 +134,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::greet,
             commands::list_system_fonts,
+            commands::exit_app,
         ])
         // 启动时：动态窗口尺寸 + 窗口效果 + 数据层 + axum 服务器
         .setup(|app| {

@@ -218,7 +218,7 @@ export default function MainMenu() {
             {t('menu.reload')}
           </div>
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => closeWindow()}>
+        <DropdownMenuItem onSelect={() => { void closeWindow() }}>
           <div className="flex items-center gap-2.5">
             <AppIcon icon={icons.logOut} size={14} className="text-text-2" />
             {t('menu.exit')}

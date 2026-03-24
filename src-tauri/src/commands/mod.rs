@@ -1,6 +1,7 @@
 /* ── Tauri Commands ── */
 
 use font_kit::source::SystemSource;
+use tauri::AppHandle;
 
 /// PoC 验证用：简单问候命令
 #[tauri::command]
@@ -22,4 +23,9 @@ pub fn list_system_fonts() -> Vec<String> {
             Vec::new()
         }
     }
+}
+
+#[tauri::command]
+pub fn exit_app(app: AppHandle) {
+    app.exit(0);
 }
