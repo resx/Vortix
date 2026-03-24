@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { AppIcon, icons } from '../../../components/icons/AppIcon'
+import { reloadStateAfterSyncImport } from '../../../hooks/useAppEffects'
 import { useSettingsStore, buildSyncBody, isSyncConfigured } from '../../../stores/useSettingsStore'
-import { useAssetStore } from '../../../stores/useAssetStore'
-import { useShortcutStore } from '../../../stores/useShortcutStore'
 import { useToastStore } from '../../../stores/useToastStore'
 import { useUIStore } from '../../../stores/useUIStore'
 import { openSettingsWindow } from '../../../lib/window'
@@ -80,12 +79,7 @@ export default function SyncQuickPopover({ onClose }: { onClose: () => void }) {
       }
       const result = await api.syncImport(buildSyncBody())
       addToast('success', `拉取成功：${result.folders} 文件夹、${result.connections} 连接、${result.shortcuts} 快捷命令、${result.sshKeys} 密钥`)
-      useUIStore.getState().setSyncRemoteAvailable(false)
-      await Promise.all([
-        useSettingsStore.getState().loadSettings(),
-        useAssetStore.getState().fetchAssets(),
-        useShortcutStore.getState().fetchShortcuts(),
-      ])
+      await reloadStateAfterSyncImport('quick-sync-import')
       onClose()
     } catch (e) {
       addToast('error', (e as Error).message)

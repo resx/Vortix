@@ -135,7 +135,11 @@ export default function SettingsWindow() {
       if (event.payload?.source === 'settings') return
       void loadSettings().then(() => {
         const lang = useSettingsStore.getState().language
-        return loadLocale(lang).catch(() => {})
+        return Promise.all([
+          useTerminalProfileStore.getState().loadProfiles().catch(() => {}),
+          useThemeStore.getState().loadCustomThemes().catch(() => {}),
+          loadLocale(lang).catch(() => {}),
+        ])
       })
     })
     return () => { unlisten.then(fn => fn()) }

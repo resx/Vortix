@@ -1,10 +1,8 @@
 import { useState } from 'react'
 import { AppIcon, icons } from '../icons/AppIcon'
+import { reloadStateAfterSyncImport } from '../../hooks/useAppEffects'
 import { useUIStore } from '../../stores/useUIStore'
 import { useToastStore } from '../../stores/useToastStore'
-import { useSettingsStore } from '../../stores/useSettingsStore'
-import { useAssetStore } from '../../stores/useAssetStore'
-import { useShortcutStore } from '../../stores/useShortcutStore'
 import * as api from '../../api/client'
 
 const formatLocalDateTime = (value: string | null | undefined): string => {
@@ -43,11 +41,7 @@ export default function SyncConflictDialog() {
     setResolving(true)
     try {
       const result = await api.syncImport(payload.body)
-      await Promise.all([
-        useSettingsStore.getState().loadSettings(),
-        useAssetStore.getState().fetchAssets(),
-        useShortcutStore.getState().fetchShortcuts(),
-      ])
+      await reloadStateAfterSyncImport('conflict-sync-import')
       addToast('success', `已使用远端版本: 目录${result.folders} 连接${result.connections} 快捷命令${result.shortcuts} 密钥${result.sshKeys}`)
       close()
     } catch (e) {

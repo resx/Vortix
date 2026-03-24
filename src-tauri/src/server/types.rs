@@ -493,6 +493,8 @@ pub struct SyncConnection {
     #[serde(default)]
     pub private_key: Option<String>,
     #[serde(default)]
+    pub passphrase: Option<String>,
+    #[serde(default)]
     pub sort_order: i64,
     #[serde(default)]
     pub remark: String,
@@ -516,6 +518,12 @@ pub struct SyncConnection {
     pub proxy_timeout: i64,
     #[serde(default)]
     pub jump_server_id: Option<String>,
+    #[serde(default)]
+    pub preset_id: Option<String>,
+    #[serde(default)]
+    pub private_key_id: Option<String>,
+    #[serde(default)]
+    pub jump_key_id: Option<String>,
     #[serde(default = "json_value_default")]
     pub tunnels: Value,
     #[serde(default = "json_value_default")]

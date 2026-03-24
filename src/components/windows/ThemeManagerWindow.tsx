@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
@@ -33,6 +34,23 @@ export default function ThemeManagerWindow() {
       win.show().then(() => win.setFocus())
     })
   }, [ready])
+
+  useEffect(() => {
+    const unlisten = listen<{ source?: string }>('config-changed', (event) => {
+      if (event.payload?.source === 'theme-manager') return
+      void loadSettings()
+        .then(() => {
+          const lang = useSettingsStore.getState().language
+          return Promise.all([
+            useTerminalProfileStore.getState().loadProfiles().catch(() => {}),
+            useThemeStore.getState().loadCustomThemes().catch(() => {}),
+            loadLocale(lang).catch(() => {}),
+          ])
+        })
+        .catch(() => {})
+    })
+    return () => { unlisten.then(fn => fn()) }
+  }, [loadSettings])
 
   useThemeEffect()
   useUIFontEffect()

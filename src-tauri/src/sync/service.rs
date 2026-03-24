@@ -169,6 +169,14 @@ async fn collect_sync_data(db: &Db) -> Result<SyncData, ApiError> {
             ),
             _ => None,
         };
+        let passphrase = match row.encrypted_passphrase {
+            Some(enc) if !enc.is_empty() => Some(
+                db.crypto
+                    .decrypt(&enc)
+                    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+            ),
+            _ => None,
+        };
         let proxy_password = if row.proxy_password.is_empty() {
             None
         } else {
@@ -189,6 +197,7 @@ async fn collect_sync_data(db: &Db) -> Result<SyncData, ApiError> {
             auth_method: row.auth_method,
             password,
             private_key,
+            passphrase,
             sort_order: row.sort_order,
             remark: row.remark,
             color_tag: row.color_tag,
@@ -201,6 +210,9 @@ async fn collect_sync_data(db: &Db) -> Result<SyncData, ApiError> {
             proxy_password,
             proxy_timeout: row.proxy_timeout,
             jump_server_id: row.jump_server_id,
+            preset_id: row.preset_id,
+            private_key_id: row.private_key_id,
+            jump_key_id: row.jump_key_id,
             tunnels: parse_json_value(&row.tunnels, Value::String(row.tunnels.clone())),
             env_vars: parse_json_value(&row.env_vars, Value::String(row.env_vars.clone())),
             advanced: parse_json_value(&row.advanced, Value::String(row.advanced.clone())),
@@ -426,6 +438,14 @@ async fn apply_sync_payload(db: &Db, data: SyncData) -> Result<SyncImportResult,
             ),
             _ => None,
         };
+        let encrypted_passphrase = match conn.passphrase.as_deref() {
+            Some(p) if !p.is_empty() => Some(
+                db.crypto
+                    .encrypt(p)
+                    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?,
+            ),
+            _ => None,
+        };
         let proxy_password = match conn.proxy_password.as_deref() {
             Some(p) if !p.is_empty() => db
                 .crypto
@@ -479,10 +499,10 @@ async fn apply_sync_payload(db: &Db, data: SyncData) -> Result<SyncImportResult,
         .bind(proxy_password)
         .bind(proxy_timeout)
         .bind(conn.jump_server_id)
-        .bind(None::<String>)
-        .bind(None::<String>)
-        .bind(None::<String>)
-        .bind(None::<String>)
+        .bind(conn.preset_id)
+        .bind(conn.private_key_id)
+        .bind(conn.jump_key_id)
+        .bind(encrypted_passphrase)
         .bind(tunnels)
         .bind(env_vars)
         .bind(advanced)

@@ -1,7 +1,7 @@
 /* ── App 全局副作用 hooks ── */
 
 import { useEffect, useRef } from 'react'
-import { listen } from '@tauri-apps/api/event'
+import { emit, emitTo, listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import {
   useSettingsStore,
@@ -47,6 +47,33 @@ async function refreshActiveSidebarList(): Promise<void> {
     return
   }
   await useAssetStore.getState().fetchAssets()
+}
+
+export async function reloadStateAfterSyncImport(source = 'sync-import'): Promise<void> {
+  await Promise.all([
+    useSettingsStore.getState().loadSettings(),
+    useAssetStore.getState().fetchAssets(),
+    useShortcutStore.getState().fetchShortcuts(),
+    useTerminalProfileStore.getState().loadProfiles().catch(() => {}),
+    useThemeStore.getState().loadCustomThemes().catch(() => {}),
+  ])
+
+  const lang = useSettingsStore.getState().language
+  await loadLocale(lang).catch(() => {})
+  useUIStore.getState().setSyncRemoteAvailable(false)
+
+  if (!('__TAURI_INTERNALS__' in window)) return
+
+  const payload = { source }
+  await emit('config-changed', payload).catch(() => {})
+  await Promise.allSettled([
+    emitTo('main', 'config-changed', payload),
+    emitTo('settings', 'config-changed', payload),
+    emitTo('theme-manager', 'config-changed', payload),
+    emitTo('main', 'sync-data-imported', payload),
+    emitTo('settings', 'sync-data-imported', payload),
+    emitTo('theme-manager', 'sync-data-imported', payload),
+  ])
 }
 
 /** 初始化：加载设置、资产、快捷命令、恢复标签页 */

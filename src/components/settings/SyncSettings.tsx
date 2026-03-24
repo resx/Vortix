@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { emitTo } from '@tauri-apps/api/event'
 import { SettingRow, SettingGroup } from './SettingGroup'
+import { reloadStateAfterSyncImport } from '../../hooks/useAppEffects'
 import {
   useSettingsStore,
   buildSyncBody,
@@ -298,14 +298,7 @@ export default function SyncSettings() {
       const result: ImportResult = await api.syncImport(syncBody)
       setConnectionState('ok')
       addToast('success', `拉取成功：${result.folders} 个文件夹、${result.connections} 个连接、${result.shortcuts} 个快捷命令、${result.sshKeys} 个密钥`)
-      await Promise.all([
-        useSettingsStore.getState().loadSettings(),
-        useAssetStore.getState().fetchAssets(),
-        useShortcutStore.getState().fetchShortcuts(),
-      ])
-      if ('__TAURI_INTERNALS__' in window) {
-        await emitTo('main', 'sync-data-imported', { source: 'settings' })
-      }
+      await reloadStateAfterSyncImport('settings-sync-import')
     } catch (e) {
       setConnectionState('error')
       setConnectionHint((e as Error).message)
