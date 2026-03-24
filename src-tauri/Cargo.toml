@@ -50,7 +50,7 @@ open = "5"
 dirs = "5"
 russh = "0.58"
 russh-sftp = "2.1.1"
-portable-pty = "0.8"
+portable-pty = "0.9"
 url = "2"
 
 # 工具
