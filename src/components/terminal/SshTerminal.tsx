@@ -11,6 +11,7 @@ import { useThemeStore } from '../../stores/useThemeStore'
 import { getSession } from '../../stores/terminalSessionRegistry'
 import { getWsBaseUrl } from '../../api/client'
 import { t as translate } from '../../i18n'
+import { resolveFontChain } from '../../lib/fonts'
 import ConnectionLoadingView, { type ConnectionLoadingStep } from './ConnectionLoadingView'
 import {
   fitTerminalSession,
@@ -24,6 +25,8 @@ import { resetMonitorState } from './session/terminal-monitor'
 import { useTerminalConnection } from './session/useTerminalConnection'
 import { useTerminalInteractions } from './session/useTerminalInteractions'
 import { useTerminalMount, useTerminalProfileSync } from './session/useTerminalMount'
+import TerminalSuggestionOverlay from './suggestions/TerminalSuggestionOverlay'
+import { useTerminalSuggestions } from './suggestions/useTerminalSuggestions'
 import type { TerminalSession } from '../../stores/terminalSessionRegistry'
 import type { HostKeyVerificationPayload, SshTerminalProps } from './session/terminal-types'
 import '@xterm/xterm/css/xterm.css'
@@ -61,6 +64,10 @@ export default function SshTerminal({
 
   const runtimeThemeMode = useThemeStore((state) => state.runtimeMode)
   const showRealtimeInfo = useSettingsStore((state) => state.showRealtimeInfo)
+  const termSuggestionMode = useSettingsStore((state) => state.termSuggestionMode)
+  const termSuggestionSources = useSettingsStore((state) => state.termSuggestionSources)
+  const termFontFamily = useSettingsStore((state) => state.termFontFamily)
+  const termFontSize = useSettingsStore((state) => state.termFontSize)
   const termStripeEnabled = useSettingsStore((state) => state.termStripeEnabled)
   const fallbackStripeHeight = useSettingsStore((state) => Math.max(1, Math.round((state.termFontSize || 14) * (state.termLineHeight || 1))))
 
@@ -229,6 +236,24 @@ export default function SshTerminal({
     updateCellHeight,
   })
 
+  const {
+    visible: suggestionVisible,
+    candidates: suggestionCandidates,
+    activeIndex: suggestionActiveIndex,
+    cursorCoords,
+    handleKeyDown: handleSuggestionKeyDown,
+    selectIndex: selectSuggestionIndex,
+    acceptIndex: acceptSuggestionIndex,
+  } = useTerminalSuggestions({
+    paneId,
+    enabled: termSuggestionMode !== 'off',
+    matchMode: termSuggestionMode === 'off' ? 'smart' : termSuggestionMode,
+    enabledSources: termSuggestionSources,
+    connectionKind: connection && 'type' in connection && connection.type === 'local' ? 'local' : 'ssh',
+    platformProfile: 'unknown',
+    limit: 12,
+  })
+
   useTerminalInteractions({
     paneId,
     profileId,
@@ -243,9 +268,12 @@ export default function SshTerminal({
     termRef,
     monitorRunningRef,
     onContextMenu,
+    onSuggestionKeyDown: handleSuggestionKeyDown,
   })
 
   const stripeHeight = cellHeight > 0 ? cellHeight : fallbackStripeHeight
+  const suggestionFontFamily = resolveFontChain(termFontFamily, 'monospace')
+  const suggestionFontSize = Math.max(10, termFontSize || 14)
   const stripeBackgroundImage = termStripeEnabled
     ? `repeating-linear-gradient(to bottom,
       transparent 0px, transparent ${stripeHeight}px,
@@ -338,6 +366,18 @@ export default function SshTerminal({
           style={{ backgroundImage: stripeBackgroundImage }}
         />
       )}
+      <TerminalSuggestionOverlay
+        visible={suggestionVisible && !!cursorCoords}
+        candidates={suggestionCandidates}
+        activeIndex={suggestionActiveIndex}
+        fontFamily={suggestionFontFamily}
+        fontSize={suggestionFontSize}
+        anchorX={cursorCoords?.x ?? 0}
+        anchorY={cursorCoords?.y ?? 0}
+        cellHeight={cursorCoords?.cellHeight ?? stripeHeight}
+        onSelect={selectSuggestionIndex}
+        onAccept={acceptSuggestionIndex}
+      />
     </div>
   )
 }

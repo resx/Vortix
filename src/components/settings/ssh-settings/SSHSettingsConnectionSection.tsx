@@ -18,6 +18,18 @@ export function SSHSettingsConnectionSection({ state }: { state: ReturnTypeSSHSt
           />
           <SToggle k="sshSftpPathSync" label="SSH/SFTP 路径同步" />
           <SToggle k="termSelectAutoCopy" label="选中自动复制" />
+          <SDropdown
+            k="termSuggestionMode"
+            label="命令提示匹配模式"
+            desc="关闭：禁用提示；严格前缀：仅前缀匹配；智能匹配：前缀+子串；模糊匹配：支持缩写模糊。"
+            options={[
+              { value: 'off', label: '关闭' },
+              { value: 'strict-prefix', label: '严格前缀' },
+              { value: 'smart', label: '智能匹配' },
+              { value: 'fuzzy', label: '模糊匹配' },
+            ]}
+            width="w-[180px]"
+          />
           <SToggle k="sshHistoryEnabled" label="启用 SSH 历史" />
           <SDropdown
             k="sshHistoryStorage"

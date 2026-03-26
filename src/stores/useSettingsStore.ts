@@ -3,6 +3,7 @@ import * as api from "../api/client";
 import { getThemeById } from "../components/terminal/themes/index";
 import { loadLocale } from "../i18n";
 import type { TerminalHighlightRule } from "../lib/terminal-highlight/rules";
+import type { SuggestionMatchMode, SuggestionSource } from "../lib/terminal-suggestions";
 
 export type {
   BuiltinTerminalHighlightRule,
@@ -84,6 +85,8 @@ export interface SettingsState {
   sshSftpPathSync: boolean;
   termSelectAutoCopy: boolean;
   termCommandHint: boolean;
+  termSuggestionMode: SuggestionMatchMode | 'off';
+  termSuggestionSources: SuggestionSource[];
   sshHistoryEnabled: boolean;
   sshHistoryStorage: string;
   sshHistoryLoadCount: number;
@@ -216,6 +219,8 @@ const DEFAULTS: SettingsState = {
   sshSftpPathSync: true,
   termSelectAutoCopy: false,
   termCommandHint: true,
+  termSuggestionMode: "smart",
+  termSuggestionSources: ["history", "snippet", "command-spec"],
   sshHistoryEnabled: true,
   sshHistoryStorage: "local",
   sshHistoryLoadCount: 100,
@@ -427,6 +432,24 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         }
       }
       merged.termHighlightRules = normalizeTerminalHighlightRules((remote as Record<string, unknown>).termHighlightRules);
+      const remoteSources = (remote as Record<string, unknown>).termSuggestionSources
+      if (Array.isArray(remoteSources)) {
+        const allowed = new Set<SuggestionSource>(["history", "snippet", "command-spec"])
+        const normalized = remoteSources
+          .filter((item): item is SuggestionSource => typeof item === "string" && allowed.has(item as SuggestionSource))
+        ;(merged as Record<string, unknown>).termSuggestionSources = normalized.length > 0
+          ? [...new Set(normalized)]
+          : [...DEFAULTS.termSuggestionSources]
+      }
+      const remoteMode = (remote as Record<string, unknown>).termSuggestionMode
+      if (typeof remoteMode === "string") {
+        const allowedModes = new Set<SettingsState['termSuggestionMode']>(["off", "strict-prefix", "smart", "fuzzy"])
+        if (allowedModes.has(remoteMode as SettingsState['termSuggestionMode'])) {
+          ;(merged as Record<string, unknown>).termSuggestionMode = remoteMode
+        }
+      } else if (typeof (remote as Record<string, unknown>).termCommandHint === "boolean") {
+        ;(merged as Record<string, unknown>).termSuggestionMode = (remote as Record<string, unknown>).termCommandHint ? "smart" : "off"
+      }
 
       // 向后兼容：旧字体字段 string → string[]
       const FONT_KEYS = [

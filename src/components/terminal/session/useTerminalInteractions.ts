@@ -27,6 +27,7 @@ interface UseTerminalInteractionsOptions {
   termRef: MutableRefObject<Terminal | null>
   monitorRunningRef: MutableRefObject<boolean>
   onContextMenu?: (x: number, y: number, hasSelection: boolean) => void
+  onSuggestionKeyDown?: (event: KeyboardEvent) => boolean
 }
 
 function copyText(text: string) {
@@ -70,6 +71,7 @@ export function useTerminalInteractions({
   termRef,
   monitorRunningRef,
   onContextMenu,
+  onSuggestionKeyDown,
 }: UseTerminalInteractionsOptions) {
   useEffect(() => {
     const session = getSession(paneId)
@@ -87,6 +89,9 @@ export function useTerminalInteractions({
     if (!session) return
 
     session.term.attachCustomKeyEventHandler((event) => {
+      if (event.type === 'keydown' && onSuggestionKeyDown?.(event)) {
+        return false
+      }
       if (event.key === 'F12' && useSettingsStore.getState().debugMode) return false
       if (event.key === 'Tab' && event.type === 'keydown') {
         // Keep browser focus traversal from stealing Tab while the terminal owns keyboard focus.
@@ -102,7 +107,7 @@ export function useTerminalInteractions({
       }
       return true
     })
-  }, [paneId])
+  }, [onSuggestionKeyDown, paneId])
 
   useEffect(() => {
     const wrapper = wrapperRef.current
