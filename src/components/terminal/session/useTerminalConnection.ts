@@ -28,7 +28,6 @@ interface UseTerminalConnectionOptions {
   getProposedDimensions: (term: TerminalSession['term'], fitAddon?: TerminalSession['fitAddon']) => { cols: number; rows: number } | undefined
   getResolvedHighlightRules: () => { color: string; pattern: RegExp }[]
   safeFit: (session: TerminalSession) => void
-  sendHighlightConfig: (ws: WebSocket) => void
   updateTerminalStatus: (status: 'connecting' | 'connected' | 'closed' | 'error') => void
   setConnectionErrorText: Dispatch<SetStateAction<string>>
   setPendingHostKeyPrompt: Dispatch<SetStateAction<HostKeyVerificationPayload | null>>
@@ -50,7 +49,6 @@ export function useTerminalConnection({
   getProposedDimensions,
   getResolvedHighlightRules,
   safeFit,
-  sendHighlightConfig,
   updateTerminalStatus,
   setConnectionErrorText,
   setPendingHostKeyPrompt,
@@ -94,7 +92,6 @@ export function useTerminalConnection({
             ? `${translate('connectionLoading.phase.connecting')} ${translate('connectionLoading.role.target')} ${sshConn.host}:${sshConn.port}`
             : translate('connectionLoading.phase.startingLocal'),
       )
-      sendHighlightConfig(ws)
       safeFit(session)
       const dims = getProposedDimensions(term, fitAddon)
       if (isLocal) {
@@ -250,8 +247,6 @@ export function useTerminalConnection({
           })
           break
         }
-        case 'highlight-config-ack':
-          break
         case 'monitor-data':
         case 'monitor-info':
           handleMonitorMessage(msg.type, msg.data, { enabled: showRealtimeInfo, tabId })
@@ -330,7 +325,6 @@ export function useTerminalConnection({
     pendingHostKeyRequestIdRef,
     resolvedWsUrl,
     safeFit,
-    sendHighlightConfig,
     setConnectionErrorText,
     setConnectionStageText,
     setConnectionSteps,

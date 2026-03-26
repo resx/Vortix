@@ -11,6 +11,7 @@ import { getSettingsComponent } from '../../registries/settings-panel.registry'
 import { TooltipProvider } from '../ui/tooltip'
 import WindowControls from '../../features/header/WindowControls'
 import { useThemeEffect, useUIFontEffect } from '../../hooks/useAppEffects'
+import { shouldBlockTabFocusNavigation } from '../../lib/focus-tab-policy'
 import { handleTitleBarMouseDown, handleTitleBarDoubleClick } from '../../lib/window'
 import { loadLocale } from '../../i18n'
 
@@ -233,6 +234,11 @@ export default function SettingsWindow() {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (shouldBlockTabFocusNavigation(e)) {
+        e.preventDefault()
+        e.stopPropagation()
+        return
+      }
       if (e.ctrlKey && e.key === 's') {
         e.preventDefault()
         if (dirty) void handleApply()

@@ -2,15 +2,15 @@ import { useEffect, useState } from 'react'
 import { type FontItem, type WindowWithLocalFonts } from './types'
 
 export const PRESET_FONTS: FontItem[] = [
-  { value: 'JetBrainsMono', label: '(??)JetBrains Mono', family: '"JetBrains Mono Variable", "JetBrains Mono", monospace' },
-  { value: 'NotoSansSC', label: '(??)????', family: '"Noto Sans SC Variable", "Noto Sans SC", "Source Han Sans SC", sans-serif' },
-  { value: 'IoskeleyMono', label: '(??)Ioskeley Mono', family: '"IoskeleyMono", monospace' },
-  { value: 'system', label: '(??)????', family: 'system-ui, -apple-system, sans-serif' },
-  { value: 'serif', label: '(??)Serif', family: 'serif' },
-  { value: 'sans-serif', label: '(??)Sans-serif', family: 'sans-serif' },
-  { value: 'monospace', label: '(??)Monospace', family: 'monospace' },
-  { value: 'cursive', label: '(??)Cursive', family: 'cursive' },
-  { value: 'fantasy', label: '(??)Fantasy', family: 'fantasy', fontWeight: 'bold' },
+  { value: 'JetBrainsMono', label: 'JetBrains Mono', family: '"JetBrains Mono Variable", "JetBrains Mono", monospace' },
+  { value: 'NotoSansSC', label: 'Noto Sans SC', family: '"Noto Sans SC Variable", "Noto Sans SC", "Source Han Sans SC", sans-serif' },
+  { value: 'IoskeleyMono', label: 'Ioskeley Mono', family: '"IoskeleyMono", monospace' },
+  { value: 'system', label: 'System UI', family: 'system-ui, -apple-system, sans-serif' },
+  { value: 'serif', label: 'Serif', family: 'serif' },
+  { value: 'sans-serif', label: 'Sans-serif', family: 'sans-serif' },
+  { value: 'monospace', label: 'Monospace', family: 'monospace' },
+  { value: 'cursive', label: 'Cursive', family: 'cursive' },
+  { value: 'fantasy', label: 'Fantasy', family: 'fantasy', fontWeight: 'bold' },
 ]
 
 const PRESET_FONT_VALUES = new Set(PRESET_FONTS.map((font) => font.value))
@@ -28,9 +28,9 @@ const SYSTEM_FONT_FALLBACK: FontItem[] = [
   { value: 'Liberation Mono', label: 'Liberation Mono', family: '"Liberation Mono", monospace' },
   { value: 'Fira Code', label: 'Fira Code', family: '"Fira Code", monospace' },
   { value: 'Source Code Pro', label: 'Source Code Pro', family: '"Source Code Pro", monospace' },
-  { value: 'Microsoft YaHei', label: '????', family: '"Microsoft YaHei", sans-serif' },
-  { value: 'SimHei', label: '??', family: '"SimHei", sans-serif' },
-  { value: 'SimSun', label: '??', family: '"SimSun", serif' },
+  { value: 'Microsoft YaHei', label: '微软雅黑', family: '"Microsoft YaHei", sans-serif' },
+  { value: 'SimHei', label: '黑体', family: '"SimHei", sans-serif' },
+  { value: 'SimSun', label: '宋体', family: '"SimSun", serif' },
   { value: 'Segoe UI', label: 'Segoe UI', family: '"Segoe UI", sans-serif' },
   { value: 'Arial', label: 'Arial', family: '"Arial", sans-serif' },
   { value: 'Tahoma', label: 'Tahoma', family: '"Tahoma", sans-serif' },
@@ -97,7 +97,7 @@ async function getSystemFonts(): Promise<FontItem[]> {
       systemFontsNativeLoaded = true
       return result
     } catch (error) {
-      console.warn('[Vortix] Rust ??????,???????:', error)
+      console.warn('[Vortix] Rust 字体列表读取失败，回退到预设字体：', error)
       systemFontsCache = filterAvailableFonts(SYSTEM_FONT_FALLBACK)
       return systemFontsCache
     }

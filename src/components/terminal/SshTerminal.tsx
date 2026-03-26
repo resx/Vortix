@@ -19,7 +19,7 @@ import {
   stabilizeTerminalSessionLayout,
 } from './session/terminal-layout'
 import { buildConnectionRouteLabel } from './session/terminal-connection-state'
-import { compileHighlightRules } from './session/terminal-output'
+import { compileResolvedTerminalHighlightRules, resolveThemeHighlightPalette } from '../../lib/terminal-highlight/resolver'
 import { resetMonitorState } from './session/terminal-monitor'
 import { useTerminalConnection } from './session/useTerminalConnection'
 import { useTerminalInteractions } from './session/useTerminalInteractions'
@@ -49,12 +49,10 @@ export default function SshTerminal({
   const connectWsRef = useRef<((session: TerminalSession, conn: NonNullable<SshTerminalProps['connection']>) => void) | null>(null)
   const pendingHostKeyRequestIdRef = useRef<string | null>(null)
   const hasConnectedRef = useRef(false)
-  const hintRef = useRef('')
   const monitorRunningRef = useRef(false)
   const onStatusChangeRef = useRef(onStatusChange)
 
   const [cellHeight, setCellHeight] = useState(0)
-  const [hintText, setHintText] = useState('')
   const [terminalStatus, setTerminalStatus] = useState<'connecting' | 'connected' | 'closed' | 'error'>('connecting')
   const [connectionStageText, setConnectionStageText] = useState('')
   const [connectionSteps, setConnectionSteps] = useState<ConnectionLoadingStep[]>([])
@@ -63,8 +61,6 @@ export default function SshTerminal({
 
   const runtimeThemeMode = useThemeStore((state) => state.runtimeMode)
   const showRealtimeInfo = useSettingsStore((state) => state.showRealtimeInfo)
-  const termCommandHint = useSettingsStore((state) => state.termCommandHint)
-  const sshHistoryEnabled = useSettingsStore((state) => state.sshHistoryEnabled)
   const termStripeEnabled = useSettingsStore((state) => state.termStripeEnabled)
   const fallbackStripeHeight = useSettingsStore((state) => Math.max(1, Math.round((state.termFontSize || 14) * (state.termLineHeight || 1))))
 
@@ -142,21 +138,6 @@ export default function SshTerminal({
     }
   }, [])
 
-  const sendHighlightConfig = useCallback((ws: WebSocket) => {
-    const settings = useSettingsStore.getState()
-    const mergedRules = normalizeTerminalHighlightRules([
-      ...DEFAULT_TERMINAL_HIGHLIGHT_RULES,
-      ...(settings.termHighlightRules ?? []),
-    ])
-    ws.send(JSON.stringify({
-      type: 'highlight-config',
-      data: {
-        enabled: settings.termHighlightEnhance,
-        rules: mergedRules,
-      },
-    }))
-  }, [])
-
   const getResolvedHighlightRules = useCallback(() => {
     const settings = useSettingsStore.getState()
     if (!settings.termHighlightEnhance) return []
@@ -164,8 +145,11 @@ export default function SshTerminal({
       ...DEFAULT_TERMINAL_HIGHLIGHT_RULES,
       ...(settings.termHighlightRules ?? []),
     ])
-    return compileHighlightRules(mergedRules)
-  }, [])
+    const themeStore = useThemeStore.getState()
+    const activeThemeId = runtimeThemeMode === 'dark' ? settings.termThemeDark : settings.termThemeLight
+    const themeHighlights = resolveThemeHighlightPalette(themeStore.getThemeById(activeThemeId)?.highlights)
+    return compileResolvedTerminalHighlightRules(mergedRules, themeHighlights)
+  }, [runtimeThemeMode])
 
   const updateTerminalStatus = useCallback((status: 'connecting' | 'connected' | 'closed' | 'error') => {
     setTerminalStatus(status)
@@ -184,7 +168,6 @@ export default function SshTerminal({
     getProposedDimensions,
     getResolvedHighlightRules,
     safeFit,
-    sendHighlightConfig,
     updateTerminalStatus,
     setConnectionErrorText,
     setPendingHostKeyPrompt,
@@ -253,19 +236,15 @@ export default function SshTerminal({
     connectionId,
     terminalStatus,
     showRealtimeInfo,
-    sendHighlightConfig,
     safeFit,
     updateCellHeight,
     wrapperRef,
     wsRef,
     termRef,
-    hintRef,
     monitorRunningRef,
     onContextMenu,
-    setHintText,
   })
 
-  const displayedHint = termCommandHint && sshHistoryEnabled ? hintText : ''
   const stripeHeight = cellHeight > 0 ? cellHeight : fallbackStripeHeight
   const stripeBackgroundImage = termStripeEnabled
     ? `repeating-linear-gradient(to bottom,
@@ -298,19 +277,6 @@ export default function SshTerminal({
       },
     }))
   }, [])
-
-  const handlePreviewHintAccept = useCallback(() => {
-    const session = getSession(paneId)
-    if (!session) return
-    const text = hintRef.current
-    hintRef.current = ''
-    setHintText('')
-    if (session.ws?.readyState === WebSocket.OPEN) {
-      session.ws.send(JSON.stringify({ type: 'input', data: text }))
-    }
-    session.commandBuffer += text
-    session.term.focus()
-  }, [paneId])
 
   const handleContextMenu = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
     event.preventDefault()
@@ -371,15 +337,6 @@ export default function SshTerminal({
           className="absolute inset-0 pointer-events-none"
           style={{ backgroundImage: stripeBackgroundImage }}
         />
-      )}
-      {displayedHint && (
-        <div
-          className="absolute bottom-2 right-2 bg-bg-card/90 border border-border rounded-lg px-3 py-1.5 text-[12px] backdrop-blur-sm z-10 flex items-center gap-2 cursor-pointer select-none"
-          onClick={handlePreviewHintAccept}
-        >
-          <kbd className="px-1 py-0.5 rounded bg-bg-subtle border border-border text-[10px] text-text-3 font-mono">Tab</kbd>
-          <span className="text-text-1 font-mono truncate max-w-[300px]">{displayedHint}</span>
-        </div>
       )}
     </div>
   )

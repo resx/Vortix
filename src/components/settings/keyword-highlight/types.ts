@@ -1,10 +1,11 @@
 import type { Dispatch, SetStateAction } from 'react'
-import type { TerminalHighlightRule } from '../../../stores/useSettingsStore'
+import type { TerminalHighlightDisplayRule } from '../../../lib/terminal-highlight/panel'
 
 export interface KeywordHighlightPanelState {
-  rules: TerminalHighlightRule[]
+  rules: TerminalHighlightDisplayRule[]
   enabled: boolean
   editingId: string | null
+  editingRule: TerminalHighlightDisplayRule | null
   formName: string
   setFormName: Dispatch<SetStateAction<string>>
   formPattern: string
@@ -12,8 +13,9 @@ export interface KeywordHighlightPanelState {
   formColor: string
   setFormColor: Dispatch<SetStateAction<string>>
   hasCustomRules: boolean
+  isBuiltinEditing: boolean
   toggleEnabled: () => void
-  handleEdit: (rule: TerminalHighlightRule) => void
+  handleEdit: (rule: TerminalHighlightDisplayRule) => void
   handleCancelEdit: () => void
   handleSave: () => void
   handleDelete: (id: string) => void

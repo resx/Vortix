@@ -152,12 +152,6 @@ async fn ws_ssh(mut socket: WebSocket, db: Db) {
                                     }).to_string().into())).await;
                                 }
                             }
-                            "highlight-config" => {
-                                let _ = socket.send(Message::Text(json!({
-                                    "type": "highlight-config-ack",
-                                    "data": { "categories": [] }
-                                }).to_string().into())).await;
-                            }
                             "disconnect" => {
                                 if let Some(w) = &worker {
                                     match w {

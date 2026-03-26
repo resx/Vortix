@@ -5,6 +5,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
 import { useThemeStore } from '../../stores/useThemeStore'
 import { useThemeEffect, useUIFontEffect } from '../../hooks/useAppEffects'
+import { shouldBlockTabFocusNavigation } from '../../lib/focus-tab-policy'
 import { loadLocale } from '../../i18n'
 import TermThemePanel from '../settings/TermThemePanel'
 
@@ -51,6 +52,17 @@ export default function ThemeManagerWindow() {
     })
     return () => { unlisten.then(fn => fn()) }
   }, [loadSettings])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (shouldBlockTabFocusNavigation(event)) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   useThemeEffect()
   useUIFontEffect()

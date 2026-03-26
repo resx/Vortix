@@ -93,7 +93,7 @@ export function FontSelectPanel({
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="??..."
+            placeholder="搜索字体..."
             className="h-7 w-full rounded-md border border-border-subtle bg-bg-subtle/60 pl-7 pr-2 text-[11px] text-text-1 outline-none transition-all placeholder-text-3 focus:border-primary focus:bg-bg-card/80 focus:ring-1 focus:ring-primary/40"
           />
         </div>
@@ -108,13 +108,13 @@ export function FontSelectPanel({
               onChange={onToggleAll}
             />
           </div>
-          ??
+          全选
         </label>
       </div>
 
       <div className="font-list-scrollbar h-[320px] overflow-y-auto p-1.5 pt-0">
         {groups.selected.length === 0 && groups.unselected.length === 0 ? (
-          <div className="py-8 text-center text-[12px] text-text-3">??????</div>
+          <div className="py-8 text-center text-[12px] text-text-3">没有匹配字体</div>
         ) : (
           <>
             {groups.selected.length > 0 && (

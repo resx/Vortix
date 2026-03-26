@@ -1,6 +1,5 @@
-import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import { useEffect, type MutableRefObject } from 'react'
 import { useSettingsStore } from '../../../stores/useSettingsStore'
-import { useTerminalProfileStore } from '../../../stores/useTerminalProfileStore'
 import { useKeywordHighlight } from '../useKeywordHighlight'
 import { addInputListener, getSession, removeInputListener } from '../../../stores/terminalSessionRegistry'
 import { getHistory } from '../../../api/client'
@@ -21,16 +20,13 @@ interface UseTerminalInteractionsOptions {
   connectionId?: string | null
   terminalStatus: 'connecting' | 'connected' | 'closed' | 'error'
   showRealtimeInfo: boolean
-  sendHighlightConfig: (ws: WebSocket) => void
   safeFit: (session: TerminalSession) => void
   updateCellHeight: () => void
   wrapperRef: MutableRefObject<HTMLDivElement | null>
   wsRef: MutableRefObject<WebSocket | null>
   termRef: MutableRefObject<Terminal | null>
-  hintRef: MutableRefObject<string>
   monitorRunningRef: MutableRefObject<boolean>
   onContextMenu?: (x: number, y: number, hasSelection: boolean) => void
-  setHintText: Dispatch<SetStateAction<string>>
 }
 
 function copyText(text: string) {
@@ -67,16 +63,13 @@ export function useTerminalInteractions({
   connectionId,
   terminalStatus,
   showRealtimeInfo,
-  sendHighlightConfig,
   safeFit,
   updateCellHeight,
   wrapperRef,
   wsRef,
   termRef,
-  hintRef,
   monitorRunningRef,
   onContextMenu,
-  setHintText,
 }: UseTerminalInteractionsOptions) {
   useEffect(() => {
     const session = getSession(paneId)
@@ -95,17 +88,10 @@ export function useTerminalInteractions({
 
     session.term.attachCustomKeyEventHandler((event) => {
       if (event.key === 'F12' && useSettingsStore.getState().debugMode) return false
-      if (event.key === 'Tab' && event.type === 'keydown' && hintRef.current) {
+      if (event.key === 'Tab' && event.type === 'keydown') {
+        // Keep browser focus traversal from stealing Tab while the terminal owns keyboard focus.
         event.preventDefault()
-        const text = hintRef.current
-        hintRef.current = ''
-        setHintText('')
-        const current = getSession(paneId)
-        if (current?.ws?.readyState === WebSocket.OPEN) {
-          current.ws.send(JSON.stringify({ type: 'input', data: text }))
-        }
-        if (current) current.commandBuffer += text
-        return false
+        return true
       }
       if (event.ctrlKey && event.shiftKey && (event.key === 'C' || event.key === 'c' || event.key === 'V' || event.key === 'v') && event.type === 'keydown') {
         return false
@@ -116,7 +102,7 @@ export function useTerminalInteractions({
       }
       return true
     })
-  }, [hintRef, paneId, setHintText])
+  }, [paneId])
 
   useEffect(() => {
     const wrapper = wrapperRef.current
@@ -211,23 +197,6 @@ export function useTerminalInteractions({
   }, [paneId, safeFit, updateCellHeight, wrapperRef])
 
   useEffect(() => {
-    const pushConfig = () => {
-      const ws = wsRef.current
-      if (ws) sendHighlightConfig(ws)
-    }
-    const unsub1 = useTerminalProfileStore.subscribe(pushConfig)
-    const unsub2 = useSettingsStore.subscribe((state, prev) => {
-      if (state.termHighlightEnhance !== prev.termHighlightEnhance || state.termHighlightRules !== prev.termHighlightRules) {
-        pushConfig()
-      }
-    })
-    return () => {
-      unsub1()
-      unsub2()
-    }
-  }, [sendHighlightConfig, wsRef])
-
-  useEffect(() => {
     if (!connection || ('type' in connection && connection.type === 'local')) return
     const ws = wsRef.current
     if (!ws || ws.readyState !== WebSocket.OPEN || terminalStatus !== 'connected') return
@@ -288,42 +257,4 @@ export function useTerminalInteractions({
       .catch(() => {})
   }, [connectionId, paneId])
 
-  const termCommandHint = useSettingsStore((state) => state.termCommandHint)
-  const sshHistoryEnabled = useSettingsStore((state) => state.sshHistoryEnabled)
-
-  useEffect(() => {
-    if (!termCommandHint || !sshHistoryEnabled) {
-      hintRef.current = ''
-      return
-    }
-
-    let rafId = 0
-    const listener = () => {
-      cancelAnimationFrame(rafId)
-      rafId = requestAnimationFrame(() => {
-        const session = getSession(paneId)
-        if (!session || session.commandBuffer.length < 2) {
-          if (hintRef.current) {
-            hintRef.current = ''
-            setHintText('')
-          }
-          return
-        }
-
-        const buffer = session.commandBuffer
-        const match = session.historyCache.find((command) => command.startsWith(buffer) && command !== buffer)
-        const suffix = match ? match.slice(buffer.length) : ''
-        if (suffix !== hintRef.current) {
-          hintRef.current = suffix
-          setHintText(suffix)
-        }
-      })
-    }
-
-    addInputListener(paneId, listener)
-    return () => {
-      removeInputListener(paneId, listener)
-      cancelAnimationFrame(rafId)
-    }
-  }, [hintRef, paneId, setHintText, sshHistoryEnabled, termCommandHint])
 }

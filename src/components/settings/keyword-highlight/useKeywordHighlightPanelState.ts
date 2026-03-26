@@ -5,24 +5,54 @@ import {
   useSettingsStore,
   type TerminalHighlightRule,
 } from '../../../stores/useSettingsStore'
+import { useThemeStore } from '../../../stores/useThemeStore'
+import {
+  resolveThemeHighlightPalette,
+} from '../../../lib/terminal-highlight/resolver'
+import {
+  buildTerminalHighlightDisplayRules,
+  clearCustomTerminalHighlightRules,
+  removeTerminalHighlightRule,
+  saveTerminalHighlightRules,
+} from '../../../lib/terminal-highlight/panel'
 import type { KeywordHighlightPanelState } from './types'
 
 export function useKeywordHighlightPanelState(): KeywordHighlightPanelState {
   const rawRules = useSettingsStore((state) => state.termHighlightRules)
-  const rules = useMemo(() => normalizeTerminalHighlightRules(rawRules), [rawRules])
+  const normalizedRules = useMemo(() => normalizeTerminalHighlightRules(rawRules), [rawRules])
   const enabled = useSettingsStore((state) => state.termHighlightEnhance)
+  const termThemeLight = useSettingsStore((state) => state.termThemeLight)
+  const termThemeDark = useSettingsStore((state) => state.termThemeDark)
   const update = useSettingsStore((state) => state.updateSetting)
   const applySettings = useSettingsStore((state) => state.applySettings)
   const loaded = useSettingsStore((state) => state._loaded)
+  const runtimeMode = useThemeStore((state) => state.runtimeMode)
+  const activeThemeId = runtimeMode === 'dark' ? termThemeDark : termThemeLight
+  const activeThemeHighlights = useThemeStore((state) => state.getThemeById(activeThemeId)?.highlights)
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formName, setFormName] = useState('')
   const [formPattern, setFormPattern] = useState('')
   const [formColor, setFormColor] = useState('#F53F3F')
 
+  const resolvedPalette = useMemo(
+    () => resolveThemeHighlightPalette(activeThemeHighlights),
+    [activeThemeHighlights],
+  )
+
+  const rules = useMemo(
+    () => buildTerminalHighlightDisplayRules(normalizedRules, resolvedPalette),
+    [normalizedRules, resolvedPalette],
+  )
+
+  const editingRule = useMemo(
+    () => rules.find((rule) => rule.rule.id === editingId) ?? null,
+    [editingId, rules],
+  )
+
   const emitConfigChanged = useCallback(async (keys: string[]) => {
     if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return
-    const payload = { source: 'highlight-panel', keys }
+    const payload = { source: 'terminal-highlight', keys }
     await emit('config-changed', payload)
     await emitTo('settings', 'config-changed', payload)
   }, [])
@@ -36,52 +66,44 @@ export function useKeywordHighlightPanelState(): KeywordHighlightPanelState {
     })()
   }, [applySettings, emitConfigChanged, loaded, update])
 
-  const handleEdit = useCallback((rule: TerminalHighlightRule) => {
+  const handleEdit = useCallback((item: KeywordHighlightPanelState['rules'][number]) => {
+    const { rule } = item
     setEditingId(rule.id)
     setFormName(rule.name)
     setFormPattern(rule.pattern)
-    setFormColor(rule.color)
+    setFormColor(item.displayColor)
   }, [])
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null)
     setFormName('')
     setFormPattern('')
+    setFormColor('#F53F3F')
   }, [])
 
   const handleSave = useCallback(() => {
-    const name = formName.trim()
-    if (!name) return
-    const pattern = formPattern.trim() || `\\b${name}\\b`
-
-    if (editingId) {
-      commitRules(rules.map((rule) => (
-        rule.id === editingId ? { ...rule, name, pattern, color: formColor } : rule
-      )))
-      setEditingId(null)
-    } else {
-      const newRule: TerminalHighlightRule = {
-        id: `custom-${Date.now()}`,
-        name,
-        pattern,
-        flags: 'g',
-        color: formColor,
-        builtin: false,
-      }
-      commitRules([...rules, newRule])
-    }
+    const nextRules = saveTerminalHighlightRules(normalizedRules, {
+      editingId,
+      name: formName,
+      pattern: formPattern,
+      color: formColor,
+    })
+    if (!nextRules) return
+    commitRules(nextRules)
+    if (editingId) setEditingId(null)
 
     setFormName('')
     setFormPattern('')
-  }, [commitRules, editingId, formColor, formName, formPattern, rules])
+    setFormColor('#F53F3F')
+  }, [commitRules, editingId, formColor, formName, formPattern, normalizedRules])
 
   const handleDelete = useCallback((id: string) => {
-    commitRules(rules.filter((rule) => rule.id !== id))
-  }, [commitRules, rules])
+    commitRules(removeTerminalHighlightRule(normalizedRules, id))
+  }, [commitRules, normalizedRules])
 
   const handleClearCustom = useCallback(() => {
-    commitRules(rules.filter((rule) => rule.builtin))
-  }, [commitRules, rules])
+    commitRules(clearCustomTerminalHighlightRules(normalizedRules))
+  }, [commitRules, normalizedRules])
 
   const toggleEnabled = useCallback(() => {
     update('termHighlightEnhance', !enabled)
@@ -96,13 +118,15 @@ export function useKeywordHighlightPanelState(): KeywordHighlightPanelState {
     rules,
     enabled,
     editingId,
+    editingRule,
     formName,
     setFormName,
     formPattern,
     setFormPattern,
     formColor,
     setFormColor,
-    hasCustomRules: rules.some((rule) => !rule.builtin),
+    hasCustomRules: normalizedRules.some((rule) => !rule.builtin),
+    isBuiltinEditing: editingRule?.rule.builtin ?? false,
     toggleEnabled,
     handleEdit,
     handleCancelEdit,

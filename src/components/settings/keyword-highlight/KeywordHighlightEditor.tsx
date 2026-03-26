@@ -1,8 +1,10 @@
 import { AppIcon, icons } from '../../icons/AppIcon'
-import { ColorPicker } from './KeywordHighlightColorField'
+import { ColorDot, ColorPicker } from './KeywordHighlightColorField'
 import type { KeywordHighlightPanelState } from './types'
 
 export function KeywordHighlightEditor({ state }: { state: KeywordHighlightPanelState }) {
+  const saveDisabled = state.isBuiltinEditing ? !state.formPattern.trim() : !state.formName.trim()
+
   return (
     <>
       <div className={`bg-bg-subtle/60 px-5 pb-2.5 pt-3 transition-colors ${!state.enabled ? 'pointer-events-none opacity-40' : ''}`}>
@@ -29,23 +31,36 @@ export function KeywordHighlightEditor({ state }: { state: KeywordHighlightPanel
               onChange={(event) => state.setFormName(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && state.handleSave()}
               placeholder="名称（如 Error）"
-              className="island-control w-full px-2.5 py-1.5 text-[12px] placeholder:text-text-disabled"
+              disabled={state.isBuiltinEditing}
+              className="island-control w-full px-2.5 py-1.5 text-[12px] placeholder:text-text-disabled disabled:cursor-not-allowed disabled:opacity-60"
             />
             <input
               type="text"
               value={state.formPattern}
               onChange={(event) => state.setFormPattern(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && state.handleSave()}
-              placeholder="正则（如 \bfailed\b），留空则自动生成"
+              placeholder={'正则（如 \\bfailed\\b）'}
               className="island-control w-full px-2.5 py-1.5 font-mono text-[12px] placeholder:font-sans placeholder:text-text-disabled"
             />
+            {state.isBuiltinEditing && (
+              <div className="flex items-center gap-2 text-[10px] text-text-3">
+                <ColorDot color={state.editingRule?.displayColor ?? state.formColor} />
+                <span>内置规则颜色来自当前终端主题，请在主题管理器中维护。</span>
+              </div>
+            )}
           </div>
           <div className="flex w-[36px] flex-col gap-1.5">
-            <ColorPicker value={state.formColor} onChange={state.setFormColor} />
+            {state.isBuiltinEditing ? (
+              <div className="flex h-[28px] w-[28px] items-center justify-center rounded-md border border-border">
+                <ColorDot color={state.editingRule?.displayColor ?? state.formColor} />
+              </div>
+            ) : (
+              <ColorPicker value={state.formColor} onChange={state.setFormColor} />
+            )}
             <button
               type="button"
               onClick={state.handleSave}
-              disabled={!state.formName.trim()}
+              disabled={saveDisabled}
               className={`flex h-[28px] w-full items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                 state.editingId
                   ? 'bg-primary/15 text-primary hover:bg-primary hover:text-white'
@@ -67,7 +82,7 @@ export function KeywordHighlightEditor({ state }: { state: KeywordHighlightPanel
             className="flex items-center gap-1 rounded px-2 py-1 text-[11px] text-text-3 transition-colors hover:bg-bg-hover/50 hover:text-text-1"
           >
             <AppIcon icon={icons.rotateCw} size={12} />
-            清除所有自定义规则
+            清空自定义规则
           </button>
         </div>
       )}

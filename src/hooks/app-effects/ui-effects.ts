@@ -5,6 +5,7 @@ import { useThemeStore } from '../../stores/useThemeStore'
 import { useTabStore } from '../../stores/useTabStore'
 import { useUIStore } from '../../stores/useUIStore'
 import { resolveFontChain } from '../../lib/fonts'
+import { shouldBlockTabFocusNavigation } from '../../lib/focus-tab-policy'
 import { refreshActiveSidebarList } from './shared'
 
 export function useIdleLock() {
@@ -126,6 +127,13 @@ export function useAnimationEffect() {
 export function useGlobalShortcuts() {
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
+      if (shouldBlockTabFocusNavigation(event)) {
+        event.preventDefault()
+        event.stopPropagation()
+        event.stopImmediatePropagation()
+        return
+      }
+
       const key = event.key.toLowerCase()
       const shouldBlockReload = event.key === 'F5' || ((event.ctrlKey || event.metaKey) && key === 'r')
       if (shouldBlockReload) {
