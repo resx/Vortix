@@ -44,6 +44,9 @@ export interface TerminalSession {
   connectionStageText: string
   connectionSteps: PersistedConnectionLoadingStep[]
   connectionErrorText: string
+  awaitingCommandOutputBoundary: boolean
+  awaitingPromptBoundary: boolean
+  lastOutputEndsWithLineBreak: boolean
 }
 
 const sessions = new Map<string, TerminalSession>()

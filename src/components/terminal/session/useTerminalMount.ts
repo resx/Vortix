@@ -157,6 +157,9 @@ export function useTerminalMount({
         connectionStageText: '',
         connectionSteps: [],
         connectionErrorText: '',
+        awaitingCommandOutputBoundary: false,
+        awaitingPromptBoundary: false,
+        lastOutputEndsWithLineBreak: true,
       }
       setSession(paneId, session)
 
@@ -178,6 +181,10 @@ export function useTerminalMount({
         const current = getSession(paneId)
         if (current?.ws?.readyState === WebSocket.OPEN) {
           current.ws.send(JSON.stringify({ type: 'input', data }))
+        }
+        if (current) {
+          if (data === '\r') current.awaitingCommandOutputBoundary = true
+          else if (current.awaitingCommandOutputBoundary) current.awaitingCommandOutputBoundary = false
         }
         notifyInputListeners(paneId, data)
       })

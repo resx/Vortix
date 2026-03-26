@@ -45,10 +45,39 @@ export function compileHighlightRules(rules: TerminalHighlightRule[]): { color: 
 }
 
 const ANSI_ESCAPE_REGEX = new RegExp(String.raw`\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)`, 'g')
+const PROTECTED_TERMINAL_OUTPUT_REGEX = new RegExp(String.raw`[\r\b\x1b]`)
 
 function isVortixStatusLine(text: string): boolean {
   const plain = text.replace(ANSI_ESCAPE_REGEX, '')
   return plain.trimStart().startsWith('[Vortix]')
+}
+
+export function shouldPreserveTerminalOutput(text: string): boolean {
+  return PROTECTED_TERMINAL_OUTPUT_REGEX.test(text)
+}
+
+function startsWithExplicitLineBreak(text: string): boolean {
+  return text.startsWith('\n') || text.startsWith('\r\n')
+}
+
+export function normalizeProtectedOutputAfterCommandStart(text: string): string {
+  if (!text || startsWithExplicitLineBreak(text)) return text
+  return `\r\n${text}`
+}
+
+export function endsWithExplicitLineBreak(text: string): boolean {
+  return text.endsWith('\n') || text.endsWith('\r')
+}
+
+export function normalizeOutputBeforePrompt(text: string): string {
+  if (!text || startsWithExplicitLineBreak(text)) return text
+  return `\r\n${text}`
+}
+
+export function ensureCursorVisibleBeforePrompt(text: string): string {
+  if (!text) return '\x1b[?25h'
+  if (text.startsWith('\x1b[?25h')) return text
+  return `\x1b[?25h${text}`
 }
 
 function hexToRgb(hex: string): [number, number, number] | null {
@@ -79,7 +108,7 @@ export function applyAnsiSafeHighlight(
   text: string,
   rules: { color: string; pattern: RegExp }[],
 ): string {
-  if (isVortixStatusLine(text)) return text
+  if (isVortixStatusLine(text) || shouldPreserveTerminalOutput(text)) return text
   let result = ''
   let last = 0
   ANSI_ESCAPE_REGEX.lastIndex = 0

@@ -5,7 +5,14 @@ import { addHistory } from '../../../api/client'
 import { t as translate } from '../../../i18n'
 import { handleMonitorMessage, resetMonitorState, startMonitorIfNeeded } from './terminal-monitor'
 import { describeConnectionStage, nextConnectionSteps } from './terminal-connection-state'
-import { applyAnsiSafeHighlight } from './terminal-output'
+import {
+  applyAnsiSafeHighlight,
+  endsWithExplicitLineBreak,
+  ensureCursorVisibleBeforePrompt,
+  normalizeProtectedOutputAfterCommandStart,
+  normalizeOutputBeforePrompt,
+  shouldPreserveTerminalOutput,
+} from './terminal-output'
 import { syncPendingTabCompletionFromTerminal } from './terminal-command-buffer'
 import type { ConnectionLoadingStep } from '../ConnectionLoadingView'
 import type { TerminalSession } from '../../../stores/terminalSessionRegistry'
@@ -116,13 +123,36 @@ export function useTerminalConnection({
       switch (msg.type) {
         case 'output': {
           const outputText = String(msg.data ?? '')
+          const protectedOutput = shouldPreserveTerminalOutput(outputText)
+          let normalizedOutput = outputText
+          let shouldRefreshCursor = false
+          if (session.awaitingPromptBoundary && !session.lastOutputEndsWithLineBreak) {
+            normalizedOutput = normalizeOutputBeforePrompt(normalizedOutput)
+          }
+          if (session.awaitingPromptBoundary) {
+            normalizedOutput = ensureCursorVisibleBeforePrompt(normalizedOutput)
+            shouldRefreshCursor = true
+          } else if (isLocal && session.awaitingCommandOutputBoundary && protectedOutput) {
+            normalizedOutput = normalizeProtectedOutputAfterCommandStart(normalizedOutput)
+          }
+          if (normalizedOutput) {
+            session.awaitingCommandOutputBoundary = false
+            session.awaitingPromptBoundary = false
+            session.lastOutputEndsWithLineBreak = endsWithExplicitLineBreak(normalizedOutput)
+          }
           const settingsNow = useSettingsStore.getState()
           const rendered = settingsNow.termHighlightEnhance
-            ? applyAnsiSafeHighlight(outputText, getResolvedHighlightRules())
-            : outputText
+            ? applyAnsiSafeHighlight(normalizedOutput, getResolvedHighlightRules())
+            : normalizedOutput
           term.write(rendered, () => {
             if (session.ws !== ws) return
             syncPendingTabCompletionFromTerminal(session)
+            if (shouldRefreshCursor) {
+              requestAnimationFrame(() => {
+                if (session.ws !== ws) return
+                term.refresh(0, term.rows - 1)
+              })
+            }
           })
           if (tabId && useSettingsStore.getState().tabFlashNotify) {
             const tabStore = useTabStore.getState()
@@ -137,6 +167,7 @@ export function useTerminalConnection({
           break
         case 'shell-command-finished': {
           session.shellIntegrationHistory = true
+          session.awaitingPromptBoundary = true
           const command = String(msg.data?.command ?? '').trim()
           if (command && useSettingsStore.getState().sshHistoryEnabled && command !== session.lastRecordedCommand && connectionId) {
             session.lastRecordedCommand = command
@@ -154,6 +185,10 @@ export function useTerminalConnection({
             setPendingHostKeyPrompt(null)
             setConnectionErrorText('')
             updateTerminalStatus('connected')
+            requestAnimationFrame(() => {
+              if (session.ws !== ws) return
+              term.focus()
+            })
             startMonitorIfNeeded({ enabled: showRealtimeInfo, isLocal, ws, monitorRunningRef })
             setTimeout(() => {
               safeFit(session)
