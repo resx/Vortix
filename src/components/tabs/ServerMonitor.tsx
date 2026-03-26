@@ -91,7 +91,6 @@ function VBar({ label, display, percent, tint }: {
 
 export default function ServerMonitor({ connected, tabId }: Props) {
   const toggleServerPanel = useUIStore((s) => s.toggleServerPanel)
-  const toggleSftp = useUIStore((s) => s.toggleSftp)
   const snapshot = useMonitorStore((s) => s.snapshots[tabId])
 
   if (!connected || !snapshot) {
@@ -115,13 +114,6 @@ export default function ServerMonitor({ connected, tabId }: Props) {
         onClick={toggleServerPanel}
       >
         <AppIcon icon={icons.terminal} size={14} className="w-3.5 h-3.5" />
-      </button>
-
-      <button
-        className="p-1.5 rounded-md text-text-2 hover:bg-bg-card/40 hover:text-text-1 transition-colors"
-        onClick={toggleSftp}
-      >
-        <AppIcon icon={icons.folderOpen} size={14} className="w-3.5 h-3.5" />
       </button>
 
       <div className="w-6 h-px bg-border" />

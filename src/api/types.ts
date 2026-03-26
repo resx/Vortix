@@ -282,6 +282,9 @@ export interface CustomThemePublic {
   terminal: Record<string, string | undefined>
   highlights: Record<string, string>
   ui?: Record<string, unknown> | null
+  meta?: Record<string, unknown> | null
+  behavior?: Record<string, unknown> | null
+  base_theme_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -292,6 +295,9 @@ export interface CreateCustomThemeDto {
   terminal: Record<string, string | undefined>
   highlights: Record<string, string>
   ui?: Record<string, unknown>
+  meta?: Record<string, unknown>
+  behavior?: Record<string, unknown>
+  base_theme_id?: string
   author?: string
 }
 
@@ -301,6 +307,9 @@ export interface UpdateCustomThemeDto {
   terminal?: Record<string, string | undefined>
   highlights?: Record<string, string>
   ui?: Record<string, unknown> | null
+  meta?: Record<string, unknown> | null
+  behavior?: Record<string, unknown> | null
+  base_theme_id?: string | null
 }
 
 export interface ImportThemesResult {

@@ -12,6 +12,7 @@ import {
 import { useAssetStore } from '../../stores/useAssetStore'
 import { useToastStore } from '../../stores/useToastStore'
 import { useShortcutStore } from '../../stores/useShortcutStore'
+import { useUIStore } from '../../stores/useUIStore'
 import { Switch } from '../ui/switch'
 import { SettingsDropdown } from '../ui/select'
 import * as api from '../../api/client'
@@ -123,6 +124,7 @@ export default function SyncSettings() {
   const [syncing, setSyncing] = useState(false)
   const [testing, setTesting] = useState(false)
   const addToast = useToastStore((s) => s.addToast)
+  const setSyncRemoteAvailable = useUIStore((s) => s.setSyncRemoteAvailable)
   const [fileInfo, setFileInfo] = useState<SyncFileInfo | null>(null)
   const [connectionState, setConnectionState] = useState<SyncConnectionState>('idle')
   const [connectionHint, setConnectionHint] = useState('')
@@ -265,6 +267,8 @@ export default function SyncSettings() {
         }
       }
       await api.syncExport(syncBody)
+      setSyncRemoteAvailable(false)
+      await refreshFileInfo()
       setConnectionState('ok')
       addToast('success', '推送成功')
     } catch (e) {
@@ -325,6 +329,7 @@ export default function SyncSettings() {
     try {
       await api.deleteSyncRemote(syncBody)
       setConnectionState('ok')
+      setSyncRemoteAvailable(false)
       setFileInfo(null)
       addToast('success', repoSource === 'local' ? '本地同步文件已清理' : '远端同步数据已删除')
     } catch (e) {

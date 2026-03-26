@@ -9,6 +9,7 @@ import { getThemeById } from '../terminal/themes/index'
 import { openThemeManagerWindow } from '../../lib/window'
 import { AppIcon, icons } from '../icons/AppIcon'
 import * as api from '../../api/client'
+import { DEFAULT_HIGHLIGHTS } from '../../lib/theme-bridge'
 import type { TermThemePreset } from '../terminal/themes/index'
 
 /** 数字微调输入 */
@@ -91,6 +92,17 @@ export default function SSHSettings() {
   const darkSource = themeStore.getThemeById(profile.colorSchemeDark)?.source ?? 'builtin'
   const previewSource = appearancePreviewMode === 'dark' ? darkSource : lightSource
   const previewSourceLabel = previewSource === 'builtin' ? '内置主题' : '自定义主题'
+  const previewTheme = themeStore.getThemeById(
+    appearancePreviewMode === 'dark' ? profile.colorSchemeDark : profile.colorSchemeLight,
+  ) ?? {
+    id: previewPreset.id,
+    name: previewPreset.name,
+    mode: previewPreset.mode,
+    version: 1 as const,
+    source: previewSource,
+    terminal: previewPreset.theme,
+    highlights: { ...DEFAULT_HIGHLIGHTS },
+  }
   const termLogDir = useSettingsStore((s) => s.termLogDir)
   const update = useSettingsStore((s) => s.updateSetting)
   const sftpDefaultSavePath = useSettingsStore((s) => s.sftpDefaultSavePath)
@@ -222,9 +234,11 @@ export default function SSHSettings() {
         </div>
         <div className="rounded-xl overflow-hidden border border-border/70">
           <TermThemePreview
-            preset={previewPreset}
+            theme={previewTheme}
             cursorStyle={profile.cursorStyle}
             cursorBlink={profile.cursorBlink}
+            scenario={themeStore.activeScenario}
+            onScenarioChange={themeStore.setActiveScenario}
           />
         </div>
       </div>

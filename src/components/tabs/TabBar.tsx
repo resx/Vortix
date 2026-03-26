@@ -6,6 +6,7 @@ import { useSettingsStore } from '../../stores/useSettingsStore'
 import { markTransferring, unmarkTransferring } from '../../stores/terminalSessionRegistry'
 import { getColorTagDotClass } from '../../lib/color-tag'
 import { useState, useRef, useEffect } from 'react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 
 export default function TabBar() {
   const tabs = useTabStore((s) => s.tabs)
@@ -15,6 +16,8 @@ export default function TabBar() {
   const createTabFromPane = useTabStore((s) => s.createTabFromPane)
   const reorderTab = useTabStore((s) => s.reorderTab)
   const showContextMenu = useUIStore((s) => s.showContextMenu)
+  const sftpOpen = useUIStore((s) => s.sftpOpen)
+  const toggleSftp = useUIStore((s) => s.toggleSftp)
   const closeLeft = !useSettingsStore((s) => s.tabCloseButtonLeft)
   const tabMultiLine = useSettingsStore((s) => s.tabMultiLine)
   const middleClickCloseTab = useSettingsStore((s) => s.middleClickCloseTab)
@@ -58,6 +61,10 @@ export default function TabBar() {
   const filteredDbTabs = dbTabs.filter(t =>
     !searchText || t.label.toLowerCase().includes(searchText.toLowerCase())
   )
+  const activeTab = tabs.find((tab) => tab.id === activeTabId)
+  const showSftpAction = activeTab?.type === 'asset'
+    && activeTab.assetRow?.protocol !== 'local'
+    && activeTab.status === 'connected'
   const showHome = !searchText || '首页'.includes(searchText)
 
   return (
@@ -297,6 +304,26 @@ export default function TabBar() {
           })
         })()}
       </div>
+      {showSftpAction && (
+        <div className="flex h-full items-center gap-1 px-2 shrink-0 border-l border-border/50">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => toggleSftp()}
+                className={`inline-flex h-[28px] w-[28px] items-center justify-center rounded-md transition-colors ${
+                  sftpOpen
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-text-2 hover:bg-border/40 hover:text-text-1'
+                }`}
+              >
+                <AppIcon icon={icons.folderOpen} size={14} />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>{sftpOpen ? '关闭 SFTP 面板' : '打开 SFTP 面板'}</TooltipContent>
+          </Tooltip>
+        </div>
+      )}
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useSettingsStore } from '../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../stores/useTerminalProfileStore'
+import { useThemeStore } from '../../stores/useThemeStore'
 import { useTabStore } from '../../stores/useTabStore'
 import { TooltipProvider } from '../ui/tooltip'
 import WindowControls from '../../features/header/WindowControls'
@@ -44,8 +45,9 @@ export default function DetachedTerminalView({ connectionId }: DetachedTerminalP
   useEffect(() => {
     Promise.all([
       useSettingsStore.getState().loadSettings(),
+      useThemeStore.getState().loadCustomThemes().catch(() => {}),
       api.getConnection(connectionId),
-    ]).then(([, conn]) => {
+    ]).then(([, , conn]) => {
       useTerminalProfileStore.getState().loadProfiles()
       const lang = useSettingsStore.getState().language
       loadLocale(lang)

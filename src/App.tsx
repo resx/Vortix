@@ -15,6 +15,7 @@ import DialogRenderer from './features/dialogs/DialogRenderer'
 import { ToastContainer } from './components/ui/toast'
 import { AnimatePresence } from 'framer-motion'
 import { useAssetStore } from './stores/useAssetStore'
+import { useSettingsStore } from './stores/useSettingsStore'
 import { useTabStore } from './stores/useTabStore'
 import { useUIStore } from './stores/useUIStore'
 import { TooltipProvider } from './components/ui/tooltip'
@@ -46,6 +47,7 @@ function MainApp() {
   const isSidebarOpen = useUIStore((s) => s.isSidebarOpen)
   const tabs = useTabStore((s) => s.tabs)
   const activeTabId = useTabStore((s) => s.activeTabId)
+  const showRealtimeInfo = useSettingsStore((s) => s.showRealtimeInfo)
   const sftpOpen = useUIStore((s) => s.sftpOpen)
   const serverPanelOpen = useUIStore((s) => s.serverPanelOpen)
   const isLocked = useUIStore((s) => s.isLocked)
@@ -113,17 +115,17 @@ function MainApp() {
             </div>
           </div>
 
-          {isAssetView && !isLocalTerminal && !serverPanelOpen && (
+          {showRealtimeInfo && isAssetView && !isLocalTerminal && !serverPanelOpen && (
             <div className="shrink-0">
               <ServerMonitor connected={isConnected} tabId={activeTabId} />
             </div>
           )}
 
-          {(!isAssetView || isLocalTerminal || serverPanelOpen) && <div className="w-3 shrink-0" />}
+          {(!showRealtimeInfo || !isAssetView || isLocalTerminal || serverPanelOpen) && <div className="w-3 shrink-0" />}
         </div>
 
         <AnimatePresence>
-          {serverPanelOpen && isAssetView && !isLocalTerminal && <ServerInfoPanel />}
+          {showRealtimeInfo && serverPanelOpen && isAssetView && !isLocalTerminal && <ServerInfoPanel />}
         </AnimatePresence>
       </div>
 

@@ -19,6 +19,7 @@ export default function SyncConflictDialog() {
   const open = useUIStore((s) => s.syncConflictOpen)
   const payload = useUIStore((s) => s.syncConflict)
   const close = useUIStore((s) => s.closeSyncConflict)
+  const setSyncRemoteAvailable = useUIStore((s) => s.setSyncRemoteAvailable)
   const addToast = useToastStore((s) => s.addToast)
   const [resolving, setResolving] = useState(false)
 
@@ -56,6 +57,7 @@ export default function SyncConflictDialog() {
     setResolving(true)
     try {
       await api.syncExport(payload.body)
+      setSyncRemoteAvailable(false)
       addToast('success', '已使用本地版本覆盖远端')
       close()
     } catch (e) {

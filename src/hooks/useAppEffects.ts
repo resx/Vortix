@@ -320,6 +320,7 @@ export function useAutoSyncEffect() {
         }
 
         await api.syncExport(body)
+        useUIStore.getState().setSyncRemoteAvailable(false)
         schedule(30000)
       } catch (e) {
         const now = Date.now()
@@ -353,9 +354,7 @@ export function useAutoSyncEffect() {
       try {
         const body = buildSyncBody()
         const result = await api.checkRemoteChanged(body)
-        if (result.hasUpdate) {
-          useUIStore.getState().setSyncRemoteAvailable(true)
-        }
+        useUIStore.getState().setSyncRemoteAvailable(result.hasUpdate)
       } catch { /* 静默 */ }
       if (!disposed) {
         timer = setTimeout(check, intervalMs)
@@ -397,9 +396,7 @@ export function useWindowFocusSyncCheck() {
       try {
         const body = buildSyncBody()
         const result = await api.checkRemoteChanged(body)
-        if (result.hasUpdate) {
-          useUIStore.getState().setSyncRemoteAvailable(true)
-        }
+        useUIStore.getState().setSyncRemoteAvailable(result.hasUpdate)
       } catch { /* 静默 */ }
     })
 
@@ -414,20 +411,20 @@ export function useThemeEffect() {
   useEffect(() => {
     const root = document.documentElement
     root.classList.add('theme-switching')
+    const syncResolvedMode = (mode: 'light' | 'dark') => {
+      root.classList.add('theme-switching')
+      root.classList.toggle('dark', mode === 'dark')
+      useThemeStore.getState().setRuntimeMode(mode)
+    }
 
     if (theme === 'dark') {
-      root.classList.add('dark')
+      syncResolvedMode('dark')
     } else if (theme === 'light') {
-      root.classList.remove('dark')
+      syncResolvedMode('light')
     } else {
       const mq = window.matchMedia('(prefers-color-scheme: dark)')
       const apply = () => {
-        root.classList.add('theme-switching')
-        if (mq.matches) {
-          root.classList.add('dark')
-        } else {
-          root.classList.remove('dark')
-        }
+        syncResolvedMode(mq.matches ? 'dark' : 'light')
         requestAnimationFrame(() => {
           requestAnimationFrame(() => root.classList.remove('theme-switching'))
         })

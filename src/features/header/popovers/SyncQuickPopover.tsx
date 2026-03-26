@@ -29,6 +29,7 @@ export default function SyncQuickPopover({ onClose }: { onClose: () => void }) {
   const autoSync = useSettingsStore((s) => s.syncAutoSync)
   const addToast = useToastStore((s) => s.addToast)
   const syncRemoteAvailable = useUIStore((s) => s.syncRemoteAvailable)
+  const setSyncRemoteAvailable = useUIStore((s) => s.setSyncRemoteAvailable)
   const localConfigured = useSettingsStore((s) => isSyncConfigured(s))
   const [syncing, setSyncing] = useState<'push' | 'pull' | null>(null)
   const [fileInfo, setFileInfo] = useState<{ exists: boolean; lastModified: string | null } | null>(null)
@@ -63,6 +64,8 @@ export default function SyncQuickPopover({ onClose }: { onClose: () => void }) {
         onClose(); return
       }
       await api.syncExport(buildSyncBody())
+      setSyncRemoteAvailable(false)
+      setFileInfo(await api.getSyncStatus(buildSyncBody()))
       addToast('success', '推送成功'); onClose()
     } catch (e) {
       addToast('error', (e as Error).message)

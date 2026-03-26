@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import { emitTo } from '@tauri-apps/api/event'
+import { emit, emitTo } from '@tauri-apps/api/event'
 import * as api from '../api/client'
 import { useSettingsStore } from './useSettingsStore'
 import { getThemeById } from '../components/terminal/themes/index'
+import { enrichTheme } from '../components/terminal/themes/enrich-theme'
 import { resolveFontChain } from '../lib/fonts'
 import { useThemeStore } from './useThemeStore'
 import { DEFAULT_PROFILE_ID } from '../types/terminal-profile'
@@ -72,7 +73,9 @@ export const useTerminalProfileStore = create<TerminalProfileStore>((set, get) =
     const customOrBuiltin = themeStore.getThemeById(schemeId)
     const fallbackCustomOrBuiltin = themeStore.getThemeById(isDark ? 'default-dark' : 'default-light')
     const preset = getThemeById(schemeId) ?? getThemeById(isDark ? 'default-dark' : 'default-light')!
-    const theme = customOrBuiltin?.terminal ?? fallbackCustomOrBuiltin?.terminal ?? preset.theme
+    const theme = enrichTheme(
+      customOrBuiltin?.terminal ?? fallbackCustomOrBuiltin?.terminal ?? preset.theme,
+    )
     const fontFamily = resolveFontChain(profile.fontFamily)
     return { profile, theme, fontFamily }
   },
@@ -104,6 +107,7 @@ export const useTerminalProfileStore = create<TerminalProfileStore>((set, get) =
           await s.applySettings()
           if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
             const payload = { source: 'terminal-profile' }
+            await emit('config-changed', payload)
             await emitTo('main', 'config-changed', payload)
             await emitTo('settings', 'config-changed', payload)
           }
@@ -166,6 +170,7 @@ export const useTerminalProfileStore = create<TerminalProfileStore>((set, get) =
       await api.saveSettings({ ...current, terminalProfiles: profiles, activeProfileId } as never)
       if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
         const payload = { source: 'terminal-profile' }
+        await emit('config-changed', payload)
         await emitTo('main', 'config-changed', payload)
         await emitTo('settings', 'config-changed', payload)
       }
