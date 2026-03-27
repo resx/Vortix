@@ -15,8 +15,7 @@ use tower_http::cors::{Any, CorsLayer};
 
 use crate::db::Db;
 
-/// 启动嵌入式 axum 服务器
-pub async fn start(port: u16, db: Db) {
+fn build_router(db: Db) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods([
@@ -28,7 +27,7 @@ pub async fn start(port: u16, db: Db) {
         ])
         .allow_headers(Any);
 
-    let app = Router::new()
+    Router::new()
         // 健康检查
         .route("/api/health", get(routes::health::health))
         // 设置
@@ -200,6 +199,7 @@ pub async fn start(port: u16, db: Db) {
         .route("/api/themes/{id}/export", get(routes::themes::export_theme))
         // 文件系统
         .route("/api/fs/list-dirs", get(routes::fs::list_dirs))
+        .route("/api/fs/list-local-entries", get(routes::fs::list_local_entries))
         .route("/api/fs/pick-dir", post(routes::fs::pick_dir))
         .route("/api/fs/pick-file", post(routes::fs::pick_file))
         .route("/api/fs/save-download", post(routes::fs::save_download))
@@ -212,16 +212,45 @@ pub async fn start(port: u16, db: Db) {
         .route("/ws/ssh", get(ws::ws_upgrade_ssh))
         .route("/ws/sftp", get(ws::ws_upgrade_sftp))
         .layer(cors)
-        .with_state(db);
+        .with_state(db)
+}
 
+pub async fn bind_preferred_or_next(
+    preferred_port: u16,
+    fallback_scan: std::ops::RangeInclusive<u16>,
+) -> std::io::Result<(tokio::net::TcpListener, u16)> {
+    let fallback_scan_dbg = format!("{fallback_scan:?}");
+    let primary_addr = format!("127.0.0.1:{preferred_port}");
+    match tokio::net::TcpListener::bind(&primary_addr).await {
+        Ok(listener) => return Ok((listener, preferred_port)),
+        Err(err) if err.kind() == std::io::ErrorKind::AddrInUse => {
+            tracing::warn!("[Vortix] 端口 {preferred_port} 被占用，尝试备用端口范围 {fallback_scan_dbg}");
+        }
+        Err(err) => return Err(err),
+    }
+
+    for port in fallback_scan {
+        if port == preferred_port {
+            continue;
+        }
+        let addr = format!("127.0.0.1:{port}");
+        match tokio::net::TcpListener::bind(&addr).await {
+            Ok(listener) => return Ok((listener, port)),
+            Err(err) if err.kind() == std::io::ErrorKind::AddrInUse => continue,
+            Err(err) => return Err(err),
+        }
+    }
+
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AddrNotAvailable,
+        format!("无法在备用端口范围 {fallback_scan_dbg} 内绑定服务"),
+    ))
+}
+
+/// 启动嵌入式 axum 服务器
+pub async fn start(listener: tokio::net::TcpListener, port: u16, db: Db) {
+    let app = build_router(db);
     let addr = format!("127.0.0.1:{port}");
-    let listener = tokio::net::TcpListener::bind(&addr)
-        .await
-        .unwrap_or_else(|e| {
-            tracing::error!("端口 {port} 绑定失败: {e}");
-            std::process::exit(1);
-        });
-
     tracing::info!("[Vortix] axum 服务器启动: http://{addr}");
     axum::serve(listener, app).await.unwrap();
 }

@@ -11,8 +11,6 @@ interface Props {
   onRefresh: () => void
   /** 仅刷新文件列表，不修改历史（用于后退/前进） */
   onListDir: (path: string) => void
-  /** 同步路径到 SSH 终端 */
-  onSyncTerminal?: (path: string) => void
 }
 
 /** 辅助函数：从路径历史中获取去重且截断的列表 */
@@ -34,8 +32,6 @@ function MoreDropdown({ onClose }: { onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
   const showHidden = useSftpStore(s => s.showHidden)
   const setShowHidden = useSftpStore(s => s.setShowHidden)
-  const pathSyncEnabled = useSftpStore(s => s.pathSyncEnabled)
-  const setPathSyncEnabled = useSftpStore(s => s.setPathSyncEnabled)
   const currentPath = useSftpStore(s => s.currentPath)
   const isBookmarked = useSftpBookmarkStore(s => s.has(currentPath))
   const toggleBookmark = useSftpBookmarkStore(s => s.toggle)
@@ -62,15 +58,6 @@ function MoreDropdown({ onClose }: { onClose: () => void }) {
         />
         <span className="text-[12px] text-text-1">显示隐藏文件</span>
       </label>
-      <label className="flex items-center gap-2.5 px-3 h-[32px] hover:bg-bg-active cursor-pointer select-none">
-        <input
-          type="checkbox"
-          className="accent-primary w-3.5 h-3.5"
-          checked={pathSyncEnabled}
-          onChange={e => setPathSyncEnabled(e.target.checked)}
-        />
-        <span className="text-[12px] text-text-1">路径联动</span>
-      </label>
       <div className="h-px bg-border-subtle mx-2 my-0.5" />
       <div
         className="flex items-center gap-2.5 px-3 h-[32px] hover:bg-bg-active cursor-pointer select-none"
@@ -83,7 +70,7 @@ function MoreDropdown({ onClose }: { onClose: () => void }) {
   )
 }
 
-export default function SftpNavBar({ onNavigate, onRefresh, onListDir, onSyncTerminal }: Props) {
+export default function SftpNavBar({ onNavigate, onRefresh, onListDir }: Props) {
   const currentPath = useSftpStore(s => s.currentPath)
   const historyIndex = useSftpStore(s => s.historyIndex)
   const pathHistory = useSftpStore(s => s.pathHistory)
@@ -173,7 +160,6 @@ export default function SftpNavBar({ onNavigate, onRefresh, onListDir, onSyncTer
             const target = pathHistory[historyIndex - 1]
             goBack()
             onListDir(target)
-            onSyncTerminal?.(target)
           }}
           title="后退"
         >
@@ -188,7 +174,6 @@ export default function SftpNavBar({ onNavigate, onRefresh, onListDir, onSyncTer
               const target = pathHistory[historyIndex + 1]
               goForward()
               onListDir(target)
-              onSyncTerminal?.(target)
             }}
             title="前进"
           >

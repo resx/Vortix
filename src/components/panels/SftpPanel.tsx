@@ -5,21 +5,22 @@ import { motion } from 'framer-motion'
 import { useSftpStore } from '../../stores/useSftpStore'
 import { useSftpConnection } from '../../hooks/useSftpConnection'
 import { useSftpActions } from './sftp/useSftpActions'
-import { usePathSync } from './sftp/usePathSync'
 import SftpNavBar from './sftp/SftpNavBar'
 import SftpFileList from './sftp/SftpFileList'
-import SftpStatusBar from './sftp/SftpStatusBar'
 import SftpContextMenu from './sftp/SftpContextMenu'
+import SftpLocalFileList from './sftp/SftpLocalFileList'
+import SftpRemotePaneHeader from './sftp/SftpRemotePaneHeader'
+import SftpHostPicker from './sftp/SftpHostPicker'
 import RemoteFileEditor from '../editor/RemoteFileEditor'
 import SftpChmodModal from './sftp/SftpChmodModal'
 import { uploadFiles } from '../../services/transfer-engine'
 import { useSettingsStore } from '../../stores/useSettingsStore'
-import { useTabStore } from '../../stores/useTabStore'
 import { useToastStore } from '../../stores/useToastStore'
 import { isTextFile } from '../../lib/file-icons'
 import { isBuiltinEditor, launchExternalEditor } from '../../services/editor-launcher'
 import type { EditorType } from '../../services/editor-launcher'
 import * as api from '../../api/client'
+import type { AssetRow } from '../../types'
 import type { SftpFileEntry } from '../../types/sftp'
 
 interface Props {
@@ -27,6 +28,8 @@ interface Props {
   targetTabId: string | null
   /** 隐藏面板 */
   hidden?: boolean
+  /** 展示形态 */
+  variant?: 'side' | 'workspace'
 }
 
 interface MenuState {
@@ -37,14 +40,16 @@ interface MenuState {
 }
 
 const initialMenuState: MenuState = { visible: false, x: 0, y: 0, entry: null }
+type PaneSide = 'left' | 'right'
+type PaneHostKind = 'local' | 'ssh'
 
-export default function SftpPanel({ targetTabId, hidden }: Props) {
+export default function SftpPanel({ targetTabId, hidden, variant = 'side' }: Props) {
   const connected = useSftpStore(s => s.connected)
   const connecting = useSftpStore(s => s.connecting)
+  const connectionName = useSftpStore(s => s.connectionName)
   const addToast = useToastStore(s => s.addToast)
 
   const sftp = useSftpConnection()
-  const connectAttempted = useRef(false)
 
   const calculateInitialWidth = useCallback(() => {
     const minWidth = 360
@@ -96,57 +101,8 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
 
   useEffect(() => {
     const settings = useSettingsStore.getState()
-    useSftpStore.getState().setPathSyncEnabled(settings.sshSftpPathSync)
     useSftpStore.getState().setShowHidden(settings.sftpShowHidden)
   }, [])
-
-  useEffect(() => {
-    if (!targetTabId || connected || connecting || connectAttempted.current) return
-    connectAttempted.current = true
-    const tab = useTabStore.getState().tabs.find(t => t.id === targetTabId)
-    if (!tab || tab.type !== 'asset') return
-    const resolve = async () => {
-      try {
-        const connId = tab.connectionId
-        const quickConn = tab.quickConnect
-        if (quickConn) {
-          await sftp.connect({
-            host: quickConn.host,
-            port: quickConn.port,
-            username: quickConn.username,
-            password: quickConn.password,
-            privateKey: quickConn.privateKey,
-            passphrase: quickConn.passphrase,
-            jump: quickConn.jump,
-          })
-        } else if (connId) {
-          const cred = await api.getConnectionCredential(connId)
-          await sftp.connect({
-            host: cred.host,
-            port: cred.port,
-            username: cred.username,
-            password: cred.password,
-            privateKey: cred.private_key,
-            passphrase: cred.passphrase,
-            connectionId: connId,
-            jump: cred.jump ? {
-              connectionId: cred.jump.connectionId,
-              connectionName: cred.jump.connectionName,
-              host: cred.jump.host,
-              port: cred.jump.port,
-              username: cred.jump.username,
-              password: cred.jump.password,
-              privateKey: cred.jump.private_key,
-              passphrase: cred.jump.passphrase,
-            } : undefined,
-          })
-        } else if (tab.assetRow) {
-          await sftp.connect({ host: tab.assetRow.host, port: 22, username: tab.assetRow.user })
-        }
-      } catch (err) { addToast('error', `SFTP 连接失败: ${(err as Error).message}`) }
-    }
-    void resolve()
-  }, [targetTabId, connected, connecting, sftp, addToast])
 
   useEffect(() => { return () => { sftp.disconnect() } }, [sftp])
 
@@ -154,12 +110,43 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
   const [chmodTarget, setChmodTarget] = useState<{ path: string; permissions: string; isDir: boolean } | null>(null)
   const openEditor = useCallback((path: string, content: string) => { setEditorFile({ path, content }) }, [])
   const actions = useSftpActions({ sftp, targetTabId, openEditor })
-  const { syncToTerminal } = usePathSync({ targetTabId, onNavigate: actions.handleNavigate })
-  const handleNavigateWithSync = useCallback((path: string) => { actions.handleNavigate(path); syncToTerminal(path) }, [actions, syncToTerminal])
+  const handleNavigate = useCallback((path: string) => { actions.handleNavigate(path) }, [actions])
   const [menuState, setMenuState] = useState<MenuState>(initialMenuState)
+  const [activePane, setActivePane] = useState<'local' | 'remote'>('remote')
+  const [leftHostKind, setLeftHostKind] = useState<PaneHostKind>('local')
+  const [rightHostKind, setRightHostKind] = useState<PaneHostKind>('ssh')
+  const [leftTitle, setLeftTitle] = useState('本地目录')
+  const [rightTitle, setRightTitle] = useState('远程资产')
+  const [showLeftPicker, setShowLeftPicker] = useState(false)
+  const [showRightPicker, setShowRightPicker] = useState(true)
+  const [splitRatio, setSplitRatio] = useState(0.5)
+  const splitDraggingRef = useRef(false)
+  const workspaceRef = useRef<HTMLDivElement | null>(null)
   const handleContextMenu = useCallback((e: React.MouseEvent, entry: SftpFileEntry) => { setMenuState({ visible: true, x: e.clientX, y: e.clientY, entry }) }, [])
   const handleBlankContextMenu = useCallback((e: React.MouseEvent) => { setMenuState({ visible: true, x: e.clientX, y: e.clientY, entry: null }) }, [])
   const closeMenu = useCallback(() => { setMenuState(initialMenuState) }, [])
+
+  useEffect(() => {
+    const handleMove = (e: MouseEvent) => {
+      if (!splitDraggingRef.current || !workspaceRef.current) return
+      const rect = workspaceRef.current.getBoundingClientRect()
+      const raw = (e.clientX - rect.left) / rect.width
+      const clamped = Math.min(0.75, Math.max(0.25, raw))
+      setSplitRatio(clamped)
+    }
+    const handleUp = () => {
+      if (!splitDraggingRef.current) return
+      splitDraggingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+    }
+  }, [])
 
   const handleFileDrop = useCallback(async (files: File[]) => {
     if (!connected || files.length === 0) return
@@ -203,47 +190,223 @@ export default function SftpPanel({ targetTabId, hidden }: Props) {
   }, [actions, addToast])
 
   const handleEditorSave = useCallback(async (content: string) => { if (!editorFile) return; await sftp.writeFile(editorFile.path, content) }, [editorFile, sftp])
+  const handleSelectLocal = useCallback((side: PaneSide) => {
+    if (side === 'left') {
+      setLeftHostKind('local')
+      setLeftTitle('本地目录')
+      setShowLeftPicker(false)
+      return
+    }
+    setRightHostKind('local')
+    setRightTitle('本地目录')
+    setShowRightPicker(false)
+  }, [])
+
+  const handleConnectAsset = useCallback(async (side: PaneSide, asset: AssetRow) => {
+    if (!asset.id) return
+    try {
+      if (connected) {
+        sftp.disconnect()
+      }
+      const cred = await api.getConnectionCredential(asset.id)
+      await sftp.connect({
+        host: cred.host,
+        port: cred.port,
+        username: cred.username,
+        password: cred.password,
+        privateKey: cred.private_key,
+        passphrase: cred.passphrase,
+        connectionId: asset.id,
+        connectionName: asset.name,
+        jump: cred.jump ? {
+          connectionId: cred.jump.connectionId,
+          connectionName: cred.jump.connectionName,
+          host: cred.jump.host,
+          port: cred.jump.port,
+          username: cred.jump.username,
+          password: cred.jump.password,
+          privateKey: cred.jump.private_key,
+          passphrase: cred.jump.passphrase,
+        } : undefined,
+      })
+      if (side === 'left') {
+        setLeftHostKind('ssh')
+        setLeftTitle(asset.name)
+        setShowLeftPicker(false)
+      } else {
+        setRightHostKind('ssh')
+        setRightTitle(asset.name)
+        setShowRightPicker(false)
+      }
+      addToast('success', `已连接 ${asset.name}`)
+    } catch (err) {
+      addToast('error', `SFTP 连接失败: ${(err as Error).message}`)
+    }
+  }, [addToast, connected, sftp])
+
+  useEffect(() => {
+    if (!connectionName) return
+    if (leftHostKind === 'ssh') setLeftTitle(connectionName)
+    if (rightHostKind === 'ssh') setRightTitle(connectionName)
+  }, [connectionName, leftHostKind, rightHostKind])
+
+  const isWorkspace = variant === 'workspace'
 
   return (
     <>
       <motion.div
         id="sftp-panel"
-        className="shrink-0 flex flex-col bg-[#f8f9fa] overflow-hidden z-10 relative"
-        initial={{ width: 0, opacity: 0 }}
-        animate={{ width: panelWidth, opacity: 1 }}
-        exit={{ width: 0, opacity: 0 }}
+        className={`${isWorkspace ? 'w-full flex-1' : 'shrink-0'} flex flex-col bg-[#f8f9fa] overflow-hidden z-10 relative`}
+        initial={isWorkspace ? { opacity: 0 } : { width: 0, opacity: 0 }}
+        animate={isWorkspace ? { opacity: 1 } : { width: panelWidth, opacity: 1 }}
+        exit={isWorkspace ? { opacity: 0 } : { width: 0, opacity: 0 }}
         transition={isResizingPanel ? { duration: 0 } : { duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
         style={hidden ? { display: 'none' } : undefined}
       >
-        {/* Resize Handle */}
-        <div
-          className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/20 transition-colors z-30 group"
-          onMouseDown={handleMouseDown}
-        >
-          <div className="absolute inset-y-0 left-0 w-px bg-gray-200 group-hover:bg-primary/40" />
-        </div>
+        {!isWorkspace && (
+          <div
+            className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/20 transition-colors z-30 group"
+            onMouseDown={handleMouseDown}
+          >
+            <div className="absolute inset-y-0 left-0 w-px bg-gray-200 group-hover:bg-primary/40" />
+          </div>
+        )}
 
         <div className="flex-1 flex flex-col min-h-0">
-          {/* 导航条 - 紧贴顶部以对齐终端 */}
-          <SftpNavBar
-            onNavigate={handleNavigateWithSync}
-            onRefresh={sftp.refresh}
-            onListDir={(path) => void sftp.listDir(path)}
-            onSyncTerminal={syncToTerminal}
-          />
+          {!isWorkspace && (
+            <SftpNavBar
+              onNavigate={handleNavigate}
+              onRefresh={sftp.refresh}
+              onListDir={(path) => void sftp.listDir(path)}
+            />
+          )}
           
           {/* 内容区域 - 保持岛屿感但向上靠拢 */}
-          <div className="flex-1 flex flex-col min-h-0 mx-3 mb-3 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-            <SftpStatusBar />
-            <SftpFileList
-              onNavigate={handleNavigateWithSync}
-              onContextMenu={handleContextMenu}
-              onBlankContextMenu={handleBlankContextMenu}
-              onDoubleClick={handleDoubleClick}
-              onFileDrop={handleFileDrop}
-              onRename={actions.handleRenameSubmit}
-            />
-          </div>
+          {isWorkspace ? (
+            <div className="flex-1 min-h-0 px-4 pb-4">
+              <div ref={workspaceRef} className="flex h-full min-h-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+                <div
+                  className={`min-w-0 flex flex-col transition-opacity ${activePane === 'local' ? 'opacity-100' : 'opacity-90'}`}
+                  style={{ width: `${Math.round(splitRatio * 100)}%` }}
+                  onMouseDown={() => setActivePane('local')}
+                >
+                  {showLeftPicker ? (
+                    <SftpHostPicker
+                      title="左侧 Host"
+                      connecting={connecting}
+                      onSelectLocal={() => handleSelectLocal('left')}
+                      onSelectAsset={(asset) => { void handleConnectAsset('left', asset) }}
+                    />
+                  ) : leftHostKind === 'local' ? (
+                    <SftpLocalFileList
+                      title={leftTitle}
+                      active={activePane === 'local'}
+                      embedded
+                      onTitleClick={() => setShowLeftPicker(true)}
+                    />
+                  ) : (
+                    <>
+                      <SftpRemotePaneHeader
+                        title={leftTitle}
+                        active={activePane === 'local'}
+                        onNavigate={handleNavigate}
+                        onRefresh={sftp.refresh}
+                        onListDir={(path) => void sftp.listDir(path)}
+                        onTitleClick={() => setShowLeftPicker(true)}
+                      />
+                      {connected || connecting ? (
+                        <SftpFileList
+                          onNavigate={handleNavigate}
+                          onContextMenu={handleContextMenu}
+                          onBlankContextMenu={handleBlankContextMenu}
+                          onDoubleClick={handleDoubleClick}
+                          onFileDrop={handleFileDrop}
+                          onRename={actions.handleRenameSubmit}
+                        />
+                      ) : (
+                        <SftpHostPicker
+                          title="左侧 Host"
+                          connecting={connecting}
+                          onSelectLocal={() => handleSelectLocal('left')}
+                          onSelectAsset={(asset) => { void handleConnectAsset('left', asset) }}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+                <div
+                  className="relative w-1 cursor-col-resize bg-gray-200 hover:bg-primary/40"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    splitDraggingRef.current = true
+                    document.body.style.cursor = 'col-resize'
+                    document.body.style.userSelect = 'none'
+                  }}
+                >
+                  <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300" />
+                </div>
+                <div
+                  className={`min-w-0 flex flex-1 flex-col transition-opacity ${activePane === 'remote' ? 'opacity-100' : 'opacity-90'}`}
+                  onMouseDown={() => setActivePane('remote')}
+                >
+                  {showRightPicker ? (
+                    <SftpHostPicker
+                      title="右侧 Host"
+                      connecting={connecting}
+                      onSelectLocal={() => handleSelectLocal('right')}
+                      onSelectAsset={(asset) => { void handleConnectAsset('right', asset) }}
+                    />
+                  ) : rightHostKind === 'local' ? (
+                    <SftpLocalFileList
+                      title={rightTitle}
+                      active={activePane === 'remote'}
+                      embedded
+                      onTitleClick={() => setShowRightPicker(true)}
+                    />
+                  ) : (
+                    <>
+                      <SftpRemotePaneHeader
+                        title={rightTitle}
+                        active={activePane === 'remote'}
+                        onNavigate={handleNavigate}
+                        onRefresh={sftp.refresh}
+                        onListDir={(path) => void sftp.listDir(path)}
+                        onTitleClick={() => setShowRightPicker(true)}
+                      />
+                      {connected || connecting ? (
+                        <SftpFileList
+                          onNavigate={handleNavigate}
+                          onContextMenu={handleContextMenu}
+                          onBlankContextMenu={handleBlankContextMenu}
+                          onDoubleClick={handleDoubleClick}
+                          onFileDrop={handleFileDrop}
+                          onRename={actions.handleRenameSubmit}
+                        />
+                      ) : (
+                        <SftpHostPicker
+                          title="右侧 Host"
+                          connecting={connecting}
+                          onSelectLocal={() => handleSelectLocal('right')}
+                          onSelectAsset={(asset) => { void handleConnectAsset('right', asset) }}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col min-h-0 mx-3 mb-3 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+              <SftpFileList
+                onNavigate={handleNavigate}
+                onContextMenu={handleContextMenu}
+                onBlankContextMenu={handleBlankContextMenu}
+                onDoubleClick={handleDoubleClick}
+                onFileDrop={handleFileDrop}
+                onRename={actions.handleRenameSubmit}
+              />
+            </div>
+          )}
         </div>
 
         <SftpContextMenu

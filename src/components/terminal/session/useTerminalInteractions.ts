@@ -4,6 +4,7 @@ import { useKeywordHighlight } from '../useKeywordHighlight'
 import { addInputListener, getSession, removeInputListener } from '../../../stores/terminalSessionRegistry'
 import { getHistory } from '../../../api/client'
 import { syncMonitorRuntime } from './terminal-monitor'
+import { pasteTextToSession } from './terminal-paste'
 import {
   clearPendingTabCompletion,
   syncCommandBufferFromTerminalBeforeSubmit,
@@ -11,6 +12,7 @@ import {
 } from './terminal-command-buffer'
 import type { Terminal } from '@xterm/xterm'
 import type { TerminalSession } from '../../../stores/terminalSessionRegistry'
+import type { TerminalSocketLike } from '../../../stores/terminalSessionRegistry'
 import type { TerminalConnection } from './terminal-types'
 
 interface UseTerminalInteractionsOptions {
@@ -23,7 +25,7 @@ interface UseTerminalInteractionsOptions {
   safeFit: (session: TerminalSession) => void
   updateCellHeight: () => void
   wrapperRef: MutableRefObject<HTMLDivElement | null>
-  wsRef: MutableRefObject<WebSocket | null>
+  wsRef: MutableRefObject<TerminalSocketLike | null>
   termRef: MutableRefObject<Terminal | null>
   monitorRunningRef: MutableRefObject<boolean>
   onContextMenu?: (x: number, y: number, hasSelection: boolean) => void
@@ -50,10 +52,7 @@ function execCommandCopy(text: string) {
 
 function pasteToSession(paneId: string) {
   navigator.clipboard.readText().then((text) => {
-    const current = getSession(paneId)
-    if (text && current?.ws?.readyState === WebSocket.OPEN) {
-      current.ws.send(JSON.stringify({ type: 'input', data: text }))
-    }
+    pasteTextToSession(paneId, text)
   }).catch(() => {})
 }
 

@@ -1,6 +1,6 @@
 /* ── SFTP 文件列表（岛屿风格版 - Grid 布局） ── */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { AppIcon, icons } from '../../icons/AppIcon'
 import { useSftpStore } from '../../../stores/useSftpStore'
 import { useSettingsStore } from '../../../stores/useSettingsStore'
@@ -28,14 +28,20 @@ function getFileExt(name: string, type: string): string {
   return name.includes('.') ? name.split('.').pop()!.toLowerCase() : '文件'
 }
 
+function formatPermissionSubtitle(entry: SftpFileEntry): string {
+  const raw = (entry.permissions || '').trim()
+  if (!raw || raw === '-') return '-'
+  if (entry.type === 'dir' && !raw.startsWith('d')) return `d${raw}`
+  if (entry.type === 'file' && raw.startsWith('d') && raw.length > 1) return raw.slice(1)
+  return raw
+}
+
 /** 列定义映射 */
 const COLUMN_DEFS: Record<string, { field: SftpSortField | null; label: string; minWidth: number; align: string }> = {
   name: { field: 'name', label: '名称', minWidth: 180, align: 'text-left' },
-  mtime: { field: 'modifiedAt', label: '修改时间', minWidth: 150, align: 'text-center' },
-  type: { field: null, label: '类型', minWidth: 80, align: 'text-center' },
-  size: { field: 'size', label: '大小', minWidth: 80, align: 'text-center' },
-  perm: { field: null, label: '权限', minWidth: 80, align: 'text-center' },
-  owner: { field: null, label: '用户/组', minWidth: 80, align: 'text-center' },
+  mtime: { field: 'modifiedAt', label: '修改时间', minWidth: 150, align: 'text-right' },
+  size: { field: 'size', label: '大小', minWidth: 80, align: 'text-right' },
+  type: { field: null, label: '类型', minWidth: 80, align: 'text-left' },
 }
 
 interface Props {
@@ -67,49 +73,9 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
   const connecting = useSftpStore(s => s.connecting)
 
   const sftpParentDirClick = useSettingsStore(s => s.sftpParentDirClick)
-  const sftpRemoteColumns = useSettingsStore(s => s.sftpRemoteColumns)
 
-  const visibleColumns = sftpRemoteColumns.filter(c => c in COLUMN_DEFS && c !== 'name')
-  const columnKeys = ['name', ...visibleColumns]
-  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
-    const initial: Record<string, number> = {}
-    for (const [key, def] of Object.entries(COLUMN_DEFS)) {
-      initial[key] = def.minWidth
-    }
-    return initial
-  })
-
-  const minTableWidth = columnKeys.reduce((sum, col) => sum + (columnWidths[col] ?? COLUMN_DEFS[col].minWidth), 0)
-  const gridTemplateColumns = columnKeys.map((col) => {
-    const def = COLUMN_DEFS[col]
-    const width = columnWidths[col] ?? def.minWidth
-    return `minmax(${width}px, 1fr)`
-  }).join(' ')
-
-  const resizingRef = useRef<{ col: string; startX: number; startWidth: number } | null>(null)
-  const startResize = useCallback((col: string, e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation()
-    const width = columnWidths[col] ?? COLUMN_DEFS[col].minWidth
-    resizingRef.current = { col, startX: e.clientX, startWidth: width }
-  }, [columnWidths])
-
-  useEffect(() => {
-    const handleMove = (e: MouseEvent) => {
-      if (!resizingRef.current) return
-      const { col, startX, startWidth } = resizingRef.current
-      const def = COLUMN_DEFS[col]
-      if (!def) return
-      const next = Math.max(def.minWidth, Math.round(startWidth + (e.clientX - startX)))
-      setColumnWidths(prev => ({ ...prev, [col]: next }))
-    }
-    const handleUp = () => { resizingRef.current = null }
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
-    return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
-    }
-  }, [])
+  const columnKeys = ['name', 'mtime', 'size', 'type']
+  const gridTemplateColumns = 'minmax(240px,3.2fr) minmax(150px,1.4fr) minmax(110px,1fr) minmax(110px,1fr)'
 
   const [dragOver, setDragOver] = useState(false)
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -223,7 +189,7 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
       )}
       <div className="flex-1 overflow-hidden">
         <div className="h-full overflow-x-auto custom-scrollbar">
-          <div style={{ minWidth: `${minTableWidth}px` }}>
+          <div>
             <div className="sticky top-0 z-10 bg-white border-b border-gray-100 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
               <div className="grid text-[13px] text-gray-500 font-medium" style={{ gridTemplateColumns }}>
                 {columnKeys.map((col) => {
@@ -237,13 +203,6 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
                       <div className="flex items-center gap-1 overflow-hidden justify-start">
                         <span className="truncate">{def.label}</span>
                         {def.field ? <SortIcon field={def.field} /> : col === 'type' ? <AppIcon icon={icons.chevronDown} size={11} className="opacity-40 shrink-0" /> : null}
-                      </div>
-                      <div
-                        className="absolute right-0 top-0 h-full w-2 cursor-col-resize z-20"
-                        onMouseDown={(e) => startResize(col, e)}
-                        onClick={e => e.stopPropagation()}
-                      >
-                        <span className="absolute right-0 top-2 bottom-2 w-px bg-gray-200 group-hover:bg-blue-400" />
                       </div>
                     </div>
                   )
@@ -281,7 +240,7 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
                   <div
                     key={entry.path}
                     draggable
-                    className={`grid border-b border-gray-50 transition-colors cursor-pointer ${selected ? 'bg-blue-50/80! text-blue-700' : 'hover:bg-blue-50/50 even:bg-gray-50/30 odd:bg-white'}`}
+                    className={`grid min-h-[42px] border-b border-gray-50 transition-colors cursor-pointer ${selected ? 'bg-blue-50/80! text-blue-700' : 'hover:bg-blue-50/60 even:bg-gray-50/30 odd:bg-white'}`}
                     style={{ gridTemplateColumns }}
                     onClick={(e) => { e.stopPropagation(); handleClick(e, entry) }}
                     onDoubleClick={() => entry.type === 'dir' ? onNavigate(entry.path) : onDoubleClick(entry)}
@@ -291,11 +250,16 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
                     {columnKeys.map(col => {
                       if (col === 'name') {
                         return (
-                          <div key={col} className="py-2 px-4 flex items-center gap-3 text-left min-w-0">
-                            <AppIcon icon={iconInfo.icon} size={20} className={`shrink-0 ${iconInfo.color} ${entry.type === 'dir' ? 'fill-yellow-400' : 'fill-current opacity-80'}`} />
-                            {renamingPath === entry.path && onRename
-                              ? <SftpInlineRename name={entry.name} path={entry.path} onRename={onRename} />
-                              : <span className={`truncate ${entry.type === 'dir' ? 'font-medium text-gray-700' : 'text-gray-800'}`}>{entry.name}</span>}
+                          <div key={col} className="py-2 px-4 text-left min-w-0">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <AppIcon icon={iconInfo.icon} size={20} className={`shrink-0 ${iconInfo.color} ${entry.type === 'dir' ? 'fill-yellow-400' : 'fill-current opacity-80'}`} />
+                              {renamingPath === entry.path && onRename
+                                ? <SftpInlineRename name={entry.name} path={entry.path} onRename={onRename} />
+                                : <span className={`truncate ${entry.type === 'dir' ? 'font-medium text-gray-700' : 'text-gray-800'}`}>{entry.name}</span>}
+                            </div>
+                            <div className="pl-[32px] pt-0.5 text-[11px] text-gray-400 font-mono truncate">
+                              {formatPermissionSubtitle(entry)}
+                            </div>
                           </div>
                         )
                       }
@@ -306,12 +270,11 @@ export default function SftpFileList({ onNavigate, onContextMenu, onBlankContext
                           break
                         case 'mtime': val = formatDate(entry.modifiedAt); break
                         case 'type': val = getFileExt(entry.name, entry.type); break
-                        case 'perm': val = entry.permissions || '-'; break
-                        case 'owner': val = entry.owner !== undefined && entry.group !== undefined ? `${entry.owner}:${entry.group}` : '-'; break
                       }
-                      const isMono = col === 'mtime' || col === 'perm' || col === 'owner' || col === 'size'
+                      const isMono = col === 'mtime' || col === 'size'
+                      const isRight = col === 'mtime' || col === 'size'
                       return (
-                        <div key={col} className={`py-2 px-4 text-center text-gray-600 truncate ${isMono ? 'font-mono text-[13px]' : ''}`}>
+                        <div key={col} className={`py-2 px-4 ${isRight ? 'text-right' : 'text-left'} text-gray-600 truncate ${isMono ? 'font-mono text-[13px]' : ''}`}>
                           {val}
                         </div>
                       )

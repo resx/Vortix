@@ -28,22 +28,124 @@ import type {
   GenerateSshKeyDto,
 } from './types'
 import { promptHostKeyTrust } from '../utils/hostKeyPrompt'
+import {
+  bridgeBatchUpdateConnections,
+  bridgeCreateConnection,
+  bridgeGetConnection,
+  bridgeGetConnectionCredential,
+  bridgeDeleteConnection,
+  bridgeCreateFolder,
+  bridgeListConnections,
+  bridgePingConnections,
+  bridgeUpdateConnection,
+  bridgeCreateShortcut,
+  bridgeCreateShortcutGroup,
+  bridgeDeleteFolder,
+  bridgeDeleteShortcut,
+  bridgeDeleteShortcutGroup,
+  bridgeGetSettings,
+  bridgeHealth,
+  bridgeListFolders,
+  bridgeListShortcutGroups,
+  bridgeListShortcuts,
+  bridgeResetSettings,
+  bridgeSaveSettings,
+  bridgeUpdateFolder,
+  bridgeUpdateShortcut,
+  bridgeUpdateShortcutGroup,
+} from './bridge'
 
-// CEF 预留：运行时可通过 window.__VORTIX_CONFIG__ 覆盖
-const config = (window as unknown as Record<string, unknown>).__VORTIX_CONFIG__ as { apiBaseUrl?: string } | undefined
-const BASE_URL = config?.apiBaseUrl || 'http://localhost:3002/api'
-if (config) Object.freeze(config)
+interface VortixRuntimeConfig {
+  apiBaseUrl?: string
+}
+
+const FALLBACK_API_PORTS = [3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010, 3011, 3012]
+const API_DISCOVERY_TIMEOUT_MS = 600
+let cachedApiBaseUrl: string | null = null
+
+function readWindowConfig(): VortixRuntimeConfig | undefined {
+  return (window as unknown as Record<string, unknown>).__VORTIX_CONFIG__ as VortixRuntimeConfig | undefined
+}
+
+function getPreferredApiBaseUrl(): string {
+  const config = readWindowConfig()
+  if (config?.apiBaseUrl) return config.apiBaseUrl
+  return 'http://localhost:3002/api'
+}
+
+function getCurrentApiBaseUrl(): string {
+  const config = readWindowConfig()
+  if (config?.apiBaseUrl) {
+    cachedApiBaseUrl = config.apiBaseUrl
+    return config.apiBaseUrl
+  }
+  if (cachedApiBaseUrl) return cachedApiBaseUrl
+  return getPreferredApiBaseUrl()
+}
+
+async function isApiHealthy(baseUrl: string): Promise<boolean> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), API_DISCOVERY_TIMEOUT_MS)
+  try {
+    const res = await fetch(`${baseUrl}/health`, {
+      method: 'GET',
+      signal: controller.signal,
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    return res.ok
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function discoverApiBaseUrl(): Promise<string> {
+  const configured = readWindowConfig()?.apiBaseUrl
+  const candidates = new Set<string>()
+  if (configured) candidates.add(configured)
+  if (cachedApiBaseUrl) candidates.add(cachedApiBaseUrl)
+  candidates.add(getPreferredApiBaseUrl())
+
+  for (const port of FALLBACK_API_PORTS) {
+    candidates.add(`http://127.0.0.1:${port}/api`)
+    candidates.add(`http://localhost:${port}/api`)
+  }
+
+  for (const baseUrl of candidates) {
+    if (await isApiHealthy(baseUrl)) {
+      cachedApiBaseUrl = baseUrl
+      return baseUrl
+    }
+  }
+
+  return getCurrentApiBaseUrl()
+}
 
 /** 通用请求方法 */
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Requested-With': 'XMLHttpRequest',
-      ...options?.headers,
-    },
-  })
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
+    ...options?.headers,
+  }
+  let res: Response
+  let baseUrl = getCurrentApiBaseUrl()
+  if (!readWindowConfig()?.apiBaseUrl && !cachedApiBaseUrl) {
+    baseUrl = await discoverApiBaseUrl()
+  }
+  try {
+    res = await fetch(`${baseUrl}${path}`, {
+      ...options,
+      headers,
+    })
+  } catch {
+    const discoveredBaseUrl = await discoverApiBaseUrl()
+    res = await fetch(`${discoveredBaseUrl}${path}`, {
+      ...options,
+      headers,
+    })
+  }
   const raw = await res.text()
   let json: ApiResponse<T> | null = null
   try {
@@ -64,82 +166,138 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 /* ── 文件夹 API ── */
 
 export async function getFolders(): Promise<Folder[]> {
-  return request<Folder[]>('/folders')
+  try {
+    return await bridgeListFolders()
+  } catch {
+    return request<Folder[]>('/folders')
+  }
 }
 
 export async function createFolder(dto: CreateFolderDto): Promise<Folder> {
-  return request<Folder>('/folders', {
-    method: 'POST',
-    body: JSON.stringify(dto),
-  })
+  try {
+    return await bridgeCreateFolder(dto)
+  } catch {
+    return request<Folder>('/folders', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    })
+  }
 }
 
 export async function updateFolder(id: string, dto: UpdateFolderDto): Promise<Folder> {
-  return request<Folder>(`/folders/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(dto),
-  })
+  try {
+    return await bridgeUpdateFolder(id, dto)
+  } catch {
+    return request<Folder>(`/folders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(dto),
+    })
+  }
 }
 
 export async function deleteFolder(id: string): Promise<void> {
-  return request<void>(`/folders/${id}`, { method: 'DELETE' })
+  try {
+    await bridgeDeleteFolder(id)
+  } catch {
+    await request<void>(`/folders/${id}`, { method: 'DELETE' })
+  }
 }
 
 /* ── 连接 API ── */
 
 export async function getConnections(folderId?: string): Promise<Connection[]> {
-  const query = folderId ? `?folder_id=${folderId}` : ''
-  return request<Connection[]>(`/connections${query}`)
+  try {
+    return await bridgeListConnections(folderId)
+  } catch {
+    const query = folderId ? `?folder_id=${folderId}` : ''
+    return request<Connection[]>(`/connections${query}`)
+  }
 }
 
 export async function getConnection(id: string): Promise<Connection> {
-  return request<Connection>(`/connections/${id}`)
+  try {
+    return await bridgeGetConnection(id)
+  } catch {
+    return request<Connection>(`/connections/${id}`)
+  }
 }
 
 export async function getConnectionCredential(id: string): Promise<ConnectionCredential> {
-  return request<ConnectionCredential>(`/connections/${id}/credential`)
+  try {
+    return await bridgeGetConnectionCredential(id)
+  } catch {
+    return request<ConnectionCredential>(`/connections/${id}/credential`)
+  }
 }
 
 export async function createConnection(dto: CreateConnectionDto): Promise<Connection> {
-  return request<Connection>('/connections', {
-    method: 'POST',
-    body: JSON.stringify(dto),
-  })
+  try {
+    return await bridgeCreateConnection(dto)
+  } catch {
+    return request<Connection>('/connections', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    })
+  }
 }
 
 export async function updateConnection(id: string, dto: UpdateConnectionDto): Promise<Connection> {
-  return request<Connection>(`/connections/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(dto),
-  })
+  try {
+    return await bridgeUpdateConnection(id, dto)
+  } catch {
+    return request<Connection>(`/connections/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(dto),
+    })
+  }
 }
 
 export async function deleteConnection(id: string): Promise<void> {
-  return request<void>(`/connections/${id}`, { method: 'DELETE' })
+  try {
+    await bridgeDeleteConnection(id)
+  } catch {
+    await request<void>(`/connections/${id}`, { method: 'DELETE' })
+  }
 }
 
 export async function batchUpdateConnections(dto: BatchUpdateConnectionDto): Promise<Connection[]> {
-  return request<Connection[]>('/connections/batch', {
-    method: 'PATCH',
-    body: JSON.stringify(dto),
-  })
+  try {
+    return await bridgeBatchUpdateConnections(dto)
+  } catch {
+    return request<Connection[]>('/connections/batch', {
+      method: 'PATCH',
+      body: JSON.stringify(dto),
+    })
+  }
 }
 
 /* ── 设置 API ── */
 
 export async function getSettings(): Promise<Settings> {
-  return request<Settings>('/settings')
+  try {
+    return await bridgeGetSettings()
+  } catch {
+    return request<Settings>('/settings')
+  }
 }
 
 export async function saveSettings(settings: Settings): Promise<void> {
-  return request<void>('/settings', {
-    method: 'PUT',
-    body: JSON.stringify(settings),
-  })
+  try {
+    await bridgeSaveSettings(settings)
+  } catch {
+    await request<void>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    })
+  }
 }
 
 export async function resetSettings(): Promise<void> {
-  return request<void>('/settings/reset', { method: 'POST' })
+  try {
+    await bridgeResetSettings()
+  } catch {
+    await request<void>('/settings/reset', { method: 'POST' })
+  }
 }
 
 /* ── 命令历史 API ── */
@@ -163,7 +321,11 @@ export async function clearHistory(connectionId: string): Promise<void> {
 /* ── 健康检查 ── */
 
 export async function healthCheck(): Promise<{ status: string }> {
-  return request<{ status: string }>('/health')
+  try {
+    return await bridgeHealth()
+  } catch {
+    return request<{ status: string }>('/health')
+  }
 }
 
 /* ── 文件系统 ── */
@@ -171,6 +333,22 @@ export async function healthCheck(): Promise<{ status: string }> {
 export async function listDirs(path?: string): Promise<{ path: string; dirs: string[] }> {
   const query = path ? `?path=${encodeURIComponent(path)}` : ''
   return request<{ path: string; dirs: string[] }>(`/fs/list-dirs${query}`)
+}
+
+export interface LocalFsEntry {
+  name: string
+  path: string
+  type: 'dir' | 'file' | 'other'
+  size: number
+  modifiedAt: string
+  permissions?: string
+  owner?: string
+  group?: string
+}
+
+export async function listLocalEntries(path?: string): Promise<{ path: string; entries: LocalFsEntry[] }> {
+  const query = path ? `?path=${encodeURIComponent(path)}` : ''
+  return request<{ path: string; entries: LocalFsEntry[] }>(`/fs/list-local-entries${query}`)
 }
 
 export async function pickDir(initialDir?: string): Promise<string | null> {
@@ -190,7 +368,7 @@ export async function pickFile(title?: string, filters?: string): Promise<{ path
 
 /** 保存二进制数据到本地磁盘（默认 ~/Downloads/vortix-download/） */
 export async function saveDownloadToLocal(blob: Blob, fileName: string, targetDir?: string): Promise<string> {
-  const res = await fetch(`${BASE_URL}/fs/save-download`, {
+  const res = await fetch(`${getCurrentApiBaseUrl()}/fs/save-download`, {
     method: 'POST',
     headers: {
       'X-File-Name': fileName,
@@ -291,7 +469,7 @@ export async function importThemes(raw: string): Promise<import('./types').Impor
 }
 
 export function getThemeExportUrl(id: string): string {
-  return `${BASE_URL}/themes/${id}/export`
+  return `${getCurrentApiBaseUrl()}/themes/${id}/export`
 }
 
 export async function getSshKeys(): Promise<SshKey[]> {
@@ -336,16 +514,20 @@ export async function deleteSshKey(id: string): Promise<void> {
 }
 
 export function getSshKeyExportUrl(id: string): string {
-  return `${BASE_URL}/ssh-keys/${id}/export`
+  return `${getCurrentApiBaseUrl()}/ssh-keys/${id}/export`
 }
 
 /* ── 测试连接 ── */
 
 export async function pingConnections(ids: string[]): Promise<Record<string, number | null>> {
-  return request<Record<string, number | null>>('/connections/ping', {
-    method: 'POST',
-    body: JSON.stringify({ ids }),
-  })
+  try {
+    return await bridgePingConnections(ids)
+  } catch {
+    return request<Record<string, number | null>>('/connections/ping', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    })
+  }
 }
 
 async function postUploadSshKey(
@@ -353,7 +535,7 @@ async function postUploadSshKey(
   keyId: string,
   options?: { trustHostKey?: boolean; replaceExisting?: boolean },
 ): Promise<UploadSshKeyResult> {
-  const res = await fetch(`${BASE_URL}/connections/${connectionId}/upload-key`, {
+  const res = await fetch(`${getCurrentApiBaseUrl()}/connections/${connectionId}/upload-key`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -409,7 +591,7 @@ export async function uploadSshKey(
 }
 
 async function postTestSshConnection(data: Record<string, unknown>): Promise<TestResult> {
-  const res = await fetch(`${BASE_URL}/connections/test-ssh`, {
+  const res = await fetch(`${getCurrentApiBaseUrl()}/connections/test-ssh`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -448,7 +630,7 @@ export async function testSshConnection(data: Record<string, unknown>): Promise<
 }
 
 export async function testLocalTerminal(data: { shell: string; workingDir?: string }): Promise<TestResult> {
-  const res = await fetch(`${BASE_URL}/connections/test-local`, {
+  const res = await fetch(`${getCurrentApiBaseUrl()}/connections/test-local`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -460,7 +642,7 @@ export async function testLocalTerminal(data: { shell: string; workingDir?: stri
 }
 
 export async function getLocalTerminalDefaultDir(shell: string): Promise<string | undefined> {
-  const res = await fetch(`${BASE_URL}/connections/local-default-dir`, {
+  const res = await fetch(`${getCurrentApiBaseUrl()}/connections/local-default-dir`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -490,47 +672,79 @@ export async function cleanupData(): Promise<CleanupResult> {
 /* ── 快捷命令 API ── */
 
 export async function getShortcuts(): Promise<Shortcut[]> {
-  return request<Shortcut[]>('/shortcuts')
+  try {
+    return await bridgeListShortcuts()
+  } catch {
+    return request<Shortcut[]>('/shortcuts')
+  }
 }
 
 export async function createShortcut(dto: CreateShortcutDto): Promise<Shortcut> {
-  return request<Shortcut>('/shortcuts', {
-    method: 'POST',
-    body: JSON.stringify(dto),
-  })
+  try {
+    return await bridgeCreateShortcut(dto)
+  } catch {
+    return request<Shortcut>('/shortcuts', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    })
+  }
 }
 
 export async function updateShortcut(id: string, dto: UpdateShortcutDto): Promise<Shortcut> {
-  return request<Shortcut>(`/shortcuts/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(dto),
-  })
+  try {
+    return await bridgeUpdateShortcut(id, dto)
+  } catch {
+    return request<Shortcut>(`/shortcuts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(dto),
+    })
+  }
 }
 
 export async function deleteShortcut(id: string): Promise<void> {
-  return request<void>(`/shortcuts/${id}`, { method: 'DELETE' })
+  try {
+    await bridgeDeleteShortcut(id)
+  } catch {
+    await request<void>(`/shortcuts/${id}`, { method: 'DELETE' })
+  }
 }
 
 export async function getShortcutGroups(): Promise<ShortcutGroup[]> {
-  return request<ShortcutGroup[]>('/shortcut-groups')
+  try {
+    return await bridgeListShortcutGroups()
+  } catch {
+    return request<ShortcutGroup[]>('/shortcut-groups')
+  }
 }
 
 export async function createShortcutGroup(dto: CreateShortcutGroupDto): Promise<ShortcutGroup> {
-  return request<ShortcutGroup>('/shortcut-groups', {
-    method: 'POST',
-    body: JSON.stringify(dto),
-  })
+  try {
+    return await bridgeCreateShortcutGroup(dto)
+  } catch {
+    return request<ShortcutGroup>('/shortcut-groups', {
+      method: 'POST',
+      body: JSON.stringify(dto),
+    })
+  }
 }
 
 export async function updateShortcutGroup(id: string, dto: UpdateShortcutGroupDto): Promise<ShortcutGroup> {
-  return request<ShortcutGroup>(`/shortcut-groups/${id}`, {
-    method: 'PUT',
-    body: JSON.stringify(dto),
-  })
+  try {
+    return await bridgeUpdateShortcutGroup(id, dto)
+  } catch {
+    return request<ShortcutGroup>(`/shortcut-groups/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(dto),
+    })
+  }
 }
 
 export async function deleteShortcutGroup(id: string): Promise<void> {
-  return request<void>(`/shortcut-groups/${id}`, { method: 'DELETE' })
+  try {
+    await bridgeDeleteShortcutGroup(id)
+  } catch {
+    await request<void>(`/shortcut-groups/${id}`, { method: 'DELETE' })
+  }
 }
 
 /* ── 云同步 API ── */
@@ -602,7 +816,7 @@ export async function purgeAllData(): Promise<void> {
 /** 获取 WebSocket 基础 URL（自动检测 ws/wss 协议） */
 export function getWsBaseUrl(): string {
   try {
-    const url = new URL(BASE_URL)
+    const url = new URL(getCurrentApiBaseUrl())
     const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
     return `${wsProtocol}//${url.host}`
   } catch {

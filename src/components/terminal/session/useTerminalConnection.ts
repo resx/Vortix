@@ -3,8 +3,13 @@ import { useSettingsStore } from '../../../stores/useSettingsStore'
 import { useTabStore } from '../../../stores/useTabStore'
 import { addHistory } from '../../../api/client'
 import { t as translate } from '../../../i18n'
+import {
+  createTerminalSessionId,
+  shouldUseTerminalBridge,
+  TerminalBridgeSocket,
+} from '../../../lib/terminalBridgeSocket'
 import { handleMonitorMessage, resetMonitorState, startMonitorIfNeeded } from './terminal-monitor'
-import { describeConnectionStage, nextConnectionSteps } from './terminal-connection-state'
+import { describeConnectionStage, getReconnectStageText, nextConnectionSteps } from './terminal-connection-state'
 import {
   applyAnsiSafeHighlight,
   endsWithExplicitLineBreak,
@@ -13,18 +18,21 @@ import {
   normalizeOutputBeforePrompt,
   shouldPreserveTerminalOutput,
 } from './terminal-output'
-import { syncPendingTabCompletionFromTerminal } from './terminal-command-buffer'
+import { clearPendingTabCompletion, syncPendingTabCompletionFromTerminal } from './terminal-command-buffer'
+import { resolveFullscreenEditorModeFromOutput } from './terminal-editor-mode'
 import type { ConnectionLoadingStep } from '../ConnectionLoadingView'
 import type { TerminalSession } from '../../../stores/terminalSessionRegistry'
+import type { TerminalSocketLike } from '../../../stores/terminalSessionRegistry'
 import type { ConnectionStagePayload, HostKeyVerificationPayload, SshConnection, SshTerminalProps } from './terminal-types'
 
 interface UseTerminalConnectionOptions {
+  paneId: string
   connectionId?: string | null
   connectionName?: string | null
   resolvedWsUrl: string
   showRealtimeInfo: boolean
   tabId?: string
-  wsRef: MutableRefObject<WebSocket | null>
+  wsRef: MutableRefObject<TerminalSocketLike | null>
   getProposedDimensions: (term: TerminalSession['term'], fitAddon?: TerminalSession['fitAddon']) => { cols: number; rows: number } | undefined
   getResolvedHighlightRules: () => { color: string; pattern: RegExp }[]
   safeFit: (session: TerminalSession) => void
@@ -40,6 +48,7 @@ interface UseTerminalConnectionOptions {
 }
 
 export function useTerminalConnection({
+  paneId,
   connectionId,
   connectionName,
   resolvedWsUrl,
@@ -64,6 +73,12 @@ export function useTerminalConnection({
     const { term, fitAddon } = session
     const isLocal = 'type' in conn && conn.type === 'local'
     const sshConn = isLocal ? null : conn as SshConnection
+    let lastInlineStageText = ''
+    const inlinePrefix = '\x1b[90m[Vortix]\x1b[0m'
+    const writeInline = (text: string, kind: 'info' | 'warn' | 'error' = 'info') => {
+      const color = kind === 'error' ? '\x1b[31m' : kind === 'warn' ? '\x1b[33m' : '\x1b[36m'
+      term.writeln(`\r\n${inlinePrefix} ${color}${text}\x1b[0m`)
+    }
 
     if (session.reconnectTimer) {
       clearTimeout(session.reconnectTimer)
@@ -72,7 +87,9 @@ export function useTerminalConnection({
     session.reconnectInputDisposable?.dispose()
     session.reconnectInputDisposable = null
 
-    const ws = new WebSocket(resolvedWsUrl)
+    const ws = shouldUseTerminalBridge()
+      ? new TerminalBridgeSocket(createTerminalSessionId(paneId))
+      : new WebSocket(resolvedWsUrl)
     session.ws = ws
     wsRef.current = ws
 
@@ -92,6 +109,15 @@ export function useTerminalConnection({
             ? `${translate('connectionLoading.phase.connecting')} ${translate('connectionLoading.role.target')} ${sshConn.host}:${sshConn.port}`
             : translate('connectionLoading.phase.startingLocal'),
       )
+      term.clear()
+      writeInline(translate('connectionLoading.preparing'))
+      if (sshConn?.jump) {
+        writeInline(`${translate('connectionLoading.phase.connecting')} ${translate('connectionLoading.role.jump')} ${sshConn.jump.connectionName || sshConn.jump.host}:${sshConn.jump.port}`)
+      } else if (sshConn) {
+        writeInline(`${translate('connectionLoading.phase.connecting')} ${translate('connectionLoading.role.target')} ${sshConn.host}:${sshConn.port}`)
+      } else {
+        writeInline(translate('connectionLoading.phase.startingLocal'))
+      }
       safeFit(session)
       const dims = getProposedDimensions(term, fitAddon)
       if (isLocal) {
@@ -114,12 +140,21 @@ export function useTerminalConnection({
       }
     }
 
-    ws.onmessage = (event) => {
+    ws.onmessage = (event: { data: string }) => {
       if (session.ws !== ws) return
       const msg = JSON.parse(event.data)
       switch (msg.type) {
         case 'output': {
           const outputText = String(msg.data ?? '')
+          const prevEditorMode = session.inFullscreenEditor
+          const nextEditorMode = resolveFullscreenEditorModeFromOutput(outputText, prevEditorMode)
+          if (nextEditorMode !== prevEditorMode) {
+            session.inFullscreenEditor = nextEditorMode
+            if (nextEditorMode) {
+              session.commandBuffer = ''
+              clearPendingTabCompletion(session)
+            }
+          }
           const protectedOutput = shouldPreserveTerminalOutput(outputText)
           let normalizedOutput = outputText
           let shouldRefreshCursor = false
@@ -181,6 +216,7 @@ export function useTerminalConnection({
             setConnectionStageText('')
             setPendingHostKeyPrompt(null)
             setConnectionErrorText('')
+            term.clear()
             updateTerminalStatus('connected')
             requestAnimationFrame(() => {
               if (session.ws !== ws) return
@@ -199,6 +235,7 @@ export function useTerminalConnection({
             setPendingHostKeyPrompt(null)
             if (!hasConnectedRef.current) {
               setConnectionErrorText(translate('connectionLoading.error.closedBeforeEstablished'))
+              writeInline(translate('connectionLoading.error.closedBeforeEstablished'), 'warn')
             } else {
               term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接已关闭')
             }
@@ -208,6 +245,7 @@ export function useTerminalConnection({
             setPendingHostKeyPrompt(null)
             if (!hasConnectedRef.current) {
               setConnectionErrorText(translate('connectionLoading.error.timeoutBeforeEstablished'))
+              writeInline(translate('connectionLoading.error.timeoutBeforeEstablished'), 'warn')
             } else {
               term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接超时')
             }
@@ -219,6 +257,10 @@ export function useTerminalConnection({
           const stageText = describeConnectionStage(data)
           setConnectionStageText(stageText)
           setConnectionSteps((prev) => nextConnectionSteps(prev, data, stageText))
+          if (stageText && stageText !== lastInlineStageText) {
+            lastInlineStageText = stageText
+            writeInline(stageText)
+          }
           break
         }
         case 'ping':
@@ -255,6 +297,7 @@ export function useTerminalConnection({
           setConnectionStageText('')
           setPendingHostKeyPrompt(null)
           setConnectionErrorText(String(msg.data ?? translate('connectionLoading.failedTitle')))
+          writeInline(String(msg.data ?? translate('connectionLoading.failedTitle')), 'error')
           if (hasConnectedRef.current) {
             term.writeln('\r\n\x1b[31m[Vortix 错误]\x1b[0m ' + msg.data)
           }
@@ -272,6 +315,7 @@ export function useTerminalConnection({
       if (session.isManualDisconnect) return
       if (!hasConnectedRef.current) {
         setConnectionErrorText(translate('connectionLoading.error.websocketClosedBeforeEstablished'))
+        writeInline(translate('connectionLoading.error.websocketClosedBeforeEstablished'), 'warn')
       } else {
         term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m WebSocket disconnected')
       }
@@ -281,7 +325,8 @@ export function useTerminalConnection({
       const interval = settings.reconnectInterval * 1000
       if (session.reconnectCount < maxRetries) {
         session.reconnectCount++
-        setConnectionStageText(translate('connectionLoading.phase.reconnectingWithCount', { current: session.reconnectCount, total: maxRetries }))
+        setConnectionStageText(getReconnectStageText(session.reconnectCount, maxRetries))
+        writeInline(getReconnectStageText(session.reconnectCount, maxRetries), 'warn')
         setConnectionErrorText('')
         updateTerminalStatus('connecting')
         session.reconnectTimer = setTimeout(() => {
@@ -290,12 +335,13 @@ export function useTerminalConnection({
         }, interval)
       } else {
         setConnectionErrorText(translate('connectionLoading.error.pressAnyKeyReconnect'))
+        writeInline(translate('connectionLoading.error.pressAnyKeyReconnect'), 'warn')
         session.reconnectInputDisposable?.dispose()
         session.reconnectInputDisposable = term.onData(() => {
           session.reconnectInputDisposable?.dispose()
           session.reconnectInputDisposable = null
           session.reconnectCount = 0
-          setConnectionStageText(translate('connectionLoading.phase.reconnecting'))
+          setConnectionStageText(getReconnectStageText(0, 0))
           setConnectionErrorText('')
           updateTerminalStatus('connecting')
           connectWsRef.current?.(session, conn)
@@ -309,12 +355,14 @@ export function useTerminalConnection({
       setPendingHostKeyPrompt(null)
       pendingHostKeyRequestIdRef.current = null
       setConnectionErrorText(translate('connectionLoading.error.websocketFailed'))
+      writeInline(translate('connectionLoading.error.websocketFailed'), 'error')
       if (hasConnectedRef.current) {
         term.writeln('\r\n\x1b[31m[Vortix]\x1b[0m WebSocket connection failed. Check whether the backend service is running.')
       }
       updateTerminalStatus('error')
     }
   }, [
+    paneId,
     connectionId,
     connectionName,
     connectWsRef,

@@ -20,7 +20,6 @@ export function SColumnSelect({ k, label }: { k: keyof SettingsState; label: str
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const [triggerWidth, setTriggerWidth] = useState(200)
-  const isSftpColumnDisplay = k === 'sftpRemoteColumns' || k === 'sftpLocalColumns'
 
   const checked = new Set(storeValue)
 
@@ -35,21 +34,8 @@ export function SColumnSelect({ k, label }: { k: keyof SettingsState; label: str
   const selectedText = selectedLabels.join(',')
   const selectedCount = selectedLabels.length
 
-  const sftpVisibleCount = (() => {
-    if (!isSftpColumnDisplay || selectedCount === 0) return 0
-    if (triggerWidth >= 156) return Math.min(2, selectedCount)
-    if (triggerWidth >= 116) return 1
-    return 0
-  })()
-
-  const sftpMainText = sftpVisibleCount > 0
-    ? selectedLabels.slice(0, sftpVisibleCount).join('、')
-    : (selectedCount > 0 ? `${selectedCount} 项` : '未选择')
-  const sftpExtraCount = selectedCount - sftpVisibleCount
-
   const displayText = (() => {
     if (selectedCount === 0) return '未选择'
-    if (isSftpColumnDisplay) return sftpMainText
     if (triggerWidth >= 180) return selectedText
     if (triggerWidth >= 120) {
       const head = selectedLabels.slice(0, 2)
@@ -80,15 +66,10 @@ export function SColumnSelect({ k, label }: { k: keyof SettingsState; label: str
           title={selectedText || '未选择'}
           className={cn(
             'island-control inline-flex h-[26px] cursor-pointer items-center gap-1 overflow-hidden px-2 text-[12px] text-text-2 outline-none transition-colors hover:text-text-1 focus-visible:rounded focus-visible:ring-2 focus-visible:ring-primary/40',
-            isSftpColumnDisplay ? 'ml-auto w-[176px] min-w-[120px] max-w-[176px] justify-end' : 'w-[200px] min-w-[96px] max-w-[36vw] justify-between',
+            'w-[200px] min-w-[96px] max-w-[36vw] justify-between',
           )}
         >
-          <span className={cn('min-w-0 truncate', isSftpColumnDisplay && 'text-right')}>{displayText}</span>
-          {isSftpColumnDisplay && sftpExtraCount > 0 && (
-            <span className="shrink-0 rounded-md border border-border/80 bg-bg-base px-1.5 py-[1px] text-[10px] leading-none text-text-3">
-              +{sftpExtraCount}
-            </span>
-          )}
+          <span className={cn('min-w-0 truncate')}>{displayText}</span>
           {open
             ? <AppIcon icon={icons.chevronUp} size={14} className="shrink-0" />
             : <AppIcon icon={icons.chevronDown} size={14} className="shrink-0" />}

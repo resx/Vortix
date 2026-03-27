@@ -239,32 +239,6 @@ async fn chmod_recursive(sftp: &SftpSession, path: &str, mode: u32) -> Result<()
     Ok(())
 }
 
-async fn compute_dir_size(
-    sftp: &SftpSession,
-    path: &str,
-    visited: &mut HashMap<String, bool>,
-) -> Result<i64, String> {
-    if visited.contains_key(path) {
-        return Ok(0);
-    }
-    visited.insert(path.to_string(), true);
-    let mut total = 0i64;
-    let entries = sftp.read_dir(path).await.map_err(|e| e.to_string())?;
-    for entry in entries {
-        let name = entry.file_name();
-        if name == "." || name == ".." {
-            continue;
-        }
-        let full = format!("{}/{}", path.trim_end_matches('/'), name);
-        if entry.metadata().is_dir() {
-            total += Box::pin(compute_dir_size(sftp, &full, visited)).await?;
-        } else {
-            total += entry.metadata().size.unwrap_or(0) as i64;
-        }
-    }
-    Ok(total)
-}
-
 /* ── WsMessage -> WorkerReq 转换 ── */
 
 pub fn build_worker_req(msg: &WsMessage) -> Option<WorkerReq> {
@@ -616,15 +590,12 @@ async fn sftp_main_loop(
 
     let mut upload_sessions: HashMap<String, UploadSession> = HashMap::new();
     let mut download_cancel: HashMap<String, bool> = HashMap::new();
-    let mut dir_size_cache: HashMap<String, (i64, i64)> = HashMap::new();
-
     while let Some(req) = rx.recv().await {
         match req {
             WorkerReq::Disconnect => break,
             WorkerReq::List { path, request_id } => match sftp.read_dir(&path).await {
                 Ok(list) => {
                     let mut entries = Vec::new();
-                    let mut pending = Vec::new();
                     for entry in list {
                         let file_name = entry.file_name();
                         if file_name == "." || file_name == ".." {
@@ -634,17 +605,7 @@ async fn sftp_main_loop(
                         let metadata = entry.metadata();
                         let mut sftp_entry = sftp_entry_from_meta(&full_path, &metadata);
                         if metadata.is_dir() {
-                            if let Some((size, at)) = dir_size_cache.get(&full_path) {
-                                if Local::now().timestamp() - *at < 300 {
-                                    sftp_entry["size"] = Value::Number((*size).into());
-                                } else {
-                                    sftp_entry["size"] = Value::Number((-1).into());
-                                    pending.push(full_path.clone());
-                                }
-                            } else {
-                                sftp_entry["size"] = Value::Number((-1).into());
-                                pending.push(full_path.clone());
-                            }
+                            sftp_entry["size"] = Value::Number((-1).into());
                         }
                         entries.push(sftp_entry);
                     }
@@ -653,13 +614,6 @@ async fn sftp_main_loop(
                         payload["requestId"] = Value::String(rid);
                     }
                     let _ = event_tx.send(payload);
-
-                    for dir in pending {
-                        if let Ok(size) = compute_dir_size(&sftp, &dir, &mut HashMap::new()).await {
-                            dir_size_cache.insert(dir.clone(), (size, Local::now().timestamp()));
-                            let _ = event_tx.send(json!({ "type": "sftp-dir-size", "data": { "path": dir, "size": size } }));
-                        }
-                    }
                 }
                 Err(e) => send_worker_error(event_tx, "sftp-error", format!("{}", e), request_id),
             },

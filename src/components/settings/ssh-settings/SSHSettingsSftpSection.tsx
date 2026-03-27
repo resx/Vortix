@@ -1,6 +1,6 @@
 import * as api from '../../../api/client'
 import { icons } from '../../icons/AppIcon'
-import { SColumnSelect, SDropdown, SNumberInput, SToggle } from '../SettingControls'
+import { SDropdown, SNumberInput, SToggle } from '../SettingControls'
 import { SettingGroup } from '../SettingGroup'
 import { DirectoryInputRow } from './SSHSettingsPrimitives'
 import type { ReturnTypeSSHState } from './ssh-settings-types'
@@ -34,7 +34,6 @@ export function SSHSettingsSftpSection({ state }: { state: ReturnTypeSSHState })
             ]}
             width="w-[240px]"
           />
-          <SColumnSelect k="sftpRemoteColumns" label="远端显示列" />
           <SNumberInput k="sftpListTimeout" label="列表超时（秒）" desc="0 表示不限制" />
         </SettingGroup>
 
@@ -65,7 +64,6 @@ export function SSHSettingsSftpSection({ state }: { state: ReturnTypeSSHState })
             width="w-[160px]"
           />
           <SToggle k="sftpShowHidden" label="显示隐藏文件" />
-          <SColumnSelect k="sftpLocalColumns" label="本地显示列" />
         </SettingGroup>
       </div>
     </>

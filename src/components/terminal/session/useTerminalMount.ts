@@ -12,6 +12,7 @@ import { playBellSound } from './terminal-output'
 import { syncPendingTabCompletionFromTerminal } from './terminal-command-buffer'
 import type { ConnectionLoadingStep } from '../ConnectionLoadingView'
 import type { TerminalSession } from '../../../stores/terminalSessionRegistry'
+import type { TerminalSocketLike } from '../../../stores/terminalSessionRegistry'
 import type { HostKeyVerificationPayload, SshConnection, TerminalConnection } from './terminal-types'
 
 interface UseTerminalMountOptions {
@@ -21,7 +22,7 @@ interface UseTerminalMountOptions {
   wrapperRef: MutableRefObject<HTMLDivElement | null>
   termRef: MutableRefObject<Terminal | null>
   fitAddonRef: MutableRefObject<FitAddon | null>
-  wsRef: MutableRefObject<WebSocket | null>
+  wsRef: MutableRefObject<TerminalSocketLike | null>
   hasConnectedRef: MutableRefObject<boolean>
   connectWs: (session: TerminalSession, connection: NonNullable<TerminalConnection>) => void
   applyPerformanceMode: (session: TerminalSession, enabled: boolean) => void
@@ -160,6 +161,7 @@ export function useTerminalMount({
         awaitingCommandOutputBoundary: false,
         awaitingPromptBoundary: false,
         lastOutputEndsWithLineBreak: true,
+        inFullscreenEditor: false,
       }
       setSession(paneId, session)
 

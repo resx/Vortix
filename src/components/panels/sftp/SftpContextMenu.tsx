@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AppIcon, icons } from '../../icons/AppIcon'
+import { useSftpStore } from '../../../stores/useSftpStore'
+import { useSftpClipboardStore } from '../../../stores/useSftpClipboardStore'
 import type { SftpFileEntry } from '../../../types/sftp'
 
 /** useSftpActions 返回的 handler 集合 */
@@ -11,6 +13,7 @@ interface SftpActions {
   handleDownload: () => void
   handleUpload: () => void
   handleDelete: (path: string, isDir: boolean) => void
+  handleDeleteSelected: () => void
   handleRename: (entry: SftpFileEntry) => void
   handleCopy: () => void
   handleCut: () => void
@@ -60,30 +63,6 @@ function Item({ icon, label, onClick, disabled }: {
       <span>{label}</span>
     </div>
   )
-}
-
-/* ── 顶部横排操作按钮（与全局菜单 ActionButton 风格一致） ── */
-function ActionBtn({ icon, tooltip, onClick }: { icon: string; tooltip: string; onClick: () => void }) {
-  return (
-    <div className="group/action relative flex items-center">
-      <button
-        className="px-[6px] py-[4px] rounded-md transition-colors hover:bg-bg-active hover:text-primary text-text-2"
-        onClick={onClick}
-      >
-        <AppIcon icon={icon} size={12} />
-      </button>
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover/action:flex items-center justify-center z-[150]">
-        <div className="bg-tooltip-bg text-tooltip-text text-[11px] px-2 py-1.5 rounded-md shadow-lg whitespace-nowrap font-medium">
-          {tooltip}
-        </div>
-        <div className="absolute top-full left-1/2 -translate-x-1/2 border-t-[4px] border-t-tooltip-bg border-x-[4px] border-x-transparent" />
-      </div>
-    </div>
-  )
-}
-
-function ActionDivider() {
-  return <div className="w-px h-3 bg-border mx-[1px]" />
 }
 
 function Divider() {
@@ -158,6 +137,9 @@ function SubMenu({ icon, label, children }: {
 export default function SftpContextMenu({ state, actions, onClose, onRefresh, onOpenChmod }: Props) {
   const menuRef = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ top: 0, left: 0 })
+  const entries = useSftpStore(s => s.entries)
+  const selectedPaths = useSftpStore(s => s.selectedPaths)
+  const clipboardItems = useSftpClipboardStore(s => s.items)
 
   // 点击外部关闭
   useEffect(() => {
@@ -194,6 +176,13 @@ export default function SftpContextMenu({ state, actions, onClose, onRefresh, on
 
   const entry = state.entry
   const isDir = entry?.type === 'dir'
+  const isFile = entry?.type === 'file'
+  const selectedEntries = entries.filter((item) => selectedPaths.has(item.path))
+  const selectedFiles = selectedEntries.filter((item) => item.type === 'file')
+  const selectedCount = selectedEntries.length
+  const multipleSelected = selectedCount > 1
+  const hasClipboard = clipboardItems.length > 0
+  const hasSelection = selectedCount > 0
   const close = onClose
 
   const menu = (
@@ -206,37 +195,63 @@ export default function SftpContextMenu({ state, actions, onClose, onRefresh, on
     >
       {entry ? (
         <>
-          {/* ── 顶部：标题 + 操作按钮组 ── */}
           <div className="flex items-center justify-between px-3 py-[4px] mb-1 border-b border-border/50">
-            <span className="text-[11px] text-text-1 font-medium tracking-wide">操作</span>
-            <div className="flex items-center bg-bg-base rounded border border-border p-[2px]">
-              <ActionBtn icon={icons.copy} tooltip="复制" onClick={() => { close(); actions.handleCopy() }} />
-              <ActionDivider />
-              <ActionBtn icon={icons.scissors} tooltip="剪切" onClick={() => { close(); actions.handleCut() }} />
-              <ActionDivider />
-              <ActionBtn icon={icons.clipboardPaste} tooltip="粘贴" onClick={() => { close(); actions.handlePaste() }} />
-              <ActionDivider />
-              <ActionBtn icon={icons.crosshair} tooltip="在终端中定位" onClick={() => { close(); actions.handleLocate() }} />
-            </div>
+            <span className="text-[11px] text-text-1 font-medium tracking-wide">
+              {multipleSelected ? `已选择 ${selectedCount} 项` : '操作'}
+            </span>
           </div>
+
+          {/* ── 打开/编辑 ── */}
+          {!multipleSelected && isFile && (
+            <Item icon={icons.externalLink} label="本地打开" onClick={() => { close(); actions.handleLocalOpen(entry) }} />
+          )}
+          {!multipleSelected && isFile && (
+            <Item icon={icons.fileEdit} label="在线编辑" onClick={() => { close(); actions.handleEdit(entry) }} />
+          )}
+          {!multipleSelected && isDir && (
+            <Item icon={icons.folderOpen} label="打开目录" onClick={() => { close(); actions.handleNavigate(entry.path) }} />
+          )}
 
           <Divider />
 
-          {/* ── 打开/编辑 ── */}
-          {!isDir && <Item icon={icons.externalLink} label="本地打开" onClick={() => { close(); actions.handleLocalOpen(entry) }} />}
-          {!isDir && <Item icon={icons.fileEdit} label="在线编辑" onClick={() => { close(); actions.handleEdit(entry) }} />}
-          {isDir && <Item icon={icons.folderOpen} label="打开目录" onClick={() => { close(); actions.handleNavigate(entry.path) }} />}
+          {/* ── 剪贴板操作 ── */}
+          <Item
+            icon={icons.copy}
+            label={multipleSelected ? '复制选中项' : '复制'}
+            disabled={!hasSelection}
+            onClick={() => { close(); actions.handleCopy() }}
+          />
+          <Item
+            icon={icons.scissors}
+            label={multipleSelected ? '剪切选中项' : '剪切'}
+            disabled={!hasSelection}
+            onClick={() => { close(); actions.handleCut() }}
+          />
+          <Item
+            icon={icons.clipboardPaste}
+            label="粘贴"
+            disabled={!hasClipboard}
+            onClick={() => { close(); actions.handlePaste() }}
+          />
 
           <Divider />
 
           {/* ── 刷新 + 收藏 ── */}
-          <Item icon={icons.refresh} label="刷新" onClick={() => { close(); actions.handleNavigate(entry.path.replace(/\/[^/]+$/, '') || '/') }} />
+          <Item icon={icons.refresh} label="刷新" onClick={() => { close(); onRefresh?.() }} />
           <Item icon={icons.pin} label="收藏当前路径" onClick={() => { close(); actions.handleBookmark() }} />
 
           <Divider />
 
           {/* ── 传输 ── */}
-          {!isDir && <Item icon={icons.download} label="下载至" onClick={() => { close(); actions.handleDownloadTo(entry) }} />}
+          {!multipleSelected && isFile && (
+            <Item icon={icons.download} label="下载至" onClick={() => { close(); actions.handleDownloadTo(entry) }} />
+          )}
+          <Item
+            icon={icons.download}
+            label={multipleSelected ? '批量下载' : '下载'}
+            disabled={selectedFiles.length === 0}
+            onClick={() => { close(); actions.handleDownload() }}
+          />
           <Item icon={icons.upload} label="上传文件" onClick={() => { close(); actions.handleUpload() }} />
           <Item icon={icons.folderOpen} label="上传文件夹" onClick={() => { close(); actions.handleUploadFolder() }} />
 
@@ -249,34 +264,66 @@ export default function SftpContextMenu({ state, actions, onClose, onRefresh, on
           <Divider />
 
           {/* ── 压缩/解压 ── */}
-          <Item icon={icons.folderArchive} label="压缩" onClick={() => { close(); actions.handleCompress() }} />
-          {!isDir && <Item icon={icons.fileDown} label="解压缩" onClick={() => { close(); actions.handleDecompress(entry) }} />}
+          <Item
+            icon={icons.folderArchive}
+            label={multipleSelected ? '批量压缩' : '压缩'}
+            disabled={!hasSelection}
+            onClick={() => { close(); actions.handleCompress() }}
+          />
+          {!multipleSelected && isFile && (
+            <Item icon={icons.fileDown} label="解压缩" onClick={() => { close(); actions.handleDecompress(entry) }} />
+          )}
 
           <Divider />
 
           {/* ── 编辑操作 ── */}
-          <Item icon={icons.pencil} label="重命名" onClick={() => { close(); actions.handleRename(entry) }} />
-          <Item icon={icons.trash} label="删除" onClick={() => { close(); actions.handleDelete(entry.path, isDir) }} />
+          {!multipleSelected && (
+            <Item icon={icons.pencil} label="重命名" onClick={() => { close(); actions.handleRename(entry) }} />
+          )}
+          {!multipleSelected ? (
+            <Item icon={icons.trash} label="删除" onClick={() => { close(); actions.handleDelete(entry.path, isDir) }} />
+          ) : (
+            <Item
+              icon={icons.trash}
+              label="批量删除"
+              onClick={() => {
+                close()
+                actions.handleDeleteSelected()
+              }}
+            />
+          )}
 
           <Divider />
 
           {/* ── 更多 ▸ ── */}
           <SubMenu icon={icons.moreVertical} label="更多">
-            <Item icon={icons.copy} label="复制路径" onClick={() => { close(); actions.handleCopyPath(entry.path) }} />
+            {!multipleSelected && (
+              <Item icon={icons.copy} label="复制路径" onClick={() => { close(); actions.handleCopyPath(entry.path) }} />
+            )}
+            {multipleSelected && (
+              <Item icon={icons.copy} label="复制选中项路径" onClick={() => { close(); actions.handleCopyPath(selectedEntries.map((item) => item.path).join('\n')) }} />
+            )}
             <Divider />
             <Item icon={icons.folderPlus} label="新建目录" onClick={() => { close(); actions.handleMkdir() }} />
             <Item icon={icons.filePlus} label="新建文件" onClick={() => { close(); actions.handleNewFile() }} />
             <Divider />
-            <Item icon={icons.key} label="修改权限" onClick={() => {
-              close()
-              onOpenChmod?.(entry.path, entry.permissions || '', isDir ?? false)
-            }} />
+            {!multipleSelected && (
+              <Item icon={icons.key} label="修改权限" onClick={() => {
+                close()
+                onOpenChmod?.(entry.path, entry.permissions || '', isDir ?? false)
+              }} />
+            )}
           </SubMenu>
         </>
       ) : (
         <>
           {/* ── 空白区域精简菜单 ── */}
-          <Item icon={icons.clipboardPaste} label="粘贴" onClick={() => { close(); actions.handlePaste() }} />
+          <Item
+            icon={icons.clipboardPaste}
+            label="粘贴"
+            disabled={!hasClipboard}
+            onClick={() => { close(); actions.handlePaste() }}
+          />
           <Item icon={icons.refresh} label="刷新" onClick={() => { close(); onRefresh?.() }} />
 
           <Divider />

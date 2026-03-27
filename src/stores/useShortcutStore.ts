@@ -4,6 +4,7 @@ import type { ShortcutGroup, UpdateShortcutDto } from '../api/types'
 import * as api from '../api/client'
 import { useWorkspaceStore } from './useWorkspaceStore'
 import { getSession } from './terminalSessionRegistry'
+import type { TerminalSocketLike } from './terminalSessionRegistry'
 import { useTabStore } from './useTabStore'
 
 const normalizeGroupName = (value?: string | null) => (value ?? '').trim()
@@ -209,7 +210,7 @@ export const useShortcutStore = create<ShortcutState>((set, get) => ({
     const session = getSession(activeTabId)
     const wsStore = useWorkspaceStore.getState()
     const paneIds = wsStore.getAllPaneIds(activeTabId)
-    let ws: WebSocket | null = null
+    let ws: TerminalSocketLike | null = null
     for (const pid of paneIds) {
       const s = getSession(pid)
       if (s?.ws?.readyState === WebSocket.OPEN) {

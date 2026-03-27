@@ -18,6 +18,7 @@ export interface SuggestionMatchRange {
 
 export interface SuggestionMeta {
   command?: string
+  category?: string
   requiresValue?: boolean
   valueHints?: string[]
 }

@@ -1,10 +1,13 @@
 /* ── Tauri 库入口：Commands 注册 + 动态窗口尺寸 ── */
 
 mod commands;
+mod agent;
 mod crypto;
 mod db;
 mod server;
+mod sftp_bridge;
 mod sync;
+mod terminal_bridge;
 mod time_utils;
 
 use tauri::Manager;
@@ -84,6 +87,8 @@ fn harden_windows_webview<R: tauri::Runtime>(window: &tauri::WebviewWindow<R>) {
 
 /// 内嵌 axum 服务器端口
 const AXUM_PORT: u16 = 3002;
+const AXUM_FALLBACK_PORT_START: u16 = 3003;
+const AXUM_FALLBACK_PORT_END: u16 = 3012;
 
 /// 窗口尺寸约束（逻辑像素）
 const MIN_WIDTH: f64 = 1100.0;
@@ -135,6 +140,37 @@ pub fn run() {
             commands::greet,
             commands::list_system_fonts,
             commands::exit_app,
+            commands::get_agent_status,
+            commands::bridge_health,
+            commands::bridge_get_settings,
+            commands::bridge_save_settings,
+            commands::bridge_reset_settings,
+            commands::bridge_list_folders,
+            commands::bridge_create_folder,
+            commands::bridge_update_folder,
+            commands::bridge_delete_folder,
+            commands::bridge_list_shortcuts,
+            commands::bridge_create_shortcut,
+            commands::bridge_update_shortcut,
+            commands::bridge_delete_shortcut,
+            commands::bridge_list_shortcut_groups,
+            commands::bridge_create_shortcut_group,
+            commands::bridge_update_shortcut_group,
+            commands::bridge_delete_shortcut_group,
+            commands::bridge_list_connections,
+            commands::bridge_get_connection,
+            commands::bridge_get_connection_credential,
+            commands::bridge_create_connection,
+            commands::bridge_update_connection,
+            commands::bridge_delete_connection,
+            commands::bridge_batch_update_connections,
+            commands::bridge_ping_connections,
+            commands::bridge_terminal_open,
+            commands::bridge_terminal_send,
+            commands::bridge_terminal_close,
+            commands::bridge_sftp_open,
+            commands::bridge_sftp_send,
+            commands::bridge_sftp_close,
         ])
         // 启动时：动态窗口尺寸 + 窗口效果 + 数据层 + axum 服务器
         .setup(|app| {
@@ -166,11 +202,32 @@ pub fn run() {
                 }
             };
             app.manage(db);
+            app.manage(terminal_bridge::TerminalBridgeHub::new());
+            app.manage(sftp_bridge::SftpBridgeHub::new());
 
-            let port = AXUM_PORT;
+            // ── 独立 agent 进程管理（当前阶段：可选启动，不阻断主流程） ──
+            let agent_base_dir = app
+                .path()
+                .resource_dir()
+                .ok()
+                .or_else(|| std::env::current_exe().ok().and_then(|p| p.parent().map(|dir| dir.to_path_buf())))
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_default());
+            let agent_state = agent::AgentState::new(agent_base_dir);
+            app.manage(agent_state);
+            app.state::<agent::AgentState>().inner().try_start();
+
+            let (listener, port) = match tauri::async_runtime::block_on(
+                server::bind_preferred_or_next(AXUM_PORT, AXUM_FALLBACK_PORT_START..=AXUM_FALLBACK_PORT_END),
+            ) {
+                Ok(bound) => bound,
+                Err(e) => {
+                    tracing::error!("[Vortix] 后端服务端口绑定失败: {e}");
+                    return Err(e.into());
+                }
+            };
             let db = app.state::<db::Db>().inner().clone();
             tauri::async_runtime::spawn(async move {
-                server::start(port, db).await;
+                server::start(listener, port, db).await;
             });
 
             tracing::info!("[Vortix] Tauri 应用启动完成");

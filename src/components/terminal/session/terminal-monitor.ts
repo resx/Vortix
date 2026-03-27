@@ -1,11 +1,12 @@
 import type { MutableRefObject } from 'react'
 import { useMonitorStore } from '../../../stores/useMonitorStore'
 import type { MonitorSnapshot, SystemInfo } from '../../../stores/useMonitorStore'
+import type { TerminalSocketLike } from '../../../stores/terminalSessionRegistry'
 
 interface MonitorRuntimeOptions {
   enabled: boolean
   isLocal: boolean
-  ws: WebSocket | null | undefined
+  ws: TerminalSocketLike | null | undefined
   monitorRunningRef: MutableRefObject<boolean>
 }
 

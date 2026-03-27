@@ -6,7 +6,6 @@ import { useSettingsStore } from '../../stores/useSettingsStore'
 import { markTransferring, unmarkTransferring } from '../../stores/terminalSessionRegistry'
 import { getColorTagDotClass } from '../../lib/color-tag'
 import { useState, useRef, useEffect } from 'react'
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
 
 export default function TabBar() {
   const tabs = useTabStore((s) => s.tabs)
@@ -51,9 +50,9 @@ export default function TabBar() {
   // 点击文字区导航
   const handleNavigate = () => {
     if (selectedDb) {
-      setActiveTab(selectedDb.id)
+      openTabView(selectedDb.id)
     } else {
-      setActiveTab('list')
+      openTabView('list')
     }
   }
 
@@ -61,11 +60,21 @@ export default function TabBar() {
   const filteredDbTabs = dbTabs.filter(t =>
     !searchText || t.label.toLowerCase().includes(searchText.toLowerCase())
   )
-  const activeTab = tabs.find((tab) => tab.id === activeTabId)
-  const showSftpAction = activeTab?.type === 'asset'
-    && activeTab.assetRow?.protocol !== 'local'
-    && activeTab.status === 'connected'
   const showHome = !searchText || '首页'.includes(searchText)
+
+  const openTabView = (tabId: string) => {
+    if (sftpOpen) toggleSftp()
+    setActiveTab(tabId)
+  }
+
+  const toggleFileManager = () => {
+    if (sftpOpen) {
+      toggleSftp()
+      setActiveTab('list')
+      return
+    }
+    toggleSftp()
+  }
 
   return (
     <div id="tab-bar" className={`bg-bg-subtle rounded-t-xl flex items-center shrink-0 ${tabMultiLine ? 'min-h-[38px] flex-wrap' : 'h-[38px]'}`}>
@@ -123,7 +132,7 @@ export default function TabBar() {
                   className={`flex items-center gap-2 px-3 py-1.5 mx-1.5 rounded-lg text-[12px] cursor-pointer transition-colors ${
                     activeTabId === 'list' ? 'bg-primary text-white' : 'text-text-1 hover:bg-bg-hover'
                   }`}
-                  onClick={() => { setSelectedDbId(null); setActiveTab('list'); setShowMenu(false); setSearchText('') }}
+                  onClick={() => { setSelectedDbId(null); openTabView('list'); setShowMenu(false); setSearchText('') }}
                 >
                   <AppIcon icon={icons.home} size={14} className={activeTabId === 'list' ? 'text-white' : 'text-text-2'} />
                   <span>首页</span>
@@ -137,7 +146,7 @@ export default function TabBar() {
                   className={`flex items-center gap-2 px-3 py-1.5 mx-1.5 rounded-lg text-[12px] cursor-pointer transition-colors group ${
                     activeTabId === tab.id ? 'bg-primary text-white' : 'text-text-1 hover:bg-bg-hover'
                   }`}
-                  onClick={() => { setSelectedDbId(tab.id); setActiveTab(tab.id); setShowMenu(false); setSearchText('') }}
+                  onClick={() => { setSelectedDbId(tab.id); openTabView(tab.id); setShowMenu(false); setSearchText('') }}
                 >
                   <ProtocolIcon protocol={tab.assetRow?.protocol} size={14} className={activeTabId === tab.id ? '!text-white' : ''} />
                   {getColorTagDotClass(tab.assetRow?.colorTag) && (
@@ -186,6 +195,24 @@ export default function TabBar() {
           }
         }}
       >
+        <div className="flex items-center h-full">
+          <div
+            className={`group relative flex items-center gap-1.5 h-full text-[12px] cursor-pointer transition-colors pl-2.5 pr-2.5 ${
+              sftpOpen
+                ? 'font-medium text-text-1 bg-bg-card'
+                : 'text-text-3 hover:text-text-2 hover:bg-border/20'
+            }`}
+            onClick={toggleFileManager}
+          >
+            <AppIcon icon={icons.folderOpen} size={13} />
+            <span className="max-w-[96px] truncate">文件管理</span>
+            {sftpOpen && (
+              <div className="absolute bottom-0 left-1 right-1 h-[2px] bg-primary rounded-full" />
+            )}
+          </div>
+          <div className="w-px h-3.5 bg-border/50 shrink-0" />
+        </div>
+
         {(() => {
           const assetTabs = tabs.filter(t => t.type === 'asset')
           return assetTabs.map((tab, index) => {
@@ -245,7 +272,7 @@ export default function TabBar() {
                     }
                     setDragIndicator(null)
                   }}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => openTabView(tab.id)}
                   onMouseDown={(e) => {
                     if (e.button === 1 && middleClickCloseTab) {
                       e.preventDefault()
@@ -304,26 +331,6 @@ export default function TabBar() {
           })
         })()}
       </div>
-      {showSftpAction && (
-        <div className="flex h-full items-center gap-1 px-2 shrink-0 border-l border-border/50">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => toggleSftp()}
-                className={`inline-flex h-[28px] w-[28px] items-center justify-center rounded-md transition-colors ${
-                  sftpOpen
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-text-2 hover:bg-border/40 hover:text-text-1'
-                }`}
-              >
-                <AppIcon icon={icons.folderOpen} size={14} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>{sftpOpen ? '关闭 SFTP 面板' : '打开 SFTP 面板'}</TooltipContent>
-          </Tooltip>
-        </div>
-      )}
     </div>
   )
 }

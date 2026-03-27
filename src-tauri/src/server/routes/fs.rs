@@ -11,12 +11,23 @@ use std::collections::HashMap;
 use std::fs;
 use std::io::Read as IoRead;
 use std::path::PathBuf;
+use std::time::SystemTime;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 use super::super::response::{ApiResponse, err, ok};
 use super::super::types::*;
 use crate::db::Db;
+
+fn format_modified_time(system_time: Option<SystemTime>) -> String {
+    match system_time {
+        Some(value) => {
+            let datetime: chrono::DateTime<chrono::Local> = value.into();
+            datetime.format("%Y-%m-%d %H:%M").to_string()
+        }
+        None => "-".to_string(),
+    }
+}
 
 pub async fn list_dirs(
     State(_db): State<Db>,
@@ -52,6 +63,73 @@ pub async fn list_dirs(
     }
     dirs.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
     Ok(ok(json!({ "path": base.to_string_lossy(), "dirs": dirs })))
+}
+
+pub async fn list_local_entries(
+    State(_db): State<Db>,
+    Query(params): Query<HashMap<String, String>>,
+) -> Result<Json<ApiResponse<Value>>, (StatusCode, Json<ApiResponse<Value>>)> {
+    let raw_path = params
+        .get("path")
+        .cloned()
+        .or_else(|| dirs::home_dir().map(|p| p.to_string_lossy().to_string()))
+        .unwrap_or_default();
+    let base = PathBuf::from(raw_path);
+    let base = base
+        .canonicalize()
+        .map_err(|e| err(StatusCode::BAD_REQUEST, format!("无法读取目录: {}", e)))?;
+    if !base.is_dir() {
+        return Err(err(StatusCode::BAD_REQUEST, "目标路径不是目录"));
+    }
+
+    let mut entries = Vec::new();
+    let iterator = fs::read_dir(&base)
+        .map_err(|e| err(StatusCode::BAD_REQUEST, format!("无法列出目录: {}", e)))?;
+
+    for item in iterator.flatten() {
+        let path = item.path();
+        let Ok(metadata) = item.metadata() else {
+            continue;
+        };
+        let file_type = if metadata.is_dir() {
+            "dir"
+        } else if metadata.is_file() {
+            "file"
+        } else {
+            "other"
+        };
+        let modified_at = format_modified_time(metadata.modified().ok());
+        let name = item.file_name().to_string_lossy().to_string();
+        entries.push(json!({
+            "name": name,
+            "path": path.to_string_lossy(),
+            "type": file_type,
+            "size": if metadata.is_file() { metadata.len() as i64 } else { -1 },
+            "modifiedAt": modified_at,
+            "permissions": "-",
+            "owner": "-",
+            "group": "-",
+        }));
+    }
+
+    entries.sort_by(|a, b| {
+        let a_type = a.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        let b_type = b.get("type").and_then(|v| v.as_str()).unwrap_or("");
+        if a_type == "dir" && b_type != "dir" {
+            return std::cmp::Ordering::Less;
+        }
+        if a_type != "dir" && b_type == "dir" {
+            return std::cmp::Ordering::Greater;
+        }
+        let a_name = a.get("name").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+        let b_name = b.get("name").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+        a_name.cmp(&b_name)
+    });
+
+    Ok(ok(json!({
+        "path": base.to_string_lossy(),
+        "entries": entries
+    })))
 }
 
 pub async fn pick_dir(

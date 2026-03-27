@@ -10,6 +10,10 @@ interface SftpState {
   error: string | null
   connectionId: string
   connectionName: string
+  reconnecting: boolean
+  reconnectAttempt: number
+  reconnectMax: number
+  reconnectMessage: string | null
 
   // 路径导航
   currentPath: string
@@ -47,6 +51,12 @@ interface SftpState {
   setConnecting: (connecting: boolean) => void
   setError: (error: string | null) => void
   setConnectionInfo: (id: string, name: string) => void
+  setReconnectState: (payload: {
+    reconnecting: boolean
+    reconnectAttempt?: number
+    reconnectMax?: number
+    reconnectMessage?: string | null
+  }) => void
   setHomePath: (home: string) => void
   navigateTo: (path: string) => void
   goBack: () => void
@@ -83,6 +93,10 @@ const initialState = {
   error: null,
   connectionId: '',
   connectionName: '',
+  reconnecting: false,
+  reconnectAttempt: 0,
+  reconnectMax: 0,
+  reconnectMessage: null,
   currentPath: '/',
   homePath: '/',
   pathHistory: ['/'],
@@ -107,6 +121,12 @@ export const useSftpStore = create<SftpState>((set, get) => ({
   setConnecting: (connecting) => set({ connecting }),
   setError: (error) => set({ error }),
   setConnectionInfo: (id, name) => set({ connectionId: id, connectionName: name }),
+  setReconnectState: ({ reconnecting, reconnectAttempt, reconnectMax, reconnectMessage }) => set((state) => ({
+    reconnecting,
+    reconnectAttempt: reconnectAttempt ?? state.reconnectAttempt,
+    reconnectMax: reconnectMax ?? state.reconnectMax,
+    reconnectMessage: reconnectMessage ?? null,
+  })),
   setHomePath: (home) => set({ homePath: home }),
 
   navigateTo: (path) => {

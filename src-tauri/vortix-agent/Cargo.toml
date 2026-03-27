@@ -1,0 +1,5 @@
+[package]
+name = "vortix-agent"
+version = "1.0.0"
+edition = "2024"
+description = "Vortix Agent Worker"

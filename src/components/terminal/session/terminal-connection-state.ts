@@ -2,6 +2,13 @@ import { t as translate } from '../../../i18n'
 import type { ConnectionLoadingStep } from '../ConnectionLoadingView'
 import type { ConnectionStagePayload, SshConnection, TerminalConnection } from './terminal-types'
 
+export function getReconnectStageText(current: number, total: number): string {
+  if (total > 0 && current > 0) {
+    return translate('connectionLoading.phase.reconnectingWithCount', { current, total })
+  }
+  return translate('connectionLoading.phase.reconnecting')
+}
+
 function getConnectionNodeLabel(data: ConnectionStagePayload): string {
   return String(data.connectionName || data.host || translate('connectionLoading.unknownHost'))
 }

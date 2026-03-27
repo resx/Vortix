@@ -4,6 +4,7 @@ version = "1.0.1"
 description = "Vortix - SSH/服务器管理桌面工具"
 authors = ["Vortix"]
 edition = "2024"
+default-run = "vortix"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

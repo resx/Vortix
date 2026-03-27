@@ -5,6 +5,9 @@ import { useSftpStore } from '../stores/useSftpStore'
 import { useSettingsStore } from '../stores/useSettingsStore'
 import { handleDownloadChunk, handleDownloadComplete, handleDownloadError } from '../services/transfer-engine'
 import { getWsBaseUrl } from '../api/client'
+import { createSftpSessionId, SftpBridgeSocket } from '../lib/sftpBridgeSocket'
+import { shouldUseTerminalBridge } from '../lib/terminalBridgeSocket'
+import { getReconnectStageText } from '../components/terminal/session/terminal-connection-state'
 import type { SftpFileEntry, ExecResult, SftpDirSizeData } from '../types/sftp'
 import { closeHostKeyPrompt, promptHostKeyTrust } from '../utils/hostKeyPrompt'
 
@@ -34,21 +37,36 @@ interface ConnectParams {
   }
 }
 
+type SftpSocketLike = WebSocket | SftpBridgeSocket
+type MessageEventLike = MessageEvent<unknown> | { data?: unknown }
+
 let requestCounter = 0
 function nextRequestId(): string {
   return `sftp-${++requestCounter}-${Date.now()}`
 }
 
 export function useSftpConnection() {
-  const wsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<SftpSocketLike | null>(null)
   const pendingRef = useRef<Map<string, { resolve: (v: unknown) => void; reject: (e: Error) => void }>>(new Map())
   const pendingHostKeyRequestIdRef = useRef<string | null>(null)
+  const listRequestSeqRef = useRef(0)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const reconnectAttemptRef = useRef(0)
+  const manualDisconnectRef = useRef(false)
+  const lastConnectParamsRef = useRef<ConnectParams | null>(null)
 
   const store = useSftpStore
 
   const clearPendingHostKeyPrompt = useCallback(() => {
     closeHostKeyPrompt(pendingHostKeyRequestIdRef.current)
     pendingHostKeyRequestIdRef.current = null
+  }, [])
+
+  const clearReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
   }, [])
 
   const handleHostKeyVerification = useCallback((data: Record<string, unknown>) => {
@@ -116,9 +134,11 @@ export function useSftpConnection() {
   }, [])
 
   /** 处理服务端消息 */
-  const handleMessage = useCallback((ev: MessageEvent) => {
+  const handleMessage = useCallback((ev: MessageEventLike) => {
+    const rawData = ev?.data
+    if (typeof rawData !== 'string') return
     let msg: { type: string; data?: unknown; requestId?: string }
-    try { msg = JSON.parse(ev.data) } catch { return }
+    try { msg = JSON.parse(rawData) } catch { return }
     if (msg.type === 'ping') {
       wsRef.current?.send(JSON.stringify({ type: 'pong' }))
       return
@@ -173,26 +193,42 @@ export function useSftpConnection() {
 
   /** 列出目录 */
   const listDir = useCallback(async (path: string) => {
+    const reqSeq = ++listRequestSeqRef.current
     const s = store.getState()
     s.setLoading(true)
     try {
       const result = await request<{ path: string; entries: SftpFileEntry[] }>('sftp-list', { path })
+      if (reqSeq !== listRequestSeqRef.current) return
+      if (store.getState().currentPath !== path) return
       store.getState().setEntries(result.entries)
     } catch (err) {
+      if (reqSeq !== listRequestSeqRef.current) return
+      if (store.getState().currentPath !== path) return
       store.getState().setError((err as Error).message)
     } finally {
-      store.getState().setLoading(false)
+      if (reqSeq === listRequestSeqRef.current) {
+        store.getState().setLoading(false)
+      }
     }
   }, [store, request])
 
   /** 建立 SFTP 连接 */
-  const connect = useCallback(async (params: ConnectParams) => {
+  const connect = useCallback(async (params: ConnectParams, options?: { force?: boolean }) => {
     const s = store.getState()
-    if (s.connected || s.connecting) return
+    if ((s.connected || s.connecting) && !options?.force) return
+    clearReconnectTimer()
+    manualDisconnectRef.current = false
+    lastConnectParamsRef.current = params
     s.setConnecting(true)
+    s.setConnected(false)
     s.setError(null)
+    if (!options?.force) {
+      s.setReconnectState({ reconnecting: false, reconnectAttempt: 0, reconnectMax: 0, reconnectMessage: null })
+    }
 
-    const ws = new WebSocket(getSftpWsUrl())
+    const ws = shouldUseTerminalBridge()
+      ? new SftpBridgeSocket(createSftpSessionId())
+      : new WebSocket(getSftpWsUrl())
     wsRef.current = ws
 
     ws.onopen = () => {
@@ -203,36 +239,42 @@ export function useSftpConnection() {
       }))
     }
 
-    ws.onmessage = (ev) => {
+    ws.onmessage = ((ev: MessageEventLike) => {
+      const rawData = ev?.data
+      if (typeof rawData !== 'string') return
       let msg: { type: string; data?: unknown; requestId?: string }
-      try { msg = JSON.parse(ev.data) } catch { return }
+      try { msg = JSON.parse(rawData) } catch { return }
 
       if (msg.type === 'hostkey-verification-required') {
         handleHostKeyVerification((msg.data ?? {}) as Record<string, unknown>)
       } else if (msg.type === 'sftp-ready') {
         const home = (msg.data as { home: string })?.home || '/'
         const st = store.getState()
+        reconnectAttemptRef.current = 0
         st.setConnecting(false)
         st.setConnected(true)
+        st.setReconnectState({ reconnecting: false, reconnectAttempt: 0, reconnectMax: 0, reconnectMessage: null })
         st.setHomePath(home)
         st.setConnectionInfo(params.connectionId ?? '', params.connectionName ?? '')
         st.navigateTo(home)
         // 切换到正常消息处理
-        ws.onmessage = (e) => handleMessage(e)
+        ws.onmessage = ((e: MessageEventLike) => handleMessage(e)) as typeof ws.onmessage
         // 立即加载目录
         void listDir(home)
       } else if (msg.type === 'sftp-error') {
         const errMsg = (msg.data as { message: string })?.message || '连接失败'
         const st = store.getState()
         st.setConnecting(false)
+        st.setReconnectState({ reconnecting: false, reconnectAttempt: 0, reconnectMax: 0, reconnectMessage: null })
         st.setError(errMsg)
       }
-    }
+    }) as typeof ws.onmessage
 
     ws.onerror = () => {
       clearPendingHostKeyPrompt()
       const st = store.getState()
       st.setConnecting(false)
+      st.setReconnectState({ reconnecting: false, reconnectAttempt: 0, reconnectMax: 0, reconnectMessage: null })
       st.setError('WebSocket 连接失败')
     }
 
@@ -242,8 +284,34 @@ export function useSftpConnection() {
       const st = store.getState()
       st.setConnected(false)
       st.setConnecting(false)
+      if (manualDisconnectRef.current) return
+
+      const settings = useSettingsStore.getState()
+      const maxRetries = settings.autoReconnect ? settings.reconnectCount : 0
+      if (reconnectAttemptRef.current >= maxRetries) {
+        st.setReconnectState({ reconnecting: false, reconnectAttempt: reconnectAttemptRef.current, reconnectMax: maxRetries, reconnectMessage: null })
+        return
+      }
+      const paramsToReconnect = lastConnectParamsRef.current
+      if (!paramsToReconnect) {
+        st.setReconnectState({ reconnecting: false, reconnectAttempt: 0, reconnectMax: maxRetries, reconnectMessage: null })
+        return
+      }
+
+      reconnectAttemptRef.current += 1
+      st.setReconnectState({
+        reconnecting: true,
+        reconnectAttempt: reconnectAttemptRef.current,
+        reconnectMax: maxRetries,
+        reconnectMessage: getReconnectStageText(reconnectAttemptRef.current, maxRetries),
+      })
+      const intervalMs = Math.max(1, settings.reconnectInterval) * 1000
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null
+        void connect(paramsToReconnect, { force: true })
+      }, intervalMs)
     }
-  }, [clearPendingHostKeyPrompt, store, handleHostKeyVerification, handleMessage, listDir])
+  }, [clearPendingHostKeyPrompt, clearReconnectTimer, store, handleHostKeyVerification, handleMessage, listDir])
 
   /** 创建目录 */
   const mkdir = useCallback(async (path: string) => {
@@ -293,11 +361,17 @@ export function useSftpConnection() {
 
   /** 断开连接 */
   const disconnect = useCallback(() => {
+    manualDisconnectRef.current = true
+    listRequestSeqRef.current += 1
+    clearReconnectTimer()
+    reconnectAttemptRef.current = 0
+    lastConnectParamsRef.current = null
+    store.getState().setReconnectState({ reconnecting: false, reconnectAttempt: 0, reconnectMax: 0, reconnectMessage: null })
     send('sftp-disconnect')
     wsRef.current?.close()
     wsRef.current = null
     store.getState().reset()
-  }, [send, store])
+  }, [clearReconnectTimer, send, store])
 
   /** 刷新当前目录 */
   const refresh = useCallback(() => {
@@ -309,12 +383,14 @@ export function useSftpConnection() {
   useEffect(() => {
     const pending = pendingRef.current
     return () => {
+      manualDisconnectRef.current = true
+      clearReconnectTimer()
       clearPendingHostKeyPrompt()
       wsRef.current?.close()
       wsRef.current = null
       pending.clear()
     }
-  }, [clearPendingHostKeyPrompt])
+  }, [clearPendingHostKeyPrompt, clearReconnectTimer])
 
   return useMemo(() => ({
     connect,

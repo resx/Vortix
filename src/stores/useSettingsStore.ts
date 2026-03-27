@@ -102,12 +102,10 @@ export interface SettingsState {
   sftpDefaultEditor: string;
   sftpParentDirClick: boolean;
   sftpFileListLayout: string;
-  sftpRemoteColumns: string[];
   sftpListTimeout: number;
   sftpDefaultSavePath: string;
   sftpDoubleClickAction: string;
   sftpShowHidden: boolean;
-  sftpLocalColumns: string[];
 
   // ── 数据库 ──
   dbTableFont: string[];
@@ -236,12 +234,10 @@ const DEFAULTS: SettingsState = {
   sftpDefaultEditor: "builtin",
   sftpParentDirClick: false,
   sftpFileListLayout: "horizontal",
-  sftpRemoteColumns: ["name", "mtime", "type", "size"],
   sftpListTimeout: 60,
   sftpDefaultSavePath: "",
   sftpDoubleClickAction: "auto",
   sftpShowHidden: false,
-  sftpLocalColumns: ["name", "mtime", "type", "size"],
 
   // ── 数据库 ──
   dbTableFont: ["JetBrainsMono"],

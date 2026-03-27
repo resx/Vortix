@@ -6,6 +6,14 @@ import type { FitAddon } from '@xterm/addon-fit'
 import type { SearchAddon } from '@xterm/addon-search'
 import type { WebglAddon } from '@xterm/addon-webgl'
 
+export interface TerminalSocketLike {
+  readyState: number
+  send(data: string): void
+  close(): void
+  addEventListener?(type: 'message', listener: (event: MessageEvent) => void): void
+  removeEventListener?(type: 'message', listener: (event: MessageEvent) => void): void
+}
+
 export interface PersistedConnectionLoadingStep {
   id: string
   label: string
@@ -21,7 +29,7 @@ export interface TerminalSession {
   webglAddon: WebglAddon | null
   /** term.open() 是否已执行完成 */
   isOpened: boolean
-  ws: WebSocket | null
+  ws: TerminalSocketLike | null
   reconnectTimer: ReturnType<typeof setTimeout> | null
   reconnectCount: number
   connectionStatus: 'connecting' | 'connected' | 'closed' | 'error'
@@ -47,6 +55,7 @@ export interface TerminalSession {
   awaitingCommandOutputBoundary: boolean
   awaitingPromptBoundary: boolean
   lastOutputEndsWithLineBreak: boolean
+  inFullscreenEditor: boolean
 }
 
 const sessions = new Map<string, TerminalSession>()

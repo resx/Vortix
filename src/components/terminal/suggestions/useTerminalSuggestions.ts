@@ -137,6 +137,12 @@ export function useTerminalSuggestions({
       setActiveIndex(-1)
       return
     }
+    if (session.inFullscreenEditor) {
+      setVisible(false)
+      setCandidates([])
+      setActiveIndex(-1)
+      return
+    }
 
     const request = buildTerminalSuggestionRequest(session, {
       connectionKind,
@@ -211,6 +217,11 @@ export function useTerminalSuggestions({
 
   const handleKeyDown = (event: KeyboardEvent): boolean => {
     if (!enabled) return false
+    const session = getSession(paneId)
+    if (session?.inFullscreenEditor) {
+      if (visible) close()
+      return false
+    }
     if (event.key === 'Escape' && visible) {
       event.preventDefault()
       event.stopPropagation()

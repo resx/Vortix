@@ -7,6 +7,28 @@ interface FileIconResult {
   color: string
 }
 
+const baseNameMap: Record<string, FileIconResult> = {
+  dockerfile: { icon: icons.container, color: 'text-sky-500' },
+  'docker-compose.yml': { icon: icons.container, color: 'text-sky-500' },
+  'docker-compose.yaml': { icon: icons.container, color: 'text-sky-500' },
+  makefile: { icon: icons.terminalSquare, color: 'text-emerald-400' },
+  readme: { icon: icons.fileText, color: 'text-text-2' },
+  'readme.md': { icon: icons.fileText, color: 'text-text-2' },
+  license: { icon: icons.fileText, color: 'text-text-2' },
+  'license.txt': { icon: icons.fileText, color: 'text-text-2' },
+  changelog: { icon: icons.scrollText, color: 'text-text-3' },
+  'changelog.md': { icon: icons.scrollText, color: 'text-text-3' },
+  '.gitignore': { icon: icons.settings, color: 'text-amber-400' },
+  '.gitattributes': { icon: icons.settings, color: 'text-amber-400' },
+  '.editorconfig': { icon: icons.settings, color: 'text-amber-400' },
+  '.npmrc': { icon: icons.settings, color: 'text-amber-400' },
+  '.yarnrc': { icon: icons.settings, color: 'text-amber-400' },
+  '.env': { icon: icons.settings, color: 'text-amber-400' },
+  '.env.local': { icon: icons.settings, color: 'text-amber-400' },
+  '.env.development': { icon: icons.settings, color: 'text-amber-400' },
+  '.env.production': { icon: icons.settings, color: 'text-amber-400' },
+}
+
 const extMap: Record<string, FileIconResult> = {
   /* 代码 */
   ts: { icon: icons.fileCode, color: 'text-blue-400' },
@@ -41,8 +63,15 @@ const extMap: Record<string, FileIconResult> = {
   txt: { icon: icons.fileText, color: 'text-text-3' },
   doc: { icon: icons.fileText, color: 'text-text-3' },
   docx: { icon: icons.fileText, color: 'text-text-3' },
+  xls: { icon: icons.fileText, color: 'text-emerald-500' },
+  xlsx: { icon: icons.fileText, color: 'text-emerald-500' },
+  ppt: { icon: icons.fileText, color: 'text-orange-500' },
+  pptx: { icon: icons.fileText, color: 'text-orange-500' },
   pdf: { icon: icons.fileText, color: 'text-text-3' },
   rtf: { icon: icons.fileText, color: 'text-text-3' },
+  odt: { icon: icons.fileText, color: 'text-text-3' },
+  ods: { icon: icons.fileText, color: 'text-emerald-500' },
+  odp: { icon: icons.fileText, color: 'text-orange-500' },
   /* 图片 */
   png: { icon: icons.image, color: 'text-green-400' },
   jpg: { icon: icons.image, color: 'text-green-400' },
@@ -51,6 +80,26 @@ const extMap: Record<string, FileIconResult> = {
   svg: { icon: icons.image, color: 'text-green-400' },
   webp: { icon: icons.image, color: 'text-green-400' },
   ico: { icon: icons.image, color: 'text-green-400' },
+  bmp: { icon: icons.image, color: 'text-green-400' },
+  tiff: { icon: icons.image, color: 'text-green-400' },
+  heic: { icon: icons.image, color: 'text-green-400' },
+  psd: { icon: icons.image, color: 'text-indigo-400' },
+  ai: { icon: icons.image, color: 'text-orange-500' },
+  /* 视频 */
+  mp4: { icon: icons.play, color: 'text-pink-400' },
+  mkv: { icon: icons.play, color: 'text-pink-400' },
+  mov: { icon: icons.play, color: 'text-pink-400' },
+  avi: { icon: icons.play, color: 'text-pink-400' },
+  webm: { icon: icons.play, color: 'text-pink-400' },
+  flv: { icon: icons.play, color: 'text-pink-400' },
+  m4v: { icon: icons.play, color: 'text-pink-400' },
+  /* 音频 */
+  mp3: { icon: icons.activity, color: 'text-fuchsia-400' },
+  wav: { icon: icons.activity, color: 'text-fuchsia-400' },
+  flac: { icon: icons.activity, color: 'text-fuchsia-400' },
+  aac: { icon: icons.activity, color: 'text-fuchsia-400' },
+  ogg: { icon: icons.activity, color: 'text-fuchsia-400' },
+  m4a: { icon: icons.activity, color: 'text-fuchsia-400' },
   /* 压缩 */
   zip: { icon: icons.folderArchive, color: 'text-purple-400' },
   tar: { icon: icons.folderArchive, color: 'text-purple-400' },
@@ -60,6 +109,21 @@ const extMap: Record<string, FileIconResult> = {
   rar: { icon: icons.folderArchive, color: 'text-purple-400' },
   '7z': { icon: icons.folderArchive, color: 'text-purple-400' },
   tgz: { icon: icons.folderArchive, color: 'text-purple-400' },
+  zst: { icon: icons.folderArchive, color: 'text-purple-400' },
+  /* 二进制与安装包 */
+  exe: { icon: icons.appWindow, color: 'text-slate-500' },
+  msi: { icon: icons.appWindow, color: 'text-slate-500' },
+  dmg: { icon: icons.appWindow, color: 'text-slate-500' },
+  pkg: { icon: icons.appWindow, color: 'text-slate-500' },
+  app: { icon: icons.appWindow, color: 'text-slate-500' },
+  deb: { icon: icons.container, color: 'text-sky-500' },
+  rpm: { icon: icons.container, color: 'text-sky-500' },
+  apk: { icon: icons.container, color: 'text-sky-500' },
+  /* 字体 */
+  ttf: { icon: icons.fileText, color: 'text-violet-500' },
+  otf: { icon: icons.fileText, color: 'text-violet-500' },
+  woff: { icon: icons.fileText, color: 'text-violet-500' },
+  woff2: { icon: icons.fileText, color: 'text-violet-500' },
   /* 脚本 */
   sh: { icon: icons.terminalSquare, color: 'text-emerald-400' },
   bash: { icon: icons.terminalSquare, color: 'text-emerald-400' },
@@ -73,12 +137,19 @@ const extMap: Record<string, FileIconResult> = {
   csv: { icon: icons.database, color: 'text-orange-400' },
   /* 日志 */
   log: { icon: icons.scrollText, color: 'text-text-3/60' },
+  out: { icon: icons.scrollText, color: 'text-text-3/60' },
   /* 密钥 */
   pem: { icon: icons.key, color: 'text-red-400' },
   key: { icon: icons.key, color: 'text-red-400' },
   crt: { icon: icons.key, color: 'text-red-400' },
   cer: { icon: icons.key, color: 'text-red-400' },
   pub: { icon: icons.key, color: 'text-red-400' },
+  p12: { icon: icons.key, color: 'text-red-400' },
+  pfx: { icon: icons.key, color: 'text-red-400' },
+  /* 容器与编排 */
+  dockerfile: { icon: icons.container, color: 'text-sky-500' },
+  compose: { icon: icons.container, color: 'text-sky-500' },
+  lock: { icon: icons.lock, color: 'text-amber-500' },
 }
 
 /** 可在内置编辑器中打开的文本文件扩展名 */
@@ -124,6 +195,9 @@ export function getFileTypeIcon(
 ): FileIconResult {
   if (type === 'dir') return dirIcon
   if (type === 'symlink') return symlinkIcon
+  const baseName = name.split('/').pop()?.split('\\').pop()?.toLowerCase() ?? name.toLowerCase()
+  const matchedBase = baseNameMap[baseName]
+  if (matchedBase) return matchedBase
   const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : ''
   return extMap[ext] ?? defaultFile
 }

@@ -10,7 +10,6 @@ import {
 import { useThemeStore } from '../../stores/useThemeStore'
 import { getSession } from '../../stores/terminalSessionRegistry'
 import { getWsBaseUrl } from '../../api/client'
-import { t as translate } from '../../i18n'
 import { resolveFontChain } from '../../lib/fonts'
 import ConnectionLoadingView, { type ConnectionLoadingStep } from './ConnectionLoadingView'
 import {
@@ -19,15 +18,16 @@ import {
   readTerminalCellHeight,
   stabilizeTerminalSessionLayout,
 } from './session/terminal-layout'
-import { buildConnectionRouteLabel } from './session/terminal-connection-state'
 import { compileResolvedTerminalHighlightRules, resolveThemeHighlightPalette } from '../../lib/terminal-highlight/resolver'
 import { resetMonitorState } from './session/terminal-monitor'
 import { useTerminalConnection } from './session/useTerminalConnection'
 import { useTerminalInteractions } from './session/useTerminalInteractions'
 import { useTerminalMount, useTerminalProfileSync } from './session/useTerminalMount'
+import { pasteTextToSession } from './session/terminal-paste'
 import TerminalSuggestionOverlay from './suggestions/TerminalSuggestionOverlay'
 import { useTerminalSuggestions } from './suggestions/useTerminalSuggestions'
 import type { TerminalSession } from '../../stores/terminalSessionRegistry'
+import type { TerminalSocketLike } from '../../stores/terminalSessionRegistry'
 import type { HostKeyVerificationPayload, SshTerminalProps } from './session/terminal-types'
 import '@xterm/xterm/css/xterm.css'
 
@@ -48,7 +48,7 @@ export default function SshTerminal({
   const wrapperRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
-  const wsRef = useRef<WebSocket | null>(null)
+  const wsRef = useRef<TerminalSocketLike | null>(null)
   const connectWsRef = useRef<((session: TerminalSession, conn: NonNullable<SshTerminalProps['connection']>) => void) | null>(null)
   const pendingHostKeyRequestIdRef = useRef<string | null>(null)
   const hasConnectedRef = useRef(false)
@@ -166,6 +166,7 @@ export default function SshTerminal({
   }, [paneId])
 
   const connectWs = useTerminalConnection({
+    paneId,
     connectionId,
     connectionName,
     resolvedWsUrl,
@@ -189,21 +190,6 @@ export default function SshTerminal({
   useEffect(() => {
     connectWsRef.current = connectWs
   }, [connectWs])
-
-  const handleRetryConnection = useCallback(() => {
-    if (!connection) return
-    const session = getSession(paneId)
-    if (!session) return
-    hasConnectedRef.current = false
-    pendingHostKeyRequestIdRef.current = null
-    setPendingHostKeyPrompt(null)
-    setConnectionStageText('')
-    setConnectionSteps([])
-    setConnectionErrorText('')
-    updateTerminalStatus('connecting')
-    connectWsRef.current?.(session, connection)
-    session.term.focus()
-  }, [connection, paneId, updateTerminalStatus])
 
   useTerminalMount({
     paneId,
@@ -280,15 +266,7 @@ export default function SshTerminal({
       ${runtimeThemeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${stripeHeight}px,
       ${runtimeThemeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${stripeHeight * 2}px)`
     : undefined
-  const connectionRouteLabel = buildConnectionRouteLabel(connection)
-  const connectionLoadingSteps = connectionSteps.length > 0
-    ? connectionSteps
-    : connectionStageText
-      ? [{ id: 'current-stage', label: connectionStageText, status: connectionErrorText ? 'error' as const : 'active' as const }]
-      : []
-  const showConnectionLoadingView = Boolean(connection) && (
-    terminalStatus !== 'connected' || Boolean(pendingHostKeyPrompt) || Boolean(connectionErrorText)
-  )
+  const showConnectionLoadingView = Boolean(pendingHostKeyPrompt)
 
   const handleHostKeyDecision = useCallback((decision: 'trust' | 'replace' | 'reject') => {
     const requestId = pendingHostKeyRequestIdRef.current
@@ -315,10 +293,7 @@ export default function SshTerminal({
     const selection = session?.term.getSelection()
     const paste = () => {
       navigator.clipboard.readText().then((text) => {
-        const current = getSession(paneId)
-        if (text && current?.ws?.readyState === WebSocket.OPEN) {
-          current.ws.send(JSON.stringify({ type: 'input', data: text }))
-        }
+        pasteTextToSession(paneId, text)
       }).catch(() => {})
     }
 
@@ -351,13 +326,13 @@ export default function SshTerminal({
       />
       {showConnectionLoadingView && (
         <ConnectionLoadingView
-          title={connectionStageText || translate('connectionLoading.preparing')}
-          subtitle={connectionRouteLabel}
-          steps={connectionLoadingSteps}
-          error={connectionErrorText || null}
+          title={connectionStageText || ''}
+          subtitle=""
+          steps={connectionSteps}
+          error={null}
           hostKeyPrompt={pendingHostKeyPrompt}
           onHostKeyDecision={handleHostKeyDecision}
-          onRetry={connectionErrorText ? handleRetryConnection : null}
+          onRetry={null}
         />
       )}
       {stripeBackgroundImage && (

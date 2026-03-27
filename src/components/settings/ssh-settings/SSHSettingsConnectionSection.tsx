@@ -16,7 +16,6 @@ export function SSHSettingsConnectionSection({ state }: { state: ReturnTypeSSHSt
             label="启用终端关键词高亮"
             desc="该开关同时控制顶部规则管理器和终端内的流式高亮渲染。"
           />
-          <SToggle k="sshSftpPathSync" label="SSH/SFTP 路径同步" />
           <SToggle k="termSelectAutoCopy" label="选中自动复制" />
           <SDropdown
             k="termSuggestionMode"

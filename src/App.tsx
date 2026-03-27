@@ -89,29 +89,30 @@ function MainApp() {
 
             <div className="flex-1 flex overflow-hidden">
               <div className="flex-1 flex flex-col min-w-0">
-                {isListView && (
-                  isAssetHidden ? <HiddenShortcuts /> : (
-                    <>
-                      <AssetToolbar />
-                      <AssetTable />
-                    </>
-                  )
-                )}
+                <div className="flex-1 flex flex-col min-w-0" style={{ display: sftpOpen ? 'none' : 'flex' }}>
+                  {isListView && (
+                    isAssetHidden ? <HiddenShortcuts /> : (
+                      <>
+                        <AssetToolbar />
+                        <AssetTable />
+                      </>
+                    )
+                  )}
 
-                {tabs.filter(t => t.type === 'asset').map(tab => (
-                  <div
-                    key={`${tab.id}-${tab.reconnectKey ?? 0}`}
-                    className="flex-1 flex flex-col min-w-0"
-                    style={{ display: activeTabId === tab.id ? 'flex' : 'none' }}
-                  >
-                    <WorkspaceLayout tab={tab} />
-                  </div>
-                ))}
+                  {tabs.filter(t => t.type === 'asset').map(tab => (
+                    <div
+                      key={`${tab.id}-${tab.reconnectKey ?? 0}`}
+                      className="flex-1 flex flex-col min-w-0"
+                      style={{ display: activeTabId === tab.id ? 'flex' : 'none' }}
+                    >
+                      <WorkspaceLayout tab={tab} />
+                    </div>
+                  ))}
+                </div>
+                <div className="flex-1 flex flex-col min-w-0" style={{ display: sftpOpen ? 'flex' : 'none' }}>
+                  <SftpPanel targetTabId={isAssetView ? activeTabId : null} hidden={false} variant="workspace" />
+                </div>
               </div>
-
-              <AnimatePresence>
-                {sftpOpen && <SftpPanel targetTabId={activeTabId} hidden={!(isAssetView && isConnected)} />}
-              </AnimatePresence>
             </div>
           </div>
 

@@ -60,12 +60,24 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
       addToast('info', '请选择要下载的文件')
       return
     }
-    for (const entry of selected) {
-      const { transferId, promise } = downloadFile(sftp.send, entry.path, entry.name, entry.size)
-      // 下载完成后自动保存到 ~/Downloads/vortix-download/
-      promise.then(() => saveDownload(transferId)).catch(() => {/* store 已记录错误 */})
+    const enqueueDownload = () => {
+      for (const entry of selected) {
+        const { transferId, promise } = downloadFile(sftp.send, entry.path, entry.name, entry.size)
+        // 下载完成后自动保存到 ~/Downloads/vortix-download/
+        promise.then(() => saveDownload(transferId)).catch(() => {/* store 已记录错误 */})
+      }
+      addToast('info', `${selected.length} 个文件已加入传输队列`)
     }
-    addToast('info', `${selected.length} 个文件已加入传输队列`)
+    if (selected.length > 1) {
+      useUIStore.getState().openConfirmDialog({
+        title: '确认批量下载',
+        description: `将 ${selected.length} 个文件加入下载队列，是否继续？`,
+        confirmText: '加入队列',
+        onConfirm: enqueueDownload,
+      })
+      return
+    }
+    enqueueDownload()
   }, [sftp, addToast])
 
   const handleMkdir = useCallback(async () => {
@@ -110,6 +122,40 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
           addToast('success', ` ${name} 已删除`)
         } catch (err) {
           addToast('error', `删除失败: ${(err as Error).message}`)
+        }
+      },
+    })
+  }, [sftp, addToast])
+
+  const handleDeleteSelected = useCallback(() => {
+    const { selectedPaths, entries } = useSftpStore.getState()
+    const selected = entries.filter((item) => selectedPaths.has(item.path))
+    if (selected.length === 0) {
+      addToast('info', '请选择要删除的项目')
+      return
+    }
+
+    useUIStore.getState().openConfirmDialog({
+      title: '确认批量删除',
+      description: `确定删除选中的 ${selected.length} 个项目吗？`,
+      confirmText: '确认删除',
+      danger: true,
+      onConfirm: async () => {
+        let success = 0
+        let failed = 0
+        for (const item of selected) {
+          try {
+            await sftp.remove(item.path, item.type === 'dir')
+            success += 1
+          } catch {
+            failed += 1
+          }
+        }
+        sftp.refresh()
+        if (failed === 0) {
+          addToast('success', `已删除 ${success} 个项目`)
+        } else {
+          addToast('error', `删除完成：成功 ${success}，失败 ${failed}`)
         }
       },
     })
@@ -276,17 +322,31 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
       addToast('info', '请选择要压缩的文件')
       return
     }
-    const archiveName = prompt('压缩文件名', selected.length === 1 ? `${selected[0].name}.tar.gz` : 'archive.tar.gz')
-    if (!archiveName?.trim()) return
-    const names = selected.map(e => e.name).join(' ')
-    try {
-      const result = await sftp.exec(`cd "${currentPath}" && tar -czf "${archiveName.trim()}" ${names}`)
-      if (result.code !== 0) throw new Error(result.stderr || '压缩失败')
-      sftp.refresh()
-      addToast('success', `已压缩为 ${archiveName.trim()}`)
-    } catch (err) {
-      addToast('error', `压缩失败: ${(err as Error).message}`)
+
+    const runCompress = async () => {
+      const archiveName = prompt('压缩文件名', selected.length === 1 ? `${selected[0].name}.tar.gz` : 'archive.tar.gz')
+      if (!archiveName?.trim()) return
+      const names = selected.map(e => e.name).join(' ')
+      try {
+        const result = await sftp.exec(`cd "${currentPath}" && tar -czf "${archiveName.trim()}" ${names}`)
+        if (result.code !== 0) throw new Error(result.stderr || '压缩失败')
+        sftp.refresh()
+        addToast('success', `压缩完成：${selected.length} 项 -> ${archiveName.trim()}`)
+      } catch (err) {
+        addToast('error', `压缩失败: ${(err as Error).message}`)
+      }
     }
+
+    if (selected.length > 1) {
+      useUIStore.getState().openConfirmDialog({
+        title: '确认批量压缩',
+        description: `将压缩 ${selected.length} 个项目，是否继续？`,
+        confirmText: '继续压缩',
+        onConfirm: () => { void runCompress() },
+      })
+      return
+    }
+    await runCompress()
   }, [sftp, addToast])
 
   /** 解压缩 */
@@ -333,6 +393,7 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
     handleMkdir,
     handleNewFile,
     handleDelete,
+    handleDeleteSelected,
     handleRename,
     handleRenameSubmit,
     handleEdit,
@@ -352,7 +413,7 @@ export function useSftpActions({ sftp, targetTabId, openEditor }: UseSftpActions
     handleScpUpload,
   }), [
     handleNavigate, handleUpload, handleDownload, handleMkdir, handleNewFile,
-    handleDelete, handleRename, handleRenameSubmit, handleEdit, handleCopyPath,
+    handleDelete, handleDeleteSelected, handleRename, handleRenameSubmit, handleEdit, handleCopyPath,
     handleCopy, handleCut, handlePaste, handleLocate, handleChmod, handleBookmark,
     handleLocalOpen, handleDownloadTo, handleUploadFolder,
     handleCompress, handleDecompress, handleScpDownload, handleScpUpload,
