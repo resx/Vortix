@@ -46,6 +46,7 @@ export function useTerminalConnection({
       clearTimeout(session.reconnectTimer)
       session.reconnectTimer = null
     }
+    session.highlightLineTail = ''
     session.reconnectInputDisposable?.dispose()
     session.reconnectInputDisposable = null
 

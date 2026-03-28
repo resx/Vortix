@@ -24,6 +24,7 @@ export {
 export type {
   BuiltinTerminalHighlightRule,
   CustomTerminalHighlightRule,
+  TerminalHighlightRenderChannel,
   TerminalHighlightRule,
   TerminalHighlightSemanticToken,
 } from '../lib/terminal-highlight/rules'

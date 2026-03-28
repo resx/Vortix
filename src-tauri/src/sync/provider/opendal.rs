@@ -131,6 +131,21 @@ impl OpenDalProvider {
     fn key(&self, key: &str) -> String {
         key.trim_start_matches('/').to_string()
     }
+
+    fn metadata_token(meta: &opendal::Metadata) -> Option<String> {
+        meta.version()
+            .filter(|value| !value.is_empty())
+            .map(ToOwned::to_owned)
+            .or_else(|| {
+                meta.etag()
+                    .filter(|value| !value.is_empty())
+                    .map(ToOwned::to_owned)
+            })
+            .or_else(|| {
+                meta.last_modified()
+                    .map(|t| DateTime::<Local>::from(SystemTime::from(t)).to_rfc3339())
+            })
+    }
 }
 
 #[async_trait]
@@ -176,6 +191,15 @@ impl SyncProvider for OpenDalProvider {
 
         self.stat_cache.insert(key, info.clone()).await;
         Ok(Some(info))
+    }
+
+    async fn read_remote_token(&self, key: &str) -> Result<Option<String>, String> {
+        let key = self.key(key);
+        let meta = match self.op.stat(&key).await {
+            Ok(m) => m,
+            Err(_) => return Ok(None),
+        };
+        Ok(Self::metadata_token(&meta))
     }
 
     async fn test(&self) -> Result<(), String> {

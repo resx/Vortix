@@ -1,6 +1,5 @@
 import { useEffect, type MutableRefObject } from 'react'
 import { useSettingsStore } from '../../../stores/useSettingsStore'
-import { useKeywordHighlight } from '../useKeywordHighlight'
 import { addInputListener, getSession, removeInputListener } from '../../../stores/terminalSessionRegistry'
 import { getHistory } from '../../../api/client'
 import { syncMonitorRuntime } from './terminal-monitor'
@@ -10,14 +9,12 @@ import {
   syncCommandBufferFromTerminalBeforeSubmit,
   syncPendingTabCompletionFromTerminal,
 } from './terminal-command-buffer'
-import type { Terminal } from '@xterm/xterm'
 import type { TerminalSession } from '../../../stores/terminalSessionRegistry'
 import type { TerminalSocketLike } from '../../../stores/terminalSessionRegistry'
 import type { TerminalConnection } from './terminal-types'
 
 interface UseTerminalInteractionsOptions {
   paneId: string
-  profileId?: string | null
   connection: TerminalConnection | null
   connectionId?: string | null
   terminalStatus: 'connecting' | 'connected' | 'closed' | 'error'
@@ -26,7 +23,6 @@ interface UseTerminalInteractionsOptions {
   updateCellHeight: () => void
   wrapperRef: MutableRefObject<HTMLDivElement | null>
   wsRef: MutableRefObject<TerminalSocketLike | null>
-  termRef: MutableRefObject<Terminal | null>
   monitorRunningRef: MutableRefObject<boolean>
   onContextMenu?: (x: number, y: number, hasSelection: boolean) => void
   onSuggestionKeyDown?: (event: KeyboardEvent) => boolean
@@ -58,7 +54,6 @@ function pasteToSession(paneId: string) {
 
 export function useTerminalInteractions({
   paneId,
-  profileId,
   connection,
   connectionId,
   terminalStatus,
@@ -67,7 +62,6 @@ export function useTerminalInteractions({
   updateCellHeight,
   wrapperRef,
   wsRef,
-  termRef,
   monitorRunningRef,
   onContextMenu,
   onSuggestionKeyDown,
@@ -175,8 +169,6 @@ export function useTerminalInteractions({
     wrapper.addEventListener('mousedown', handler)
     return () => wrapper.removeEventListener('mousedown', handler)
   }, [onContextMenu, paneId, wrapperRef])
-
-  useKeywordHighlight({ termRef, profileId })
 
   useEffect(() => {
     const wrapper = wrapperRef.current

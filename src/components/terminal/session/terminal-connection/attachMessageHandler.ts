@@ -8,7 +8,7 @@ import { describeConnectionStage, nextConnectionSteps } from '../terminal-connec
 import { resolveFullscreenEditorModeFromOutput } from '../terminal-editor-mode'
 import { handleMonitorMessage, startMonitorIfNeeded } from '../terminal-monitor'
 import {
-  applyAnsiSafeHighlight,
+  applyIncrementalAnsiSafeHighlight,
   endsWithExplicitLineBreak,
   ensureCursorVisibleBeforePrompt,
   normalizeOutputBeforePrompt,
@@ -100,9 +100,18 @@ export function attachMessageHandler({
           session.lastOutputEndsWithLineBreak = endsWithExplicitLineBreak(normalizedOutput)
         }
         const settingsNow = useSettingsStore.getState()
-        const rendered = settingsNow.termHighlightEnhance
-          ? applyAnsiSafeHighlight(normalizedOutput, getResolvedHighlightRules())
-          : normalizedOutput
+        let rendered = normalizedOutput
+        if (settingsNow.termHighlightEnhance) {
+          const result = applyIncrementalAnsiSafeHighlight(
+            normalizedOutput,
+            getResolvedHighlightRules(),
+            session.highlightLineTail,
+          )
+          rendered = result.renderedText
+          session.highlightLineTail = result.nextTail
+        } else {
+          session.highlightLineTail = ''
+        }
         term.write(rendered, () => {
           if (session.ws !== ws) return
           syncPendingTabCompletionFromTerminal(session)
@@ -143,6 +152,7 @@ export function attachMessageHandler({
           setConnectionStageText('')
           setPendingHostKeyPrompt(null)
           setConnectionErrorText('')
+          session.highlightLineTail = ''
           term.clear()
           updateTerminalStatus('connected')
           requestAnimationFrame(() => {
@@ -164,6 +174,7 @@ export function attachMessageHandler({
             setConnectionErrorText(translate('connectionLoading.error.closedBeforeEstablished'))
             writeInline(translate('connectionLoading.error.closedBeforeEstablished'), 'warn')
           } else {
+            session.highlightLineTail = ''
             term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接已关闭')
           }
           updateTerminalStatus('closed')
@@ -174,6 +185,7 @@ export function attachMessageHandler({
             setConnectionErrorText(translate('connectionLoading.error.timeoutBeforeEstablished'))
             writeInline(translate('connectionLoading.error.timeoutBeforeEstablished'), 'warn')
           } else {
+            session.highlightLineTail = ''
             term.writeln('\r\n\x1b[33m[Vortix]\x1b[0m 连接超时')
           }
           updateTerminalStatus('closed')
@@ -226,6 +238,7 @@ export function attachMessageHandler({
         setConnectionErrorText(String(msg.data ?? translate('connectionLoading.failedTitle')))
         writeInline(String(msg.data ?? translate('connectionLoading.failedTitle')), 'error')
         if (hasConnectedRef.current) {
+          session.highlightLineTail = ''
           term.writeln(`\r\n\x1b[31m[Vortix 错误]\x1b[0m ${msg.data}`)
         }
         updateTerminalStatus('error')

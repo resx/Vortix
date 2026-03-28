@@ -5,6 +5,8 @@ import type { IDisposable, Terminal } from '@xterm/xterm'
 import type { FitAddon } from '@xterm/addon-fit'
 import type { SearchAddon } from '@xterm/addon-search'
 import type { WebglAddon } from '@xterm/addon-webgl'
+import type { TerminalHighlightRuntimeCache } from '../lib/terminal-highlight/runtime'
+import type { TerminalLinkSupport } from '../components/terminal/session/terminal-links'
 
 export interface TerminalSocketLike {
   readyState: number
@@ -27,6 +29,7 @@ export interface TerminalSession {
   fitAddon: FitAddon
   searchAddon: SearchAddon
   webglAddon: WebglAddon | null
+  linkSupport: TerminalLinkSupport | null
   /** term.open() 是否已执行完成 */
   isOpened: boolean
   ws: TerminalSocketLike | null
@@ -56,6 +59,8 @@ export interface TerminalSession {
   awaitingPromptBoundary: boolean
   lastOutputEndsWithLineBreak: boolean
   inFullscreenEditor: boolean
+  highlightRuntimeCache: TerminalHighlightRuntimeCache
+  highlightLineTail: string
 }
 
 const sessions = new Map<string, TerminalSession>()
@@ -120,6 +125,8 @@ export function destroySession(paneId: string): void {
   session.inputDisposable = null
   session.webglAddon?.dispose()
   session.webglAddon = null
+  session.linkSupport?.dispose()
+  session.linkSupport = null
   session.ws?.close()
   session.ws = null
   session.term.dispose()

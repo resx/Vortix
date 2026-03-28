@@ -85,6 +85,7 @@ pub(super) async fn repair_legacy_schema(pool: &SqlitePool) -> Result<()> {
         "sync_state",
         &[
             ("last_sync_at", "TEXT NULL"),
+            ("last_sync_remote_token", "TEXT NULL"),
             ("local_dirty", "INTEGER NOT NULL DEFAULT 0"),
         ],
     )
@@ -171,7 +172,7 @@ pub(super) async fn ensure_sync_state(pool: &SqlitePool) -> Result<()> {
     if exists.is_none() {
         let device_id = legacy::generate_device_id();
         sqlx::query(
-            "INSERT INTO sync_state (id, device_id, last_sync_revision, last_sync_at, local_dirty) VALUES (1, ?, 0, NULL, 0)",
+            "INSERT INTO sync_state (id, device_id, last_sync_revision, last_sync_at, last_sync_remote_token, local_dirty) VALUES (1, ?, 0, NULL, NULL, 0)",
         )
         .bind(device_id)
         .execute(pool)

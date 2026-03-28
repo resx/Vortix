@@ -2,12 +2,13 @@ import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } 
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
-import { WebLinksAddon } from '@xterm/addon-web-links'
 import { useSettingsStore } from '../../../stores/useSettingsStore'
 import { useTerminalProfileStore } from '../../../stores/useTerminalProfileStore'
 import { useThemeStore } from '../../../stores/useThemeStore'
 import { getSession, notifyInputListeners, setSession } from '../../../stores/terminalSessionRegistry'
 import { t as translate } from '../../../i18n'
+import { createTerminalHighlightRuntimeCache } from '../../../lib/terminal-highlight/runtime'
+import { installTerminalLinkSupport } from './terminal-links'
 import { playBellSound } from './terminal-output'
 import { syncPendingTabCompletionFromTerminal } from './terminal-command-buffer'
 import type { ConnectionLoadingStep } from '../ConnectionLoadingView'
@@ -64,6 +65,10 @@ export function useTerminalMount({
 
     const existing = getSession(paneId)
     if (existing) {
+      const isLocalConn = 'type' in connection && connection.type === 'local'
+      existing.linkSupport = installTerminalLinkSupport(existing.term, existing.linkSupport, {
+        enableLocalPathLinks: isLocalConn,
+      })
       wrapper.appendChild(existing.containerEl)
       if (!existing.isOpened) {
         existing.term.open(existing.containerEl)
@@ -113,22 +118,12 @@ export function useTerminalMount({
 
       const fitAddon = new FitAddon()
       const searchAddon = new SearchAddon()
+      const isLocalConn = 'type' in connection && connection.type === 'local'
       term.loadAddon(fitAddon)
       term.loadAddon(searchAddon)
-      term.loadAddon(new WebLinksAddon((event, uri) => {
-        if (event.ctrlKey || event.metaKey) {
-          window.open(uri, '_blank', 'noopener')
-        }
-      }, {
-        hover: (_event, uri) => {
-          const isMac = navigator.platform.toUpperCase().includes('MAC')
-          const modifier = isMac ? 'Cmd' : 'Ctrl'
-          term.element?.setAttribute('title', `${modifier}+Click 打开链接: ${uri}`)
-        },
-        leave: () => {
-          term.element?.removeAttribute('title')
-        },
-      }))
+      const linkSupport = installTerminalLinkSupport(term, null, {
+        enableLocalPathLinks: isLocalConn,
+      })
 
       const containerEl = document.createElement('div')
       containerEl.style.width = '100%'
@@ -141,6 +136,7 @@ export function useTerminalMount({
         fitAddon,
         searchAddon,
         webglAddon: null,
+        linkSupport,
         isOpened: false,
         ws: null,
         reconnectTimer: null,
@@ -162,6 +158,8 @@ export function useTerminalMount({
         awaitingPromptBoundary: false,
         lastOutputEndsWithLineBreak: true,
         inFullscreenEditor: false,
+        highlightRuntimeCache: createTerminalHighlightRuntimeCache(),
+        highlightLineTail: '',
       }
       setSession(paneId, session)
 
@@ -194,7 +192,6 @@ export function useTerminalMount({
         if (useSettingsStore.getState().termSound) playBellSound()
       })
 
-      const isLocalConn = 'type' in connection && connection.type === 'local'
       setConnectionStageText(
         isLocalConn
           ? `${translate('connectionLoading.phase.startingLocal')} ${connection.shell}...`

@@ -3,8 +3,6 @@ import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
 import {
-  DEFAULT_TERMINAL_HIGHLIGHT_RULES,
-  normalizeTerminalHighlightRules,
   useSettingsStore,
 } from '../../stores/useSettingsStore'
 import { useThemeStore } from '../../stores/useThemeStore'
@@ -17,7 +15,9 @@ import {
   readTerminalCellHeight,
   stabilizeTerminalSessionLayout,
 } from './session/terminal-layout'
-import { compileResolvedTerminalHighlightRules, resolveThemeHighlightPalette } from '../../lib/terminal-highlight/resolver'
+import {
+  getCachedResolvedTerminalHighlightRules,
+} from '../../lib/terminal-highlight/runtime'
 import { resetMonitorState } from './session/terminal-monitor'
 import { useTerminalConnection } from './session/useTerminalConnection'
 import { useTerminalInteractions } from './session/useTerminalInteractions'
@@ -149,15 +149,17 @@ export default function SshTerminal({
   const getResolvedHighlightRules = useCallback(() => {
     const settings = useSettingsStore.getState()
     if (!settings.termHighlightEnhance) return []
-    const mergedRules = normalizeTerminalHighlightRules([
-      ...DEFAULT_TERMINAL_HIGHLIGHT_RULES,
-      ...(settings.termHighlightRules ?? []),
-    ])
+    const session = getSession(paneId)
+    if (!session) return []
     const themeStore = useThemeStore.getState()
     const activeThemeId = runtimeThemeMode === 'dark' ? settings.termThemeDark : settings.termThemeLight
-    const themeHighlights = resolveThemeHighlightPalette(themeStore.getThemeById(activeThemeId)?.highlights)
-    return compileResolvedTerminalHighlightRules(mergedRules, themeHighlights)
-  }, [runtimeThemeMode])
+    const themeHighlights = themeStore.getThemeById(activeThemeId)?.highlights
+    return getCachedResolvedTerminalHighlightRules(
+      session.highlightRuntimeCache,
+      settings.termHighlightRules,
+      themeHighlights,
+    )
+  }, [paneId, runtimeThemeMode])
 
   const updateTerminalStatus = useCallback((status: 'connecting' | 'connected' | 'closed' | 'error') => {
     setTerminalStatus(status)
@@ -244,7 +246,6 @@ export default function SshTerminal({
 
   useTerminalInteractions({
     paneId,
-    profileId,
     connection,
     connectionId,
     terminalStatus,
@@ -253,7 +254,6 @@ export default function SshTerminal({
     updateCellHeight,
     wrapperRef,
     wsRef,
-    termRef,
     monitorRunningRef,
     onContextMenu,
     onSuggestionKeyDown: handleSuggestionKeyDown,

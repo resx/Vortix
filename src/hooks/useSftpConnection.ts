@@ -166,7 +166,7 @@ export function useSftpConnection(sessionId: SftpSessionId = 'right') {
       store.getState().setBridgeSessionKey('', sessionId)
       pending.clear()
     }
-  }, [clearPendingHostKeyPrompt, clearReconnectTimer])
+  }, [clearPendingHostKeyPrompt, clearReconnectTimer, sessionId, store])
 
   return useMemo(() => ({
     connect, disconnect, listDir, mkdir, rename, remove, readFile, writeFile, stat, chmod, touch, exec, refresh, send,

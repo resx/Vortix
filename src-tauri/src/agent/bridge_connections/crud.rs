@@ -4,6 +4,7 @@ use uuid::Uuid;
 use crate::db::Db;
 use crate::server::helpers::{insert_connection, to_connection_public, update_connection_row};
 use crate::server::types::{ConnectionPublic, ConnectionRow, CreateConnectionDto};
+use crate::sync::service::mark_sync_dirty;
 use crate::time_utils::now_rfc3339;
 
 use super::types::ListConnectionsQuery;
@@ -41,11 +42,7 @@ pub async fn get_connection(db: &Db, id: String) -> Result<ConnectionPublic, Str
 }
 
 pub(super) async fn mark_local_dirty(db: &Db) -> Result<(), String> {
-    sqlx::query("UPDATE sync_state SET local_dirty = 1 WHERE id = 1")
-        .execute(&db.pool)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    mark_sync_dirty(db).await
 }
 
 fn parse_update_object(payload: Value) -> Result<Map<String, Value>, String> {

@@ -1,5 +1,10 @@
 import type { ThemeHighlights } from '../../types/theme'
-import type { TerminalHighlightRule, TerminalHighlightSemanticToken } from '../../stores/useSettingsStore'
+import type {
+  TerminalHighlightRule,
+  TerminalHighlightSemanticToken,
+  TerminalHighlightRenderChannel,
+} from '../../stores/useSettingsStore'
+import { getTerminalHighlightRenderChannel } from './rules'
 import { resolveTerminalHighlightRuleColor } from './resolver'
 
 interface SaveRuleDraft {
@@ -14,6 +19,7 @@ export interface TerminalHighlightDisplayRule {
   displayColor: string
   colorLocked: boolean
   semanticToken?: TerminalHighlightSemanticToken
+  renderChannel: TerminalHighlightRenderChannel
 }
 
 export function buildTerminalHighlightDisplayRules(
@@ -25,6 +31,7 @@ export function buildTerminalHighlightDisplayRules(
     displayColor: resolveTerminalHighlightRuleColor(rule, palette),
     colorLocked: rule.builtin,
     semanticToken: rule.builtin ? rule.semanticToken : undefined,
+    renderChannel: getTerminalHighlightRenderChannel(rule),
   }))
 }
 

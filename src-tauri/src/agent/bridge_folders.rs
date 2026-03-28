@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::db::Db;
+use crate::sync::service::mark_sync_dirty;
 use crate::time_utils::now_rfc3339;
 
 #[derive(Debug, Clone, Serialize, FromRow)]
@@ -29,11 +30,7 @@ pub struct UpdateFolderInput {
 }
 
 async fn mark_local_dirty(db: &Db) -> Result<(), String> {
-    sqlx::query("UPDATE sync_state SET local_dirty = 1 WHERE id = 1")
-        .execute(&db.pool)
-        .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    mark_sync_dirty(db).await
 }
 
 pub async fn list_folders(db: &Db) -> Result<Vec<FolderRecord>, String> {

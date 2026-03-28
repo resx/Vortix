@@ -17,6 +17,10 @@ pub trait SyncProvider: Send + Sync {
     async fn delete(&self, key: &str) -> Result<(), String>;
     async fn stat(&self, key: &str) -> Result<Option<SyncFileInfo>, String>;
     async fn test(&self) -> Result<(), String>;
+    async fn read_remote_token(&self, key: &str) -> Result<Option<String>, String> {
+        let info = self.stat(key).await?;
+        Ok(info.and_then(|item| item.last_modified))
+    }
     async fn delete_prefix(&self, _prefix: &str) -> Result<(), String> {
         Ok(())
     }
@@ -28,18 +32,15 @@ pub trait SyncProvider: Send + Sync {
     async fn check_remote_changed(
         &self,
         key: &str,
-        known_hash: &str,
+        known_token: &str,
     ) -> Result<RemoteCheckResult, String> {
-        let info = self.stat(key).await?;
-        let remote_hash = info
-            .as_ref()
-            .and_then(|i| i.last_modified.clone())
-            .unwrap_or_default();
-        let has_update = !remote_hash.is_empty() && remote_hash != known_hash;
+        let remote_hash = self.read_remote_token(key).await?.unwrap_or_default();
+        let has_update =
+            !remote_hash.is_empty() && (known_token.is_empty() || remote_hash != known_token);
         Ok(RemoteCheckResult {
             has_update,
             remote_hash,
-            local_hash: known_hash.to_string(),
+            local_hash: known_token.to_string(),
         })
     }
     fn is_remote(&self) -> bool;

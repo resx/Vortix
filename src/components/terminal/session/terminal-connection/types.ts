@@ -1,5 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import type { ConnectionLoadingStep } from '../../ConnectionLoadingView'
+import type { ResolvedTerminalHighlightRule } from '../../../../lib/terminal-highlight/resolver'
 import type { TerminalSocketLike, TerminalSession } from '../../../../stores/terminalSessionRegistry'
 import type { HostKeyVerificationPayload, SshTerminalProps } from '../terminal-types'
 import type { TerminalBridgeSocket } from '../../../../lib/terminalBridgeSocket'
@@ -13,7 +14,7 @@ export interface UseTerminalConnectionOptions {
   tabId?: string
   wsRef: MutableRefObject<TerminalSocketLike | null>
   getProposedDimensions: (term: TerminalSession['term'], fitAddon?: TerminalSession['fitAddon']) => { cols: number; rows: number } | undefined
-  getResolvedHighlightRules: () => { color: string; pattern: RegExp }[]
+  getResolvedHighlightRules: () => ResolvedTerminalHighlightRule[]
   safeFit: (session: TerminalSession) => void
   updateTerminalStatus: (status: 'connecting' | 'connected' | 'closed' | 'error') => void
   setConnectionErrorText: Dispatch<SetStateAction<string>>

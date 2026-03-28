@@ -167,7 +167,7 @@ export default function SftpFileList({ sessionId = 'right', onNavigate, onContex
 
   return (
     <div
-      className="flex-1 flex flex-col overflow-hidden relative outline-none"
+      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden outline-none"
       tabIndex={0}
       onClick={() => clearSelection(sessionId)}
       onKeyDown={handleKeyDown}
@@ -181,8 +181,8 @@ export default function SftpFileList({ sessionId = 'right', onNavigate, onContex
           <span className="text-[13px] text-blue-600 font-medium">释放以上传</span>
         </div>
       )}
-      <div className="flex-1 overflow-hidden">
-        <div className="h-full overflow-x-auto custom-scrollbar">
+      <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="h-full overflow-auto custom-scrollbar">
           <div>
             <HeaderRow
               columnKeys={columnKeys}

@@ -118,7 +118,7 @@ async fn get_sync_state(db: &Db) -> Result<SyncStateRow, ApiError> {
         return Ok(cached);
     }
     let state = sqlx::query_as::<_, SyncStateRow>(
-        "SELECT device_id, last_sync_revision, last_sync_at, local_dirty FROM sync_state WHERE id = 1",
+        "SELECT device_id, last_sync_revision, last_sync_at, last_sync_remote_token, local_dirty FROM sync_state WHERE id = 1",
     )
     .fetch_optional(&db.pool)
     .await
@@ -128,16 +128,21 @@ async fn get_sync_state(db: &Db) -> Result<SyncStateRow, ApiError> {
     Ok(state)
 }
 
-async fn set_sync_state(db: &Db, revision: i64) -> Result<(), ApiError> {
+async fn set_sync_state(
+    db: &Db,
+    revision: i64,
+    remote_token: Option<String>,
+) -> Result<(), ApiError> {
     let now = now_rfc3339();
-    sqlx::query("UPDATE sync_state SET last_sync_revision = ?, last_sync_at = ?, local_dirty = 0 WHERE id = 1")
+    sqlx::query("UPDATE sync_state SET last_sync_revision = ?, last_sync_at = ?, last_sync_remote_token = ?, local_dirty = 0 WHERE id = 1")
         .bind(revision)
         .bind(now)
+        .bind(remote_token)
         .execute(&db.pool)
         .await
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     if let Ok(Some(state)) = sqlx::query_as::<_, SyncStateRow>(
-        "SELECT device_id, last_sync_revision, last_sync_at, local_dirty FROM sync_state WHERE id = 1",
+        "SELECT device_id, last_sync_revision, last_sync_at, last_sync_remote_token, local_dirty FROM sync_state WHERE id = 1",
     )
     .fetch_optional(&db.pool)
     .await
@@ -149,6 +154,15 @@ async fn set_sync_state(db: &Db, revision: i64) -> Result<(), ApiError> {
 
 pub fn invalidate_sync_state_cache() {
     sync_state_cache::invalidate_sync_state_cache();
+}
+
+pub async fn mark_sync_dirty(db: &Db) -> Result<(), String> {
+    sqlx::query("UPDATE sync_state SET local_dirty = 1 WHERE id = 1")
+        .execute(&db.pool)
+        .await
+        .map_err(|e| e.to_string())?;
+    invalidate_sync_state_cache();
+    Ok(())
 }
 
 async fn collect_sync_data(db: &Db) -> Result<SyncData, ApiError> {
@@ -227,6 +241,10 @@ async fn detect_remote_key(provider: &DynProvider, body: &SyncRequestBody) -> &'
 
 async fn read_remote_meta(provider: &DynProvider) -> Option<SyncRemoteMeta> {
     io_remote::read_remote_meta(provider).await
+}
+
+async fn read_remote_token(provider: &DynProvider, key: &str) -> Option<String> {
+    provider.read_remote_token(key).await.ok().flatten()
 }
 
 pub async fn sync_test(

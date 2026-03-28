@@ -2,7 +2,7 @@ use axum::http::StatusCode;
 use serde_json::Value;
 
 use crate::db::Db;
-use crate::sync::service::invalidate_sync_state_cache;
+use crate::sync::service::mark_sync_dirty;
 
 use super::super::response::{ApiError, err};
 use super::super::types::{ConnectionPublic, ConnectionRow};
@@ -68,12 +68,9 @@ pub fn to_connection_public(row: ConnectionRow) -> ConnectionPublic {
 }
 
 pub async fn mark_local_dirty(db: &Db) -> Result<(), ApiError> {
-    sqlx::query("UPDATE sync_state SET local_dirty = 1 WHERE id = 1")
-        .execute(&db.pool)
+    mark_sync_dirty(db)
         .await
-        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    invalidate_sync_state_cache();
-    Ok(())
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e))
 }
 
 pub async fn insert_connection(db: &Db, row: &ConnectionRow) -> Result<(), ApiError> {

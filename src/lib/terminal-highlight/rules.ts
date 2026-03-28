@@ -1,12 +1,14 @@
 import type { ThemeHighlights } from '../../types/theme'
 
 export type TerminalHighlightSemanticToken = keyof ThemeHighlights
+export type TerminalHighlightRenderChannel = 'ansi' | 'link'
 
 interface TerminalHighlightRuleBase {
   id: string
   name: string
   pattern: string
   flags: string
+  renderChannel?: TerminalHighlightRenderChannel
 }
 
 export interface BuiltinTerminalHighlightRule extends TerminalHighlightRuleBase {
@@ -29,13 +31,21 @@ export const DEFAULT_TERMINAL_HIGHLIGHT_RULES: TerminalHighlightRule[] = [
   { id: 'builtin-debug', name: 'Debug', pattern: '\\b(debug|DEBUG|trace|TRACE)\\b', flags: 'g', builtin: true, semanticToken: 'debug' },
   { id: 'builtin-ipMac', name: 'IP & MAC', pattern: '\\b(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d+)?\\b|(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\\b', flags: 'g', builtin: true, semanticToken: 'ipMac' },
   { id: 'builtin-path', name: 'Path', pattern: '(?:\\/[\\w.-]+){2,}(?:\\.\\w+)?', flags: 'g', builtin: true, semanticToken: 'path' },
-  { id: 'builtin-url', name: 'URL', pattern: 'https?:\\/\\/[^\\s\'")\\]>]+', flags: 'g', builtin: true, semanticToken: 'url' },
+  { id: 'builtin-url', name: 'URL', pattern: 'https?:\\/\\/[^\\s\'")\\]>]+', flags: 'g', builtin: true, semanticToken: 'url', renderChannel: 'link' },
   { id: 'builtin-timestamp', name: 'Timestamp', pattern: '\\b\\d{4}[-/]\\d{2}[-/]\\d{2}[T ]\\d{2}:\\d{2}(?::\\d{2})?(?:\\.\\d+)?(?:Z|[+-]\\d{2}:?\\d{2})?\\b', flags: 'g', builtin: true, semanticToken: 'timestamp' },
   { id: 'builtin-env', name: 'Env', pattern: '\\$\\{?\\w+\\}?', flags: 'g', builtin: true, semanticToken: 'env' },
 ]
 
 export function isBuiltinTerminalHighlightRule(rule: TerminalHighlightRule): rule is BuiltinTerminalHighlightRule {
   return rule.builtin
+}
+
+export function getTerminalHighlightRenderChannel(rule: TerminalHighlightRule): TerminalHighlightRenderChannel {
+  return rule.renderChannel ?? 'ansi'
+}
+
+export function shouldRenderTerminalHighlightInAnsi(rule: TerminalHighlightRule): boolean {
+  return getTerminalHighlightRenderChannel(rule) === 'ansi'
 }
 
 export function normalizeRegexFlags(flags?: string): string {
@@ -71,6 +81,9 @@ export function normalizeTerminalHighlightRules(input: unknown): TerminalHighlig
     const name = typeof obj.name === 'string' && obj.name.trim() ? obj.name : (builtinBase?.name ?? id)
     const pattern = typeof obj.pattern === 'string' && obj.pattern.trim() ? obj.pattern : (builtinBase?.pattern ?? '')
     const flags = normalizeRegexFlags(typeof obj.flags === 'string' ? obj.flags : (builtinBase?.flags ?? 'g'))
+    const renderChannel = obj.renderChannel === 'link' || obj.renderChannel === 'ansi'
+      ? obj.renderChannel
+      : builtinBase?.renderChannel
 
     if (builtinBase) {
       builtinById.set(id, {
@@ -78,6 +91,7 @@ export function normalizeTerminalHighlightRules(input: unknown): TerminalHighlig
         name: builtinBase.name,
         pattern,
         flags,
+        renderChannel,
       })
       continue
     }
@@ -90,6 +104,7 @@ export function normalizeTerminalHighlightRules(input: unknown): TerminalHighlig
       flags,
       color,
       builtin: false,
+      renderChannel,
     })
   }
 

@@ -63,7 +63,7 @@ function SftpWorkspacePane(props: PaneRenderProps) {
 
   return (
     <div
-      className={`min-w-0 flex flex-col transition-opacity ${active ? 'opacity-100' : 'opacity-90'}`}
+      className={`min-w-0 min-h-0 h-full flex-1 flex flex-col transition-opacity ${active ? 'opacity-100' : 'opacity-90'}`}
       onMouseDown={onActivate}
     >
       {showPicker ? (
@@ -114,9 +114,6 @@ function SftpWorkspacePane(props: PaneRenderProps) {
 interface SftpPanelContentProps {
   isWorkspace: boolean
   activePane: ActivePane
-  splitRatio: number
-  workspaceRef: React.RefObject<HTMLDivElement | null>
-  splitDraggingRef: React.MutableRefObject<boolean>
   rightConnecting: boolean
   rightConnected: boolean
   left: PaneRenderProps
@@ -127,9 +124,6 @@ export default function SftpPanelContent(props: SftpPanelContentProps) {
   const {
     isWorkspace,
     activePane,
-    splitRatio,
-    workspaceRef,
-    splitDraggingRef,
     rightConnected,
     rightConnecting,
     left,
@@ -141,22 +135,11 @@ export default function SftpPanelContent(props: SftpPanelContentProps) {
   if (isWorkspace) {
     return (
       <div className="flex-1 min-h-0 px-4 pb-4">
-        <div ref={workspaceRef} className="flex h-full min-h-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="min-w-0 flex flex-col" style={{ width: `${Math.round(splitRatio * 100)}%` }}>
+        <div className="flex h-full min-h-0 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+          <div className="min-w-0 min-h-0 h-full flex-1 basis-0 flex flex-col border-r border-gray-100">
             <SftpWorkspacePane {...left} active={activePane === 'local'} />
           </div>
-          <div
-            className="relative w-1 cursor-col-resize bg-gray-200 hover:bg-primary/40"
-            onMouseDown={(e) => {
-              e.preventDefault()
-              splitDraggingRef.current = true
-              document.body.style.cursor = 'col-resize'
-              document.body.style.userSelect = 'none'
-            }}
-          >
-            <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gray-300" />
-          </div>
-          <div className="min-w-0 flex flex-1 flex-col">
+          <div className="min-w-0 min-h-0 h-full flex-1 basis-0 flex flex-col">
             <SftpWorkspacePane {...right} active={activePane === 'remote'} />
           </div>
         </div>

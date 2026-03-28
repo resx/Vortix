@@ -9,6 +9,44 @@ import { loadLocale } from '../../../i18n'
 import { shouldBlockTabFocusNavigation } from '../../../lib/focus-tab-policy'
 import { NAV_GROUPS, normalizeIncomingNav, renderShortcutPlaceholder, type ModuleTab, type NavId } from './config'
 
+async function loadSettingsWindowResources(): Promise<void> {
+  const lang = useSettingsStore.getState().language
+  await Promise.all([
+    useTerminalProfileStore.getState().loadProfiles().catch(() => undefined),
+    useThemeStore.getState().loadCustomThemes().catch(() => undefined),
+    loadLocale(lang).catch(() => undefined),
+  ])
+}
+
+async function closeSettingsWindow(): Promise<void> {
+  if (!('__TAURI_INTERNALS__' in window)) {
+    window.close()
+    return
+  }
+
+  const win = getCurrentWindow()
+  try {
+    await win.close()
+    await new Promise((resolve) => window.setTimeout(resolve, 80))
+    const stillVisible = await win.isVisible().catch(() => false)
+    if (!stillVisible) return
+  } catch {
+    // Ignore close failures and try the next strategy.
+  }
+
+  try {
+    await win.hide()
+    return
+  } catch {
+    // Ignore hide failures and fall through to destroy.
+  }
+
+  const maybeDestroy = win as unknown as { destroy?: () => Promise<void> }
+  if (typeof maybeDestroy.destroy === 'function') {
+    await maybeDestroy.destroy().catch(() => undefined)
+  }
+}
+
 export function useSettingsWindowState() {
   const dirty = useSettingsStore((s) => s._dirty)
   const applySettings = useSettingsStore((s) => s.applySettings)
@@ -41,21 +79,13 @@ export function useSettingsWindowState() {
   }, [applySettings])
 
   const handleCloseWindow = useCallback(async () => {
-    if (!('__TAURI_INTERNALS__' in window)) { window.close(); return }
-    const win = getCurrentWindow()
-    try { await win.close(); await new Promise((resolve) => window.setTimeout(resolve, 80)); const stillVisible = await win.isVisible().catch(() => false); if (!stillVisible) return } catch {}
-    try { await win.hide(); return } catch {}
-    const maybeDestroy = win as unknown as { destroy?: () => Promise<void> }
-    if (typeof maybeDestroy.destroy === 'function') await maybeDestroy.destroy().catch(() => {})
+    await closeSettingsWindow()
   }, [])
 
   useEffect(() => {
     loadSettings()
-      .then(() => {
-        const lang = useSettingsStore.getState().language
-        return Promise.all([useTerminalProfileStore.getState().loadProfiles().catch(() => {}), useThemeStore.getState().loadCustomThemes().catch(() => {}), loadLocale(lang).catch(() => {})])
-      })
-      .catch(() => {})
+      .then(() => loadSettingsWindowResources())
+      .catch(() => undefined)
       .finally(() => setReady(true))
   }, [loadSettings])
 
@@ -71,10 +101,9 @@ export function useSettingsWindowState() {
   useEffect(() => {
     const unlisten = listen<{ source?: string }>('config-changed', (event) => {
       if (event.payload?.source === 'settings') return
-      void loadSettings().then(() => {
-        const lang = useSettingsStore.getState().language
-        return Promise.all([useTerminalProfileStore.getState().loadProfiles().catch(() => {}), useThemeStore.getState().loadCustomThemes().catch(() => {}), loadLocale(lang).catch(() => {})])
-      })
+      void loadSettings()
+        .then(() => loadSettingsWindowResources())
+        .catch(() => undefined)
     })
     return () => { unlisten.then((fn) => fn()) }
   }, [loadSettings])

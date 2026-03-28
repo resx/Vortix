@@ -16,7 +16,8 @@ pub(super) async fn sync_export(
             write_v5_remote(&provider, &header, envelope)
                 .await
                 .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
-            set_sync_state(&db, header.revision).await?;
+            let remote_token = read_remote_token(&provider, SYNC_V5_FILENAME).await;
+            set_sync_state(&db, header.revision, remote_token).await?;
             Ok(ok_empty())
         }
         SyncFormatSelection::V4 => {
@@ -49,7 +50,8 @@ pub(super) async fn sync_export(
                 .finalize("vortix sync")
                 .await
                 .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
-            set_sync_state(&db, manifest.sync_meta.revision).await?;
+            let remote_token = read_remote_token(&provider, SYNC_MANIFEST_FILENAME).await;
+            set_sync_state(&db, manifest.sync_meta.revision, remote_token).await?;
             Ok(ok_empty())
         }
         SyncFormatSelection::V3 => {
@@ -100,7 +102,8 @@ pub(super) async fn sync_export(
                 .finalize("vortix sync")
                 .await
                 .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
-            set_sync_state(&db, revision).await?;
+            let remote_token = read_remote_token(&provider, SYNC_FILENAME).await;
+            set_sync_state(&db, revision, remote_token).await?;
             Ok(ok_empty())
         }
     }
@@ -123,7 +126,9 @@ pub(super) async fn sync_import(
         let (data, revision) = decode_v5_payload(&body, &header, &ciphertext)
             .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
         let result = apply_sync_payload(&db, data).await?;
-        set_sync_state(&db, revision).await?;
+        let key = detect_remote_key(&provider, &body).await;
+        let remote_token = read_remote_token(&provider, key).await;
+        set_sync_state(&db, revision, remote_token).await?;
         return Ok(ok(result));
     }
 
@@ -153,15 +158,21 @@ pub(super) async fn sync_import(
         )
         .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
         let result = apply_sync_payload(&db, data.clone()).await?;
-        set_sync_state(&db, manifest.sync_meta.revision).await?;
-
+        let mut final_revision = manifest.sync_meta.revision;
+        let mut remote_token = read_remote_token(&provider, SYNC_MANIFEST_FILENAME).await;
         if provider.is_remote() && target_format == SyncFormatSelection::V5 {
-            let state = get_sync_state(&db).await?;
-            if let Ok((header, envelope)) = build_v5_envelope(&state, &data, &body) {
-                let _ = write_v5_remote(&provider, &header, envelope).await;
+            let mut migration_state = get_sync_state(&db).await?;
+            migration_state.last_sync_revision = manifest.sync_meta.revision;
+            migration_state.last_sync_remote_token = remote_token.clone();
+            migration_state.local_dirty = 0;
+            if let Ok((header, envelope)) = build_v5_envelope(&migration_state, &data, &body) {
+                if write_v5_remote(&provider, &header, envelope).await.is_ok() {
+                    final_revision = header.revision;
+                    remote_token = read_remote_token(&provider, SYNC_V5_FILENAME).await;
+                }
             }
         }
-
+        set_sync_state(&db, final_revision, remote_token).await?;
         return Ok(ok(result));
     }
 
@@ -172,37 +183,54 @@ pub(super) async fn sync_import(
     decrypt_if_needed(&mut data, &body, salt, enc_type)
         .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
     let result = apply_sync_payload(&db, data.clone()).await?;
-    set_sync_state(&db, revision).await?;
-
+    let source_key = detect_remote_key(&provider, &body).await;
+    let mut final_revision = revision;
+    let mut remote_token = read_remote_token(&provider, source_key).await;
     if provider.is_remote() {
         match target_format {
             SyncFormatSelection::V5 => {
-                let state = get_sync_state(&db).await?;
-                if let Ok((header, envelope)) = build_v5_envelope(&state, &data, &body) {
-                    let _ = write_v5_remote(&provider, &header, envelope).await;
+                let mut migration_state = get_sync_state(&db).await?;
+                migration_state.last_sync_revision = revision;
+                migration_state.last_sync_remote_token = remote_token.clone();
+                migration_state.local_dirty = 0;
+                if let Ok((header, envelope)) = build_v5_envelope(&migration_state, &data, &body) {
+                    if write_v5_remote(&provider, &header, envelope).await.is_ok() {
+                        final_revision = header.revision;
+                        remote_token = read_remote_token(&provider, SYNC_V5_FILENAME).await;
+                    }
                 }
             }
             SyncFormatSelection::V4 => {
-                let state = get_sync_state(&db).await?;
-                if let Ok((manifest, chunks)) = build_manifest(&state, &data, &body) {
-                    let _ = upload_chunks(
+                let mut migration_state = get_sync_state(&db).await?;
+                migration_state.last_sync_revision = revision;
+                migration_state.last_sync_remote_token = remote_token.clone();
+                migration_state.local_dirty = 0;
+                if let Ok((manifest, chunks)) = build_manifest(&migration_state, &data, &body) {
+                    upload_chunks(
                         provider.clone(),
                         chunks,
                         DEFAULT_MAX_CONCURRENCY,
                         SYNC_CHUNK_PREFIX,
                     )
-                    .await;
-                    if let Ok(bytes) = serde_json::to_vec_pretty(&manifest) {
-                        let _ = provider
-                            .write(SYNC_MANIFEST_FILENAME, Bytes::from(bytes))
-                            .await;
-                        let _ = provider.finalize("vortix sync").await;
-                    }
+                    .await
+                    .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
+                    let bytes = serde_json::to_vec_pretty(&manifest)
+                        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+                    provider
+                        .write(SYNC_MANIFEST_FILENAME, Bytes::from(bytes))
+                        .await
+                        .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
+                    provider
+                        .finalize("vortix sync")
+                        .await
+                        .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
+                    final_revision = manifest.sync_meta.revision;
+                    remote_token = read_remote_token(&provider, SYNC_MANIFEST_FILENAME).await;
                 }
             }
             SyncFormatSelection::V3 => {}
         }
     }
-
+    set_sync_state(&db, final_revision, remote_token).await?;
     Ok(ok(result))
 }

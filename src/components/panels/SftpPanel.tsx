@@ -49,14 +49,11 @@ export default function SftpPanel({ targetTabId, hidden, variant = 'side' }: Pro
   const [rightTitle, setRightTitle] = useState('远程资产')
   const [showLeftPicker, setShowLeftPicker] = useState(false)
   const [showRightPicker, setShowRightPicker] = useState(true)
-  const [splitRatio, setSplitRatio] = useState(0.5)
 
   const calculateInitialWidth = useCallback(() => Math.min(Math.round(window.innerWidth * 0.5), Math.max(360, 500)), [])
   const [panelWidth, setPanelWidth] = useState(calculateInitialWidth)
   const isResizing = useRef(false)
   const [isResizingPanel, setIsResizingPanel] = useState(false)
-  const splitDraggingRef = useRef(false)
-  const workspaceRef = useRef<HTMLDivElement | null>(null)
 
   const openEditor = useCallback((sessionId: SftpSessionId, path: string, content: string) => setEditorFile({ sessionId, path, content }), [])
   const leftActions = useSftpActions({ sessionId: 'left', sftp: leftSftp, targetTabId, openEditor: (path, content) => openEditor('left', path, content) })
@@ -162,13 +159,9 @@ export default function SftpPanel({ targetTabId, hidden, variant = 'side' }: Pro
       if (!isResizing.current) return
       const width = window.innerWidth - e.clientX
       if (width >= 360 && width <= window.innerWidth * 0.5) setPanelWidth(width)
-      if (!splitDraggingRef.current || !workspaceRef.current) return
-      const rect = workspaceRef.current.getBoundingClientRect()
-      setSplitRatio(Math.min(0.75, Math.max(0.25, (e.clientX - rect.left) / rect.width)))
     }
     const onUp = () => {
       if (isResizing.current) { isResizing.current = false; setIsResizingPanel(false); window.dispatchEvent(new Event('resize')) }
-      if (splitDraggingRef.current) splitDraggingRef.current = false
       document.body.style.cursor = ''; document.body.style.userSelect = ''
     }
     window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp)
@@ -201,9 +194,6 @@ export default function SftpPanel({ targetTabId, hidden, variant = 'side' }: Pro
         <SftpPanelContent
           isWorkspace={isWorkspace}
           activePane={activePane}
-          splitRatio={splitRatio}
-          workspaceRef={workspaceRef}
-          splitDraggingRef={splitDraggingRef}
           rightConnected={rightSession.connected}
           rightConnecting={rightSession.connecting}
           left={{ side: 'left', sessionId: 'left', title: leftDisplayTitle, active: activePane === 'local', hostKind: leftHostKind, showPicker: showLeftPicker, session: leftSession, onActivate: () => { setActivePane('local'); setActiveSession('left') }, onShowPicker: () => setShowLeftPicker(true), onSelectLocal: () => handleSelectLocal('left'), onSelectAsset: (asset) => { void handleConnectAsset('left', asset) }, onNavigate: leftActions.handleNavigate, onListDir: (path) => void leftSftp.listDir(path), onRefresh: leftSftp.refresh, onContextMenu: handleContextMenu, onBlankContextMenu: handleBlankContextMenu, onDoubleClick: handleDoubleClick, onFileDrop: (sessionId, files) => { void handleFileDrop(sessionId, files) }, onRemoteDrop: (entries, sourceSessionId) => { void transferEntriesToPeer(sourceSessionId, entries) }, onRename: leftActions.handleRenameSubmit }}

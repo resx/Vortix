@@ -41,6 +41,7 @@ pub struct SyncStateRow {
     pub device_id: String,
     pub last_sync_revision: i64,
     pub last_sync_at: Option<String>,
+    pub last_sync_remote_token: Option<String>,
     pub local_dirty: i64,
 }
 

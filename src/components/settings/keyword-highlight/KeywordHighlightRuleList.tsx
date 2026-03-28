@@ -35,6 +35,11 @@ export function KeywordHighlightRuleList({ state }: { state: KeywordHighlightPan
                 内置
               </span>
             )}
+            {item.renderChannel === 'link' && (
+              <span className="mr-1 select-none rounded border border-border px-1 py-0.5 text-[9px] text-text-3">
+                链接
+              </span>
+            )}
             <button
               type="button"
               onClick={() => state.handleEdit(item)}

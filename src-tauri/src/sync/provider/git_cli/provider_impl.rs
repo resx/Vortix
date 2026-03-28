@@ -79,6 +79,13 @@ impl SyncProvider for GitProvider {
         .await
     }
 
+    async fn read_remote_token(&self, _key: &str) -> Result<Option<String>, String> {
+        self.run_blocking("read-remote-token", Self::TEST_TIMEOUT_SECS, move |p| {
+            p.remote_head_hash().map(Some)
+        })
+        .await
+    }
+
     async fn delete_prefix(&self, prefix: &str) -> Result<(), String> {
         let prefix = prefix.to_string();
         self.run_blocking("delete-prefix", Self::WRITE_TIMEOUT_SECS, move |p| {
@@ -106,10 +113,11 @@ impl SyncProvider for GitProvider {
     async fn check_remote_changed(
         &self,
         _key: &str,
-        _known_hash: &str,
+        known_token: &str,
     ) -> Result<RemoteCheckResult, String> {
+        let known_token = known_token.to_string();
         self.run_blocking("check-remote", Self::TEST_TIMEOUT_SECS, move |p| {
-            p.check_remote_hash()
+            p.check_remote_hash(&known_token)
         })
         .await
     }

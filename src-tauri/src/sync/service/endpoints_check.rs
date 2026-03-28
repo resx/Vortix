@@ -82,7 +82,7 @@ pub(super) async fn sync_check_remote(
 ) -> Result<Json<ApiResponse<RemoteCheckResult>>, ApiError> {
     let provider = create_provider(&body).map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
     let state = get_sync_state(&db).await?;
-    let known_hash = state.last_sync_at.unwrap_or_default();
+    let known_hash = state.last_sync_remote_token.unwrap_or_default();
     let key = detect_remote_key(&provider, &body).await;
     let result = provider
         .check_remote_changed(key, &known_hash)
