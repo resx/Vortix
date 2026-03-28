@@ -11,13 +11,26 @@ pub fn resolve_agent_binary(base_dir: &PathBuf) -> PathBuf {
 }
 
 pub fn detect_agent_binary(base_dir: &PathBuf) -> Option<PathBuf> {
-    let preferred = resolve_agent_binary(base_dir);
-    if preferred.is_file() {
-        return Some(preferred);
+    for directory in candidate_directories(base_dir) {
+        let preferred = resolve_agent_binary(&directory);
+        if preferred.is_file() {
+            return Some(preferred);
+        }
+        if let Some(path) = scan_agent_binary(&directory) {
+            return Some(path);
+        }
     }
 
+    None
+}
+
+fn candidate_directories(base_dir: &PathBuf) -> [PathBuf; 2] {
+    [base_dir.clone(), base_dir.join("binaries")]
+}
+
+fn scan_agent_binary(directory: &PathBuf) -> Option<PathBuf> {
     let stem = AGENT_EXECUTABLE.strip_suffix(".exe").unwrap_or(AGENT_EXECUTABLE);
-    let entries = std::fs::read_dir(base_dir).ok()?;
+    let entries = std::fs::read_dir(directory).ok()?;
     for entry in entries.flatten() {
         let path = entry.path();
         if !path.is_file() {
@@ -35,7 +48,6 @@ pub fn detect_agent_binary(base_dir: &PathBuf) -> Option<PathBuf> {
         }
         return Some(path);
     }
-
     None
 }
 
