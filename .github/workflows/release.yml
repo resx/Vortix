@@ -6,6 +6,9 @@ on:
       - v*
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -60,6 +63,12 @@ jobs:
       - name: Verify pushed tag
         if: github.event_name == 'push'
         run: pnpm release:verify-tag
+
+      - name: Build vortix-agent sidecar
+        run: pnpm agent:build:release
+
+      - name: Prepare vortix-agent sidecar
+        run: pnpm agent:prepare:release
 
       - name: Build and publish release
         uses: tauri-apps/tauri-action@action-v0.6.0
