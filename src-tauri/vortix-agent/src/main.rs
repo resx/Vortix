@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::thread;
 use std::time::Duration;
 
@@ -36,11 +38,8 @@ fn parse_args() -> AgentArgs {
 
 fn main() {
     let args = parse_args();
-    println!(
-        "[vortix-agent] started transport={} endpoint={}",
-        args.transport,
-        args.endpoint
-    );
+    let _transport = args.transport;
+    let _endpoint = args.endpoint;
 
     loop {
         thread::sleep(Duration::from_secs(60));

@@ -5,6 +5,8 @@ use tokio::process::{Child, Command};
 const AGENT_EXECUTABLE: &str = "vortix-agent.exe";
 #[cfg(not(target_os = "windows"))]
 const AGENT_EXECUTABLE: &str = "vortix-agent";
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 pub fn resolve_agent_binary(base_dir: &PathBuf) -> PathBuf {
     base_dir.join(AGENT_EXECUTABLE)
@@ -61,6 +63,11 @@ pub fn spawn_agent_process(binary: PathBuf, endpoint: &str) -> Result<Child, Str
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null());
+
+    #[cfg(target_os = "windows")]
+    command.creation_flags(CREATE_NO_WINDOW);
+
+    command.kill_on_drop(true);
 
     command.spawn().map_err(|e| e.to_string())
 }

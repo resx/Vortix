@@ -37,7 +37,8 @@ pub fn list_system_fonts() -> Vec<String> {
 }
 
 #[tauri::command]
-pub fn exit_app(app: AppHandle) {
+pub fn exit_app(app: AppHandle, agent: State<'_, AgentState>) {
+    agent.shutdown();
     app.exit(0);
 }
 

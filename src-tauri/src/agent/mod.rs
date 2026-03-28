@@ -75,6 +75,21 @@ impl AgentState {
         }
     }
 
+    pub fn shutdown(&self) {
+        let mut guard = self.runtime.lock().expect("agent runtime mutex poisoned");
+        let Some(child) = guard.child.as_mut() else {
+            return;
+        };
+        if let Err(error) = child.start_kill() {
+            let message = format!("停止 agent 失败: {error}");
+            guard.last_error = Some(message.clone());
+            tracing::warn!("[Vortix] {message}");
+            return;
+        }
+        guard.child = None;
+        guard.last_error = None;
+    }
+
     pub fn status(&self) -> AgentStatus {
         let mut guard = self.runtime.lock().expect("agent runtime mutex poisoned");
         let mut running = false;
