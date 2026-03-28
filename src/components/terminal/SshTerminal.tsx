@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
@@ -10,7 +10,6 @@ import {
 import { useThemeStore } from '../../stores/useThemeStore'
 import { getSession } from '../../stores/terminalSessionRegistry'
 import { getWsBaseUrl } from '../../api/client'
-import { resolveFontChain } from '../../lib/fonts'
 import ConnectionLoadingView, { type ConnectionLoadingStep } from './ConnectionLoadingView'
 import {
   fitTerminalSession,
@@ -23,9 +22,11 @@ import { resetMonitorState } from './session/terminal-monitor'
 import { useTerminalConnection } from './session/useTerminalConnection'
 import { useTerminalInteractions } from './session/useTerminalInteractions'
 import { useTerminalMount, useTerminalProfileSync } from './session/useTerminalMount'
-import { pasteTextToSession } from './session/terminal-paste'
 import TerminalSuggestionOverlay from './suggestions/TerminalSuggestionOverlay'
 import { useTerminalSuggestions } from './suggestions/useTerminalSuggestions'
+import { useTerminalContextMenu } from './ssh-terminal/useTerminalContextMenu'
+import { getSuggestionVisualState } from './ssh-terminal/visuals'
+import { useHostKeyDecision } from './ssh-terminal/useHostKeyDecision'
 import type { TerminalSession } from '../../stores/terminalSessionRegistry'
 import type { TerminalSocketLike } from '../../stores/terminalSessionRegistry'
 import type { HostKeyVerificationPayload, SshTerminalProps } from './session/terminal-types'
@@ -236,6 +237,7 @@ export default function SshTerminal({
     matchMode: termSuggestionMode === 'off' ? 'smart' : termSuggestionMode,
     enabledSources: termSuggestionSources,
     connectionKind: connection && 'type' in connection && connection.type === 'local' ? 'local' : 'ssh',
+    connectionId,
     platformProfile: 'unknown',
     limit: 12,
   })
@@ -257,65 +259,22 @@ export default function SshTerminal({
     onSuggestionKeyDown: handleSuggestionKeyDown,
   })
 
-  const stripeHeight = cellHeight > 0 ? cellHeight : fallbackStripeHeight
-  const suggestionFontFamily = resolveFontChain(termFontFamily, 'monospace')
-  const suggestionFontSize = Math.max(10, termFontSize || 14)
-  const stripeBackgroundImage = termStripeEnabled
-    ? `repeating-linear-gradient(to bottom,
-      transparent 0px, transparent ${stripeHeight}px,
-      ${runtimeThemeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${stripeHeight}px,
-      ${runtimeThemeMode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.045)'} ${stripeHeight * 2}px)`
-    : undefined
+  const { stripeHeight, suggestionFontFamily, suggestionFontSize, stripeBackgroundImage } = getSuggestionVisualState({
+    cellHeight,
+    fallbackStripeHeight,
+    termFontFamily,
+    termFontSize,
+    termStripeEnabled,
+    runtimeThemeMode,
+  })
   const showConnectionLoadingView = Boolean(pendingHostKeyPrompt)
+  const handleHostKeyDecision = useHostKeyDecision({
+    wsRef,
+    pendingHostKeyRequestIdRef,
+    setPendingHostKeyPrompt,
+  })
 
-  const handleHostKeyDecision = useCallback((decision: 'trust' | 'replace' | 'reject') => {
-    const requestId = pendingHostKeyRequestIdRef.current
-    pendingHostKeyRequestIdRef.current = null
-    setPendingHostKeyPrompt(null)
-    const ws = wsRef.current
-    if (!requestId || ws?.readyState !== WebSocket.OPEN) return
-    ws.send(JSON.stringify({
-      type: 'hostkey-verification-decision',
-      data: {
-        requestId,
-        trust: decision !== 'reject',
-        replaceExisting: decision === 'replace',
-      },
-    }))
-  }, [])
-
-  const handleContextMenu = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    const action = useSettingsStore.getState().termRightClickAction
-    if (action === 'none') return
-
-    const session = getSession(paneId)
-    const selection = session?.term.getSelection()
-    const paste = () => {
-      navigator.clipboard.readText().then((text) => {
-        pasteTextToSession(paneId, text)
-      }).catch(() => {})
-    }
-
-    if (action === 'copy') {
-      if (selection) navigator.clipboard.writeText(selection).catch(() => {})
-      return
-    }
-    if (action === 'paste') {
-      paste()
-      return
-    }
-    if (action === 'copy-paste') {
-      if (selection) {
-        navigator.clipboard.writeText(selection).catch(() => {})
-      } else {
-        paste()
-      }
-      return
-    }
-
-    onContextMenu?.(event.clientX, event.clientY, !!selection)
-  }, [onContextMenu, paneId])
+  const handleContextMenu = useTerminalContextMenu({ paneId, onContextMenu })
 
   return (
     <div className="w-full h-full relative">

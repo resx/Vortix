@@ -20,8 +20,29 @@ pub async fn get_recent_connections(
         .and_then(|v| v.parse::<i64>().ok())
         .unwrap_or(15)
         .min(50);
-    let rows: Vec<(String, String)> = sqlx::query_as(
-        "SELECT connection_id, MAX(created_at) as last_connected_at FROM logs WHERE event = 'connect' GROUP BY connection_id ORDER BY last_connected_at DESC LIMIT ?",
+    let rows: Vec<(
+        String,
+        String,
+        String,
+        i64,
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        String,
+    )> = sqlx::query_as(
+        "SELECT c.id, c.name, c.host, c.port, c.username, c.protocol, c.color_tag, f.name AS folder_name, r.last_connected_at
+         FROM (
+           SELECT connection_id, MAX(created_at) AS last_connected_at
+           FROM logs
+           WHERE event = 'connect'
+           GROUP BY connection_id
+           ORDER BY last_connected_at DESC
+           LIMIT ?
+         ) r
+         JOIN connections c ON c.id = r.connection_id
+         LEFT JOIN folders f ON f.id = c.folder_id
+         ORDER BY r.last_connected_at DESC",
     )
     .bind(limit)
     .fetch_all(&db.pool)
@@ -29,35 +50,19 @@ pub async fn get_recent_connections(
     .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let mut result = Vec::new();
-    for (connection_id, last_connected_at) in rows {
-        let row: Option<(String, String, String, i64, String, String, Option<String>)> =
-            sqlx::query_as(
-                "SELECT id, name, host, port, username, protocol, color_tag FROM connections WHERE id = ?",
-            )
-            .bind(&connection_id)
-            .fetch_optional(&db.pool)
-            .await
-            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        if let Some((id, name, host, port, username, protocol, color_tag)) = row {
-            let folder_name: Option<String> = sqlx::query_scalar(
-                "SELECT name FROM folders WHERE id = (SELECT folder_id FROM connections WHERE id = ?)",
-            )
-            .bind(&id)
-            .fetch_optional(&db.pool)
-            .await
-            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-            result.push(json!({
-                "id": id,
-                "name": name,
-                "host": host,
-                "port": port,
-                "username": username,
-                "protocol": protocol,
-                "color_tag": color_tag,
-                "folder_name": folder_name,
-                "last_connected_at": last_connected_at,
-            }));
-        }
+    for (id, name, host, port, username, protocol, color_tag, folder_name, last_connected_at) in rows
+    {
+        result.push(json!({
+            "id": id,
+            "name": name,
+            "host": host,
+            "port": port,
+            "username": username,
+            "protocol": protocol,
+            "color_tag": color_tag,
+            "folder_name": folder_name,
+            "last_connected_at": last_connected_at,
+        }));
     }
     Ok(ok(result))
 }
@@ -70,53 +75,27 @@ pub async fn cleanup_orphan_data(
         .await
         .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let valid_connections: HashSet<String> = conn_ids.into_iter().collect();
-    let mut deleted = 0u64;
+    let logs_deleted = sqlx::query(
+        "DELETE FROM logs
+         WHERE connection_id IS NULL
+            OR connection_id NOT IN (SELECT id FROM connections)",
+    )
+    .execute(&db.pool)
+    .await
+    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .rows_affected();
 
-    let logs: Vec<i64> = sqlx::query_scalar("SELECT id FROM logs")
-        .fetch_all(&db.pool)
-        .await
-        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    for id in logs {
-        let conn: Option<String> =
-            sqlx::query_scalar("SELECT connection_id FROM logs WHERE id = ?")
-                .bind(id)
-                .fetch_optional(&db.pool)
-                .await
-                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        if let Some(conn_id) = conn {
-            if !valid_connections.contains(&conn_id) {
-                let res = sqlx::query("DELETE FROM logs WHERE id = ?")
-                    .bind(id)
-                    .execute(&db.pool)
-                    .await
-                    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-                deleted += res.rows_affected();
-            }
-        }
-    }
+    let history_deleted = sqlx::query(
+        "DELETE FROM history
+         WHERE connection_id IS NULL
+            OR connection_id NOT IN (SELECT id FROM connections)",
+    )
+    .execute(&db.pool)
+    .await
+    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+    .rows_affected();
 
-    let history_rows: Vec<i64> = sqlx::query_scalar("SELECT id FROM history")
-        .fetch_all(&db.pool)
-        .await
-        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    for id in history_rows {
-        let conn: Option<String> =
-            sqlx::query_scalar("SELECT connection_id FROM history WHERE id = ?")
-                .bind(id)
-                .fetch_optional(&db.pool)
-                .await
-                .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-        if let Some(conn_id) = conn {
-            if !valid_connections.contains(&conn_id) {
-                let res = sqlx::query("DELETE FROM history WHERE id = ?")
-                    .bind(id)
-                    .execute(&db.pool)
-                    .await
-                    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-                deleted += res.rows_affected();
-            }
-        }
-    }
+    let mut deleted = logs_deleted + history_deleted;
 
     deleted +=
         delete_orphan_command_history_files(&db.paths.remote_history_dir, &valid_connections)

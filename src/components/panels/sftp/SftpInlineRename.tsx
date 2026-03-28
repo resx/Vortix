@@ -2,14 +2,16 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useSftpStore } from '../../../stores/useSftpStore'
+import type { SftpSessionId } from '../../../stores/useSftpStore'
 
 interface Props {
+  sessionId?: SftpSessionId
   name: string
   path: string
   onRename: (oldPath: string, newName: string) => void
 }
 
-export default function SftpInlineRename({ name, path, onRename }: Props) {
+export default function SftpInlineRename({ sessionId = 'right', name, path, onRename }: Props) {
   const [value, setValue] = useState(name)
   const inputRef = useRef<HTMLInputElement>(null)
   const setRenamingPath = useSftpStore(s => s.setRenamingPath)
@@ -28,8 +30,8 @@ export default function SftpInlineRename({ name, path, onRename }: Props) {
     if (trimmed && trimmed !== name) {
       onRename(path, trimmed)
     }
-    setRenamingPath(null)
-  }, [value, name, path, onRename, setRenamingPath])
+    setRenamingPath(null, sessionId)
+  }, [value, name, path, onRename, setRenamingPath, sessionId])
 
   return (
     <input
@@ -40,7 +42,7 @@ export default function SftpInlineRename({ name, path, onRename }: Props) {
       onBlur={submit}
       onKeyDown={e => {
         if (e.key === 'Enter') submit()
-        if (e.key === 'Escape') setRenamingPath(null)
+        if (e.key === 'Escape') setRenamingPath(null, sessionId)
         e.stopPropagation()
       }}
       onClick={e => e.stopPropagation()}

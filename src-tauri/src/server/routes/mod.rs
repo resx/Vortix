@@ -14,3 +14,4 @@ pub mod shortcuts;
 pub mod ssh_keys;
 pub mod sync;
 pub mod themes;
+pub mod transfers;

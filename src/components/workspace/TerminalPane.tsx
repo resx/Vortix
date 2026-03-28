@@ -11,6 +11,8 @@ import { useTabStore } from '../../stores/useTabStore'
 import { useUIStore } from '../../stores/useUIStore'
 import { destroySession, isTransferring, markTransferring, unmarkTransferring } from '../../stores/terminalSessionRegistry'
 import * as api from '../../api/client'
+import { DropOverlay } from './terminal-pane/DropOverlay'
+import { PaneToolbar } from './terminal-pane/PaneToolbar'
 import type { AppTab } from '../../types'
 import type { DropZone } from '../../types/workspace'
 
@@ -21,77 +23,6 @@ interface Props {
   collapsed: boolean
   isActive: boolean
   paneIndex?: number
-}
-
-/* ── DropOverlay：四象限拖拽预览 ── */
-function DropOverlay({ zone }: { zone: DropZone | null }) {
-  if (!zone || zone === 'center') return null
-  const posMap: Record<string, string> = {
-    left: 'left-0 top-0 w-1/2 h-full',
-    right: 'right-0 top-0 w-1/2 h-full',
-    top: 'left-0 top-0 w-full h-1/2',
-    bottom: 'left-0 bottom-0 w-full h-1/2',
-  }
-  return (
-    <div className={`absolute ${posMap[zone]} bg-primary/20 backdrop-blur-[2px] border-2 border-primary/40 rounded-md z-20 pointer-events-none transition-all duration-150`} />
-  )
-}
-
-/* ── PaneToolbar：浮动在右上角的操作栏 ── */
-function PaneToolbar({
-  paneId, tabId, tab, collapsed, onDragStart, paneIndex, paneLabel,
-}: {
-  paneId: string; tabId: string; tab: AppTab; collapsed: boolean
-  onDragStart: (e: React.DragEvent) => void
-  paneIndex?: number
-  paneLabel?: string
-}) {
-  const toggleCollapsed = useWorkspaceStore(s => s.toggleCollapsed)
-  const closePane = useWorkspaceStore(s => s.closePane)
-  const setActivePane = useWorkspaceStore(s => s.setActivePane)
-
-  // 折叠态：右上角紧贴按钮，半透明可透视底部文字
-  if (collapsed) {
-    return (
-      <button
-        className="absolute top-0 right-0 z-30 w-[26px] h-[26px] flex items-center justify-center rounded-bl-md bg-black/20 backdrop-blur-[2px] text-white/60 hover:bg-black/40 hover:text-white/90 transition-all"
-        onClick={(e) => { e.stopPropagation(); toggleCollapsed(tabId, paneId) }}
-      >
-        <AppIcon icon={icons.chevronLeft} size={14} />
-      </button>
-    )
-  }
-
-  // 展开态：浮动工具条
-  return (
-    <div
-      className="absolute top-0 right-0 z-30 flex items-center h-[24px] rounded-bl-md bg-black/25 backdrop-blur-[2px] text-white/90 px-1.5 gap-1 select-none hover:bg-black/45 transition-all"
-      draggable
-      onDragStart={onDragStart}
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={() => setActivePane(tabId, paneId)}
-    >
-      <AppIcon icon={icons.gripVertical} size={12} className="text-white/60 cursor-grab shrink-0" />
-      {paneIndex != null && (
-        <span className="text-[10px] text-white/50 font-mono">#{paneIndex}</span>
-      )}
-      <span className="text-[11px] text-white/80 truncate max-w-[120px]">
-        {paneLabel || tab.label || tab.assetRow?.host || 'Terminal'}
-      </span>
-      <button
-        className="p-0.5 rounded hover:bg-white/15 text-white/70 hover:text-white"
-        onClick={(e) => { e.stopPropagation(); toggleCollapsed(tabId, paneId) }}
-      >
-        <AppIcon icon={icons.chevronRight} size={12} />
-      </button>
-      <button
-        className="p-0.5 rounded hover:bg-red-500/30 text-white/70 hover:text-red-300 shrink-0"
-        onClick={(e) => { e.stopPropagation(); closePane(tabId, paneId) }}
-      >
-        <AppIcon icon={icons.close} size={12} />
-      </button>
-    </div>
-  )
 }
 
 export default function TerminalPane({ paneId, tabId, tab, collapsed, isActive, paneIndex }: Props) {

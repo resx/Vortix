@@ -3,6 +3,7 @@
 
 import { useTransferStore } from '../stores/useTransferStore'
 import { useSftpStore } from '../stores/useSftpStore'
+import type { SftpSessionId } from '../stores/useSftpStore'
 import { useSettingsStore } from '../stores/useSettingsStore'
 
 const CHUNK_SIZE = 64 * 1024
@@ -46,8 +47,8 @@ function throttledProgress(id: string, bytes: number, speed: number) {
 }
 
 /** 获取当前连接信息 */
-function getConnInfo() {
-  const { connectionId, connectionName } = useSftpStore.getState()
+function getConnInfo(sessionId: SftpSessionId) {
+  const { connectionId, connectionName } = useSftpStore.getState().getSessionState(sessionId)
   return { connectionId, connectionName }
 }
 /* ── 上传 ── */
@@ -56,9 +57,10 @@ export async function uploadFile(
   send: SendFn,
   file: File,
   remotePath: string,
+  sessionId: SftpSessionId,
 ): Promise<string> {
   const store = useTransferStore.getState()
-  const { connectionId, connectionName } = getConnInfo()
+  const { connectionId, connectionName } = getConnInfo(sessionId)
   const transferId = generateTransferId()
   const fullPath = remotePath.endsWith('/')
     ? `${remotePath}${file.name}`
@@ -117,9 +119,10 @@ export async function uploadFiles(
   send: SendFn,
   files: File[],
   remotePath: string,
+  sessionId: SftpSessionId,
 ): Promise<string[]> {
   const ids: string[] = []
-  for (const file of files) ids.push(await uploadFile(send, file, remotePath))
+  for (const file of files) ids.push(await uploadFile(send, file, remotePath, sessionId))
   return ids
 }
 /* ── 下载 ── */
@@ -142,9 +145,10 @@ export function downloadFile(
   remotePath: string,
   fileName: string,
   fileSize: number,
+  sessionId: SftpSessionId,
 ): { transferId: string; promise: Promise<Blob> } {
   const store = useTransferStore.getState()
-  const { connectionId, connectionName } = getConnInfo()
+  const { connectionId, connectionName } = getConnInfo(sessionId)
   const transferId = generateTransferId()
 
   store.enqueue({

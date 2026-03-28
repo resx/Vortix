@@ -45,6 +45,7 @@ export interface SuggestionContext {
   cursorIndex: number
   matchMode: SuggestionMatchMode
   connectionKind: TerminalConnectionKind
+  connectionId?: string
   platformProfile: TerminalPlatformProfile
   recentCommands: string[]
 }

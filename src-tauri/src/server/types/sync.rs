@@ -1,0 +1,283 @@
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+use sqlx::FromRow;
+
+#[derive(Deserialize)]
+pub struct SyncRequestBody {
+    #[serde(rename = "repoSource")]
+    pub repo_source: String,
+    #[serde(rename = "encryptionKey")]
+    pub encryption_key: Option<String>,
+    #[serde(rename = "syncLocalPath")]
+    pub sync_local_path: Option<String>,
+    #[serde(rename = "syncGitUrl")]
+    pub sync_git_url: Option<String>,
+    #[serde(rename = "syncGitBranch")]
+    pub sync_git_branch: Option<String>,
+    #[serde(rename = "syncGitPath")]
+    pub sync_git_path: Option<String>,
+    #[serde(rename = "syncGitUsername")]
+    pub sync_git_username: Option<String>,
+    #[serde(rename = "syncGitPassword")]
+    pub sync_git_password: Option<String>,
+    #[serde(rename = "syncGitSshKey")]
+    pub sync_git_ssh_key: Option<String>,
+    #[serde(rename = "syncWebdavEndpoint")]
+    pub sync_webdav_endpoint: Option<String>,
+    #[serde(rename = "syncWebdavPath")]
+    pub sync_webdav_path: Option<String>,
+    #[serde(rename = "syncWebdavUsername")]
+    pub sync_webdav_username: Option<String>,
+    #[serde(rename = "syncWebdavPassword")]
+    pub sync_webdav_password: Option<String>,
+    #[serde(rename = "syncS3Style")]
+    pub sync_s3_style: Option<String>,
+    #[serde(rename = "syncS3Endpoint")]
+    pub sync_s3_endpoint: Option<String>,
+    #[serde(rename = "syncS3Path")]
+    pub sync_s3_path: Option<String>,
+    #[serde(rename = "syncS3Region")]
+    pub sync_s3_region: Option<String>,
+    #[serde(rename = "syncS3Bucket")]
+    pub sync_s3_bucket: Option<String>,
+    #[serde(rename = "syncS3AccessKey")]
+    pub sync_s3_access_key: Option<String>,
+    #[serde(rename = "syncS3SecretKey")]
+    pub sync_s3_secret_key: Option<String>,
+    #[serde(rename = "syncTlsVerify")]
+    pub sync_tls_verify: Option<bool>,
+    #[serde(rename = "syncFormatVersion")]
+    pub sync_format_version: Option<i64>,
+    #[serde(rename = "syncUseChunkedManifest")]
+    pub sync_use_chunked_manifest: Option<bool>,
+    #[serde(rename = "syncHashAlgorithm")]
+    pub sync_hash_algorithm: Option<String>,
+    #[serde(rename = "syncChunkSize")]
+    pub sync_chunk_size: Option<u64>,
+    #[serde(rename = "syncCompressChunks")]
+    pub sync_compress_chunks: Option<bool>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct SyncFileInfo {
+    pub exists: bool,
+    #[serde(rename = "lastModified")]
+    pub last_modified: Option<String>,
+    pub size: Option<i64>,
+}
+
+#[derive(Serialize)]
+pub struct SyncLocalState {
+    #[serde(rename = "localDirty")]
+    pub local_dirty: bool,
+    #[serde(rename = "lastSyncRevision")]
+    pub last_sync_revision: i64,
+    #[serde(rename = "lastSyncAt")]
+    pub last_sync_at: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct SyncImportResult {
+    pub folders: usize,
+    pub connections: usize,
+    pub shortcuts: usize,
+    #[serde(rename = "sshKeys")]
+    pub ssh_keys: usize,
+    pub settings: usize,
+    pub presets: usize,
+    pub themes: usize,
+}
+
+#[derive(Serialize, Clone)]
+pub struct RemoteCheckResult {
+    #[serde(rename = "hasUpdate")]
+    pub has_update: bool,
+    #[serde(rename = "remoteHash")]
+    pub remote_hash: String,
+    #[serde(rename = "localHash")]
+    pub local_hash: String,
+}
+
+#[derive(Serialize)]
+pub struct SyncConflictInfo {
+    #[serde(rename = "hasConflict")]
+    pub has_conflict: bool,
+    pub reason: Option<String>,
+    #[serde(rename = "localRevision")]
+    pub local_revision: i64,
+    #[serde(rename = "remoteRevision")]
+    pub remote_revision: i64,
+    #[serde(rename = "remoteDeviceId")]
+    pub remote_device_id: Option<String>,
+    #[serde(rename = "remoteExportedAt")]
+    pub remote_exported_at: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+pub struct SyncFolder {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub parent_id: Option<String>,
+    #[serde(default)]
+    pub sort_order: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+pub struct SyncShortcut {
+    pub id: String,
+    pub name: String,
+    pub command: String,
+    #[serde(default)]
+    pub remark: String,
+    #[serde(default)]
+    pub group_name: String,
+    #[serde(default)]
+    pub sort_order: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+pub struct SyncShortcutGroup {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub sort_order: i64,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+pub fn json_value_default() -> Value {
+    Value::Null
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncConnection {
+    pub id: String,
+    #[serde(default)]
+    pub folder_id: Option<String>,
+    pub name: String,
+    pub protocol: String,
+    pub host: String,
+    pub port: i64,
+    pub username: String,
+    pub auth_method: String,
+    #[serde(default)]
+    pub password: Option<String>,
+    #[serde(default)]
+    pub private_key: Option<String>,
+    #[serde(default)]
+    pub passphrase: Option<String>,
+    #[serde(default)]
+    pub sort_order: i64,
+    #[serde(default)]
+    pub remark: String,
+    #[serde(default)]
+    pub color_tag: Option<String>,
+    #[serde(default)]
+    pub environment: String,
+    #[serde(default)]
+    pub auth_type: String,
+    #[serde(default)]
+    pub proxy_type: String,
+    #[serde(default)]
+    pub proxy_host: String,
+    #[serde(default)]
+    pub proxy_port: i64,
+    #[serde(default)]
+    pub proxy_username: String,
+    #[serde(default)]
+    pub proxy_password: Option<String>,
+    #[serde(default)]
+    pub proxy_timeout: i64,
+    #[serde(default)]
+    pub jump_server_id: Option<String>,
+    #[serde(default)]
+    pub preset_id: Option<String>,
+    #[serde(default)]
+    pub private_key_id: Option<String>,
+    #[serde(default)]
+    pub jump_key_id: Option<String>,
+    #[serde(default = "json_value_default")]
+    pub tunnels: Value,
+    #[serde(default = "json_value_default")]
+    pub env_vars: Value,
+    #[serde(default = "json_value_default")]
+    pub advanced: Value,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncSshKey {
+    pub id: String,
+    pub name: String,
+    pub key_type: String,
+    pub private_key: String,
+    #[serde(default)]
+    pub public_key: Option<String>,
+    #[serde(default)]
+    pub passphrase: Option<String>,
+    #[serde(default)]
+    pub certificate: Option<String>,
+    #[serde(default)]
+    pub remark: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncPreset {
+    pub id: String,
+    pub name: String,
+    pub username: String,
+    pub password: String,
+    #[serde(default)]
+    pub remark: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+pub fn sync_theme_version_default() -> i64 {
+    1
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncTheme {
+    pub id: String,
+    pub name: String,
+    pub mode: String,
+    #[serde(default = "sync_theme_version_default")]
+    pub version: i64,
+    #[serde(default)]
+    pub author: String,
+    #[serde(default = "json_value_default")]
+    pub terminal: Value,
+    #[serde(default = "json_value_default")]
+    pub highlights: Value,
+    #[serde(default)]
+    pub ui: Option<Value>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct SyncData {
+    pub folders: Vec<SyncFolder>,
+    pub connections: Vec<SyncConnection>,
+    pub shortcuts: Vec<SyncShortcut>,
+    #[serde(default)]
+    pub shortcut_groups: Vec<SyncShortcutGroup>,
+    #[serde(default, rename = "sshKeys")]
+    pub ssh_keys: Vec<SyncSshKey>,
+    #[serde(default)]
+    pub settings: Map<String, Value>,
+    #[serde(default)]
+    pub presets: Vec<SyncPreset>,
+    #[serde(default)]
+    pub themes: Vec<SyncTheme>,
+}

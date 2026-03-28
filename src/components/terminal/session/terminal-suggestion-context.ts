@@ -8,6 +8,7 @@ import type {
 
 interface BuildTerminalSuggestionRequestOptions {
   connectionKind: TerminalConnectionKind
+  connectionId?: string | null
   matchMode: SuggestionMatchMode
   platformProfile?: TerminalPlatformProfile
   limit?: number
@@ -24,6 +25,7 @@ export function buildTerminalSuggestionRequest(
       cursorIndex,
       matchMode: options.matchMode,
       connectionKind: options.connectionKind,
+      connectionId: options.connectionId ?? undefined,
       platformProfile: options.platformProfile ?? 'unknown',
       recentCommands: [...session.historyCache],
     },

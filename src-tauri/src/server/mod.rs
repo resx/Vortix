@@ -158,6 +158,10 @@ fn build_router(db: Db) -> Router {
             get(routes::history::get_history).delete(routes::history::clear_history),
         )
         .route("/api/history", post(routes::history::add_history))
+        .route(
+            "/api/transfers/history",
+            get(routes::transfers::get_transfer_history),
+        )
         // 维护
         .route(
             "/api/recent-connections",

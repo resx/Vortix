@@ -2,8 +2,10 @@ import { useMemo } from 'react'
 import { icons } from '../../icons/AppIcon'
 import { useSftpStore } from '../../../stores/useSftpStore'
 import SftpPaneHeader from './SftpPaneHeader'
+import type { SftpSessionId } from '../../../stores/useSftpStore'
 
 interface Props {
+  sessionId?: SftpSessionId
   title: string
   active?: boolean
   onNavigate: (path: string) => void
@@ -17,14 +19,14 @@ function getParentPath(path: string): string {
   return path.replace(/\/[^/]+\/?$/, '') || '/'
 }
 
-export default function SftpRemotePaneHeader({ title, active = false, onNavigate, onRefresh, onListDir, onTitleClick }: Props) {
-  const currentPath = useSftpStore((s) => s.currentPath)
-  const historyIndex = useSftpStore((s) => s.historyIndex)
-  const pathHistory = useSftpStore((s) => s.pathHistory)
+export default function SftpRemotePaneHeader({ sessionId = 'right', title, active = false, onNavigate, onRefresh, onListDir, onTitleClick }: Props) {
+  const currentPath = useSftpStore((s) => s.sessions[sessionId].currentPath)
+  const historyIndex = useSftpStore((s) => s.sessions[sessionId].historyIndex)
+  const pathHistory = useSftpStore((s) => s.sessions[sessionId].pathHistory)
   const goBack = useSftpStore((s) => s.goBack)
   const goForward = useSftpStore((s) => s.goForward)
-  const searchActive = useSftpStore((s) => s.searchActive)
-  const searchQuery = useSftpStore((s) => s.searchQuery)
+  const searchActive = useSftpStore((s) => s.sessions[sessionId].searchActive)
+  const searchQuery = useSftpStore((s) => s.sessions[sessionId].searchQuery)
   const setSearchActive = useSftpStore((s) => s.setSearchActive)
   const setSearchQuery = useSftpStore((s) => s.setSearchQuery)
   const canGoBack = historyIndex > 0
@@ -39,7 +41,7 @@ export default function SftpRemotePaneHeader({ title, active = false, onNavigate
       onClick: () => {
         if (!canGoBack) return
         const target = pathHistory[historyIndex - 1]
-        goBack()
+        goBack(sessionId)
         onListDir(target)
       },
     },
@@ -51,7 +53,7 @@ export default function SftpRemotePaneHeader({ title, active = false, onNavigate
       onClick: () => {
         if (!canGoForward) return
         const target = pathHistory[historyIndex + 1]
-        goForward()
+        goForward(sessionId)
         onListDir(target)
       },
     },
@@ -68,7 +70,7 @@ export default function SftpRemotePaneHeader({ title, active = false, onNavigate
       icon: icons.refresh,
       onClick: onRefresh,
     },
-  ]), [canGoBack, canGoForward, canGoUp, currentPath, goBack, goForward, historyIndex, onListDir, onNavigate, onRefresh, pathHistory])
+  ]), [canGoBack, canGoForward, canGoUp, currentPath, goBack, goForward, historyIndex, onListDir, onNavigate, onRefresh, pathHistory, sessionId])
 
   return (
     <SftpPaneHeader
@@ -80,12 +82,12 @@ export default function SftpRemotePaneHeader({ title, active = false, onNavigate
       searchEnabled
       searchExpanded={searchActive}
       searchValue={searchQuery}
-      onSearchToggle={() => setSearchActive(true)}
+      onSearchToggle={() => setSearchActive(true, sessionId)}
       onSearchChange={(value) => {
-        setSearchQuery(value)
-        if (!searchActive) setSearchActive(true)
+        setSearchQuery(value, sessionId)
+        if (!searchActive) setSearchActive(true, sessionId)
       }}
-      onSearchClear={() => setSearchActive(false)}
+      onSearchClear={() => setSearchActive(false, sessionId)}
       onPathSubmit={(next) => onNavigate(next.startsWith('/') ? next : `/${next}`)}
     />
   )

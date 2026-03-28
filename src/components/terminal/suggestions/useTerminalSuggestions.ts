@@ -19,6 +19,7 @@ interface UseTerminalSuggestionsOptions {
   matchMode: SuggestionMatchMode
   enabledSources: SuggestionSource[]
   connectionKind: TerminalConnectionKind
+  connectionId?: string | null
   platformProfile?: TerminalPlatformProfile
   limit?: number
 }
@@ -117,6 +118,7 @@ export function useTerminalSuggestions({
   matchMode,
   enabledSources,
   connectionKind,
+  connectionId,
   platformProfile = 'unknown',
   limit = 12,
 }: UseTerminalSuggestionsOptions): UseTerminalSuggestionsResult {
@@ -146,6 +148,7 @@ export function useTerminalSuggestions({
 
     const request = buildTerminalSuggestionRequest(session, {
       connectionKind,
+      connectionId,
       matchMode,
       platformProfile,
       limit,
@@ -162,7 +165,7 @@ export function useTerminalSuggestions({
     setVisible(true)
     setCandidates(nextCandidates)
     setActiveIndex((prev) => clampIndex(prev < 0 ? 0 : prev, nextCandidates.length))
-  }, [connectionKind, enabled, limit, matchMode, paneId, platformProfile, providers])
+  }, [connectionId, connectionKind, enabled, limit, matchMode, paneId, platformProfile, providers])
 
   const close = () => {
     setVisible(false)

@@ -1,10 +1,12 @@
 /* ── 文件传输弹出层 ── */
 
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { AppIcon, icons } from '../../../components/icons/AppIcon'
 import { useTransferStore } from '../../../stores/useTransferStore'
+import { useSftpStore } from '../../../stores/useSftpStore'
 import { saveDownload, clearDownloadBlob } from '../../../services/transfer-engine'
 import type { TransferTask, TransferStatus } from '../../../types/sftp'
+import { getTransferHistoryPage, type TransferHistoryEntry } from '../../../api/client'
 
 type TabKey = 'all' | 'active' | 'queued' | 'paused' | 'failed' | 'done'
 
@@ -118,19 +120,108 @@ function TaskRow({ task }: { task: TransferTask }) {
     </div>
   )
 }
+
+function mapHistoryEntryToTask(entry: TransferHistoryEntry): TransferTask {
+  const normalizedStatus: TransferStatus = entry.status === 'canceled' ? 'cancelled' : entry.status
+  const fileName = entry.remotePath.split('/').filter(Boolean).at(-1) || entry.remotePath
+  const ts = Date.parse(entry.createdAt)
+  return {
+    id: entry.transferId,
+    type: entry.direction,
+    fileName,
+    remotePath: entry.remotePath,
+    fileSize: Math.max(0, entry.fileSize || 0),
+    bytesTransferred: Math.max(0, entry.bytesTransferred || 0),
+    status: normalizedStatus,
+    connectionId: 'history',
+    connectionName: 'History',
+    speed: 0,
+    error: entry.errorMessage || undefined,
+    startedAt: Number.isFinite(ts) ? ts : undefined,
+    completedAt: Number.isFinite(ts) ? ts : undefined,
+  }
+}
+
 export default function TransferPopover() {
+  const pageSize = 80
   const tasks = useTransferStore(s => s.tasks)
   const clearCompleted = useTransferStore(s => s.clearCompleted)
   const [activeTab, setActiveTab] = useState<TabKey>('all')
+  const [historyTasks, setHistoryTasks] = useState<TransferTask[]>([])
+  const [historyBeforeId, setHistoryBeforeId] = useState<number | undefined>(undefined)
+  const [historyHasMore, setHistoryHasMore] = useState(true)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const sessionKeyFilter = useSftpStore((s) => s.bridgeSessionKey || undefined)
+
+  useEffect(() => {
+    let disposed = false
+    const loadFirstPage = async () => {
+      setHistoryLoading(true)
+      try {
+        const rows = await getTransferHistoryPage({ sessionKey: sessionKeyFilter, limit: pageSize })
+        if (disposed) return
+        const mapped = rows.map(mapHistoryEntryToTask)
+        setHistoryTasks(mapped)
+        setHistoryBeforeId(rows.length > 0 ? rows[rows.length - 1].id : undefined)
+        setHistoryHasMore(rows.length >= pageSize)
+      } catch {
+        if (!disposed) {
+          setHistoryTasks([])
+          setHistoryHasMore(false)
+        }
+      } finally {
+        if (!disposed) setHistoryLoading(false)
+      }
+    }
+    void loadFirstPage()
+    const timer = window.setInterval(() => { void loadFirstPage() }, 12_000)
+    return () => {
+      disposed = true
+      window.clearInterval(timer)
+    }
+  }, [sessionKeyFilter])
+
+  const loadMoreHistory = async () => {
+    if (!historyHasMore || historyLoading) return
+    setHistoryLoading(true)
+    try {
+      const rows = await getTransferHistoryPage({
+        sessionKey: sessionKeyFilter,
+        limit: pageSize,
+        beforeId: historyBeforeId,
+      })
+      const mapped = rows.map(mapHistoryEntryToTask)
+      setHistoryTasks((prev) => {
+        const dedup = new Map(prev.map((item) => [item.id, item]))
+        for (const task of mapped) {
+          if (!dedup.has(task.id)) dedup.set(task.id, task)
+        }
+        return Array.from(dedup.values()).sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0))
+      })
+      setHistoryBeforeId(rows.length > 0 ? rows[rows.length - 1].id : historyBeforeId)
+      setHistoryHasMore(rows.length >= pageSize)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const mergedTasks = useMemo(() => {
+    const map = new Map<string, TransferTask>()
+    for (const task of tasks) map.set(task.id, task)
+    for (const task of historyTasks) {
+      if (!map.has(task.id)) map.set(task.id, task)
+    }
+    return Array.from(map.values()).sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0))
+  }, [tasks, historyTasks])
 
   const filtered = useMemo(
-    () => tasks.filter(t => matchTab(t.status, activeTab)),
-    [tasks, activeTab],
+    () => mergedTasks.filter(t => matchTab(t.status, activeTab)),
+    [mergedTasks, activeTab],
   )
 
   const activeCount = useMemo(
-    () => tasks.filter(t => t.status === 'active' || t.status === 'queued').length,
-    [tasks],
+    () => mergedTasks.filter(t => t.status === 'active' || t.status === 'queued').length,
+    [mergedTasks],
   )
 
   return (
@@ -177,6 +268,17 @@ export default function TransferPopover() {
             {filtered.map(task => (
               <TaskRow key={task.id} task={task} />
             ))}
+            {historyHasMore && (
+              <div className="px-3 py-2 flex items-center justify-center">
+                <button
+                  className="text-[11px] text-text-3 hover:text-primary transition-colors disabled:opacity-50"
+                  onClick={() => { void loadMoreHistory() }}
+                  disabled={historyLoading}
+                >
+                  {historyLoading ? '加载中...' : '加载更多历史'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

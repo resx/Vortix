@@ -105,7 +105,13 @@ async fn run_bridge_session(
                 match parsed.r#type.as_str() {
                     "sftp-connect" => {
                         if let Some(data) = parsed.data {
-                            match start_sftp_worker(data, event_tx.clone(), db.paths.known_hosts_path.clone()) {
+                            match start_sftp_worker(
+                                data,
+                                event_tx.clone(),
+                                db.paths.known_hosts_path.clone(),
+                                session_id.clone(),
+                                db.pool.clone(),
+                            ) {
                                 Ok(w) => worker = Some(w),
                                 Err(error) => {
                                     emit_sftp_event(&app, &session_id, json!({

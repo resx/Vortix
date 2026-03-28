@@ -2,67 +2,9 @@
 
 import { create } from 'zustand'
 import type { SplitNode, PaneLeaf, SplitBranch, TabWorkspace, SplitDirection, DropZone, PaneMeta } from '../types/workspace'
+import { collectLeafIds, createLeaf, createSplitBranch, findNode, removeLeaf, replaceNode } from './workspace-store/tree'
 
-/* ── 纯函数工具 ── */
-
-let paneCounter = 0
-export function nextPaneId() {
-  return `pane-${++paneCounter}`
-}
-
-let splitCounter = 0
-function nextSplitId() {
-  return `split-${++splitCounter}`
-}
-
-function createLeaf(id?: string): PaneLeaf {
-  return { type: 'leaf', id: id ?? nextPaneId(), flexGrow: 1, collapsed: false }
-}
-
-/** 收集所有叶子节点 ID */
-export function collectLeafIds(node: SplitNode): string[] {
-  if (node.type === 'leaf') return [node.id]
-  return node.children.flatMap(collectLeafIds)
-}
-
-/** 在树中替换指定 ID 的节点 */
-function replaceNode(root: SplitNode, targetId: string, replacement: SplitNode): SplitNode {
-  if (root.id === targetId) return replacement
-  if (root.type === 'leaf') return root
-  return {
-    ...root,
-    children: root.children.map(c => replaceNode(c, targetId, replacement)),
-  }
-}
-
-/** 从树中移除叶子节点，自动解包单子节点容器 */
-function removeLeaf(root: SplitNode, leafId: string): SplitNode | null {
-  if (root.type === 'leaf') {
-    return root.id === leafId ? null : root
-  }
-  const remaining = root.children
-    .map(c => removeLeaf(c, leafId))
-    .filter((c): c is SplitNode => c !== null)
-
-  if (remaining.length === 0) return null
-  if (remaining.length === 1) {
-    // 解包：继承父级 flexGrow
-    const child = remaining[0]
-    return { ...child, flexGrow: root.flexGrow }
-  }
-  return { ...root, children: remaining }
-}
-
-/** 从树中查找指定节点 */
-export function findNode(root: SplitNode, id: string): SplitNode | null {
-  if (root.id === id) return root
-  if (root.type === 'leaf') return null
-  for (const c of root.children) {
-    const found = findNode(c, id)
-    if (found) return found
-  }
-  return null
-}
+export { nextPaneId, collectLeafIds, findNode } from './workspace-store/tree'
 
 /* ── Store ── */
 
@@ -129,13 +71,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const leaves: PaneLeaf[] = panes.map(p => ({
       type: 'leaf' as const, id: p.id, flexGrow: 1, collapsed: false, meta: p.meta,
     }))
-    const root: SplitBranch = {
-      type: 'split',
-      id: nextSplitId(),
-      direction,
-      children: leaves,
-      flexGrow: 1,
-    }
+    const root: SplitBranch = createSplitBranch(direction, leaves)
     set((s) => ({
       workspaces: {
         ...s.workspaces,
@@ -154,16 +90,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const ws = s.workspaces[tabId]
     if (!ws) return {}
     const newLeaf = createLeaf()
-    const newBranch: SplitBranch = {
-      type: 'split',
-      id: nextSplitId(),
+    const targetNode = findNode(ws.rootNode, paneId) as PaneLeaf | null
+    const newBranch: SplitBranch = createSplitBranch(
       direction,
-      children: [
-        { ...findNode(ws.rootNode, paneId)! as PaneLeaf, flexGrow: 1 },
-        newLeaf,
-      ],
-      flexGrow: (findNode(ws.rootNode, paneId) as PaneLeaf)?.flexGrow ?? 1,
-    }
+      [{ ...(targetNode ?? createLeaf(paneId)), flexGrow: 1 }, newLeaf],
+      targetNode?.flexGrow ?? 1,
+    )
     return {
       workspaces: {
         ...s.workspaces,
@@ -211,13 +143,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const children: SplitNode[] = (zone === 'left' || zone === 'top')
       ? [sourceCopy, { ...targetNode, flexGrow: 1 }]
       : [{ ...targetNode, flexGrow: 1 }, sourceCopy]
-    const newBranch: SplitBranch = {
-      type: 'split',
-      id: nextSplitId(),
-      direction: dir,
-      children,
-      flexGrow: targetNode.flexGrow,
-    }
+    const newBranch: SplitBranch = createSplitBranch(dir, children, targetNode.flexGrow)
     const newRoot = replaceNode(treeAfterRemove, targetId, newBranch)
     return {
       workspaces: {
@@ -313,13 +239,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
     const children: SplitNode[] = (zone === 'left' || zone === 'top')
       ? [newLeaf, { ...targetNode, flexGrow: 1 }]
       : [{ ...targetNode, flexGrow: 1 }, newLeaf]
-    const newBranch: SplitBranch = {
-      type: 'split',
-      id: nextSplitId(),
-      direction: dir,
-      children,
-      flexGrow: targetNode.flexGrow,
-    }
+    const newBranch: SplitBranch = createSplitBranch(dir, children, targetNode.flexGrow)
     const newRoot = replaceNode(ws.rootNode, targetPaneId, newBranch)
     return {
       workspaces: {
